@@ -3,6 +3,7 @@ package com.aicsassistant.manual.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.aicsassistant.inquiry.domain.InquiryCategory;
+import com.aicsassistant.manual.domain.ManualDocument;
 import com.aicsassistant.manual.dto.CreateManualDocumentRequest;
 import com.aicsassistant.manual.dto.ManualChunkResponse;
 import com.aicsassistant.manual.dto.ManualDocumentResponse;
@@ -26,6 +27,23 @@ class ManualServiceTest extends PostgresVectorIntegrationTest {
 
     @Autowired
     ManualChunkJdbcRepository manualChunkJdbcRepository;
+
+    @Test
+    void manualDocumentProvidesExplicitLifecycleMethods() {
+        ManualDocument document = ManualDocument.create(
+                "예약 변경 안내",
+                InquiryCategory.RESERVATION_CHANGE,
+                "초기 내용"
+        );
+
+        document.update("예약 변경 최신 안내", InquiryCategory.RESERVATION_CHANGE, "수정 내용");
+        document.deactivate();
+
+        assertThat(document.getTitle()).isEqualTo("예약 변경 최신 안내");
+        assertThat(document.getContent()).isEqualTo("수정 내용");
+        assertThat(document.getVersion()).isEqualTo(2);
+        assertThat(document.isActive()).isFalse();
+    }
 
     @Test
     void updatingManualIncrementsVersionAndReplacesActiveChunks() {

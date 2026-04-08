@@ -45,6 +45,27 @@ public class ManualDocument {
     protected ManualDocument() {
     }
 
+    public static ManualDocument create(String title, InquiryCategory category, String content) {
+        ManualDocument document = new ManualDocument();
+        document.title = title;
+        document.category = category;
+        document.content = content;
+        document.version = 1;
+        document.active = true;
+        return document;
+    }
+
+    public void update(String title, InquiryCategory category, String content) {
+        this.title = title;
+        this.category = category;
+        this.content = content;
+        this.version = version + 1;
+    }
+
+    public void deactivate() {
+        this.active = false;
+    }
+
     @PrePersist
     void prePersist() {
         LocalDateTime now = LocalDateTime.now();
