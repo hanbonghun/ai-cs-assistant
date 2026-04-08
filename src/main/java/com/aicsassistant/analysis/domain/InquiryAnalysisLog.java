@@ -16,6 +16,8 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "inquiry_analysis_log")
@@ -65,6 +67,55 @@ public class InquiryAnalysisLog {
     private LocalDateTime createdAt;
 
     protected InquiryAnalysisLog() {
+    }
+
+    public static InquiryAnalysisLog success(
+            Inquiry inquiry,
+            String requestSnapshot,
+            InquiryCategory classifiedCategory,
+            UrgencyLevel classifiedUrgency,
+            List<Long> retrievedChunkIds,
+            String generatedDraft,
+            String modelName,
+            String promptVersion,
+            long latencyMs
+    ) {
+        InquiryAnalysisLog log = new InquiryAnalysisLog();
+        log.inquiry = inquiry;
+        log.requestSnapshot = requestSnapshot;
+        log.classifiedCategory = classifiedCategory;
+        log.classifiedUrgency = classifiedUrgency;
+        log.retrievedChunkIds = toChunkIdCsv(retrievedChunkIds);
+        log.generatedDraft = generatedDraft;
+        log.modelName = modelName;
+        log.promptVersion = promptVersion;
+        log.analysisStatus = AnalysisStatus.SUCCESS;
+        log.errorMessage = null;
+        log.latencyMs = latencyMs;
+        return log;
+    }
+
+    public static InquiryAnalysisLog failure(
+            Inquiry inquiry,
+            String requestSnapshot,
+            String modelName,
+            String promptVersion,
+            String errorMessage,
+            long latencyMs
+    ) {
+        InquiryAnalysisLog log = new InquiryAnalysisLog();
+        log.inquiry = inquiry;
+        log.requestSnapshot = requestSnapshot;
+        log.classifiedCategory = null;
+        log.classifiedUrgency = null;
+        log.retrievedChunkIds = null;
+        log.generatedDraft = null;
+        log.modelName = modelName;
+        log.promptVersion = promptVersion;
+        log.analysisStatus = AnalysisStatus.FAILURE;
+        log.errorMessage = errorMessage;
+        log.latencyMs = latencyMs;
+        return log;
     }
 
     @PrePersist
@@ -122,5 +173,14 @@ public class InquiryAnalysisLog {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    private static String toChunkIdCsv(List<Long> chunkIds) {
+        if (chunkIds == null || chunkIds.isEmpty()) {
+            return "";
+        }
+        return chunkIds.stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(","));
     }
 }

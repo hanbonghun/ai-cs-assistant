@@ -91,6 +91,20 @@ public class Inquiry {
         status = InquiryStatus.AI_PROCESSED;
     }
 
+    public void applyAnalysis(InquiryCategory category, UrgencyLevel urgency, String aiDraftAnswer) {
+        if (status == InquiryStatus.CLOSED || status == InquiryStatus.REVIEWED) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_INQUIRY_STATE",
+                    "Only NEW or AI_PROCESSED inquiries can be analyzed"
+            );
+        }
+        this.category = category;
+        this.urgency = urgency;
+        this.aiDraftAnswer = aiDraftAnswer;
+        this.status = InquiryStatus.AI_PROCESSED;
+    }
+
     public void confirmReview(String finalAnswer, String reviewMemo, String reviewedBy) {
         if (status != InquiryStatus.NEW && status != InquiryStatus.AI_PROCESSED) {
             throw new ApiException(
