@@ -41,12 +41,26 @@ class ReviewServiceTest extends PostgresVectorIntegrationTest {
     }
 
     @Test
-    void reviewRejectsNewInquiry() {
+    void reviewAllowsNewInquiryWithoutAiProcessing() {
         Inquiry inquiry = inquiryRepository.save(Inquiry.create("cust-003", "문의", "상담 가능한가요?"));
+
+        reviewService.confirm(inquiry.getId(), new ReviewInquiryRequest("답변", null, "mimi"));
+
+        Inquiry reloaded = inquiryRepository.findById(inquiry.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(InquiryStatus.REVIEWED);
+        assertThat(reloaded.getFinalAnswer()).isEqualTo("답변");
+        assertThat(reloaded.getReviewedBy()).isEqualTo("mimi");
+    }
+
+    @Test
+    void reviewRejectsClosedInquiry() {
+        Inquiry inquiry = inquiryRepository.save(Inquiry.create("cust-005", "문의", "닫힌 문의입니다."));
+        reviewService.confirm(inquiry.getId(), new ReviewInquiryRequest("첫 답변", null, "mimi"));
+        inquiryService.close(inquiry.getId());
 
         assertThatThrownBy(() -> reviewService.confirm(
                 inquiry.getId(),
-                new ReviewInquiryRequest("답변", null, "mimi")
+                new ReviewInquiryRequest("수정 답변", null, "mimi")
         )).isInstanceOf(ApiException.class);
     }
 

@@ -92,8 +92,12 @@ public class Inquiry {
     }
 
     public void confirmReview(String finalAnswer, String reviewMemo, String reviewedBy) {
-        if (status != InquiryStatus.AI_PROCESSED) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INQUIRY_STATE", "Only AI_PROCESSED inquiries can be reviewed");
+        if (status != InquiryStatus.NEW && status != InquiryStatus.AI_PROCESSED) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_INQUIRY_STATE",
+                    "Only NEW or AI_PROCESSED inquiries can be reviewed"
+            );
         }
         this.finalAnswer = finalAnswer;
         this.reviewMemo = reviewMemo;
