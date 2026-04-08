@@ -1,0 +1,85 @@
+package com.aicsassistant.inquiry.application;
+
+import com.aicsassistant.analysis.domain.InquiryAnalysisLog;
+import com.aicsassistant.analysis.infra.InquiryAnalysisLogRepository;
+import com.aicsassistant.common.exception.ApiException;
+import com.aicsassistant.inquiry.domain.Inquiry;
+import com.aicsassistant.inquiry.domain.InquiryCategory;
+import com.aicsassistant.inquiry.domain.InquiryStatus;
+import com.aicsassistant.inquiry.domain.UrgencyLevel;
+import com.aicsassistant.inquiry.dto.CreateInquiryRequest;
+import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
+import com.aicsassistant.inquiry.dto.InquiryListResponse;
+import com.aicsassistant.inquiry.infra.InquiryRepository;
+import java.util.Comparator;
+import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@Transactional(readOnly = true)
+public class InquiryService {
+
+    private final InquiryRepository inquiryRepository;
+    private final InquiryAnalysisLogRepository inquiryAnalysisLogRepository;
+
+    public InquiryService(
+            InquiryRepository inquiryRepository,
+            InquiryAnalysisLogRepository inquiryAnalysisLogRepository
+    ) {
+        this.inquiryRepository = inquiryRepository;
+        this.inquiryAnalysisLogRepository = inquiryAnalysisLogRepository;
+    }
+
+    @Transactional
+    public InquiryDetailResponse create(CreateInquiryRequest request) {
+        Inquiry inquiry = Inquiry.create(
+                request.customerIdentifier(),
+                request.title(),
+                request.content(),
+                request.category(),
+                request.urgency()
+        );
+        Inquiry saved = inquiryRepository.save(inquiry);
+        return InquiryDetailResponse.from(saved, List.of());
+    }
+
+    public List<InquiryListResponse> getInquiries(
+            InquiryStatus status,
+            InquiryCategory category,
+            UrgencyLevel urgency
+    ) {
+        return inquiryRepository.findAll().stream()
+                .filter(inquiry -> status == null || inquiry.getStatus() == status)
+                .filter(inquiry -> category == null || inquiry.getCategory() == category)
+                .filter(inquiry -> urgency == null || inquiry.getUrgency() == urgency)
+                .sorted(Comparator.comparing(Inquiry::getCreatedAt).reversed())
+                .map(InquiryListResponse::from)
+                .toList();
+    }
+
+    public InquiryDetailResponse getInquiry(Long id) {
+        Inquiry inquiry = getInquiryEntity(id);
+        List<InquiryAnalysisLog> logs = inquiryAnalysisLogRepository.findAll().stream()
+                .filter(log -> log.getInquiry().getId().equals(id))
+                .sorted(Comparator.comparing(InquiryAnalysisLog::getCreatedAt).reversed())
+                .limit(5)
+                .toList();
+        return InquiryDetailResponse.from(inquiry, logs);
+    }
+
+    @Transactional
+    public void close(Long id) {
+        Inquiry inquiry = getInquiryEntity(id);
+        if (inquiry.getStatus() != InquiryStatus.REVIEWED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INQUIRY_STATE", "Only REVIEWED inquiries can be closed");
+        }
+        inquiry.close();
+    }
+
+    private Inquiry getInquiryEntity(Long id) {
+        return inquiryRepository.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "INQUIRY_NOT_FOUND", "Inquiry not found"));
+    }
+}

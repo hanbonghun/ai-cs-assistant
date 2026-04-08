@@ -1,5 +1,6 @@
 package com.aicsassistant.inquiry.domain;
 
+import com.aicsassistant.common.exception.ApiException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,6 +12,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import org.springframework.http.HttpStatus;
 
 @Entity
 @Table(name = "inquiry")
@@ -62,12 +64,48 @@ public class Inquiry {
     }
 
     public static Inquiry create(String customerIdentifier, String title, String content) {
+        return create(customerIdentifier, title, content, null, null);
+    }
+
+    public static Inquiry create(
+            String customerIdentifier,
+            String title,
+            String content,
+            InquiryCategory category,
+            UrgencyLevel urgency
+    ) {
         Inquiry inquiry = new Inquiry();
         inquiry.customerIdentifier = customerIdentifier;
         inquiry.title = title;
         inquiry.content = content;
+        inquiry.category = category;
+        inquiry.urgency = urgency;
         inquiry.status = InquiryStatus.NEW;
         return inquiry;
+    }
+
+    public void markAiProcessed() {
+        if (status != InquiryStatus.NEW) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INQUIRY_STATE", "Only NEW inquiries can be AI processed");
+        }
+        status = InquiryStatus.AI_PROCESSED;
+    }
+
+    public void confirmReview(String finalAnswer, String reviewMemo, String reviewedBy) {
+        if (status != InquiryStatus.AI_PROCESSED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INQUIRY_STATE", "Only AI_PROCESSED inquiries can be reviewed");
+        }
+        this.finalAnswer = finalAnswer;
+        this.reviewMemo = reviewMemo;
+        this.reviewedBy = reviewedBy;
+        status = InquiryStatus.REVIEWED;
+    }
+
+    public void close() {
+        if (status != InquiryStatus.REVIEWED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INQUIRY_STATE", "Only REVIEWED inquiries can be closed");
+        }
+        status = InquiryStatus.CLOSED;
     }
 
     @PrePersist
