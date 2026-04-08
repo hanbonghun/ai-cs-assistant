@@ -1,5 +1,8 @@
 package com.aicsassistant.support;
 
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -18,5 +21,13 @@ public abstract class PostgresVectorIntegrationTest {
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.sql.init.mode", () -> "always");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "none");
+    }
+
+    @Autowired
+    JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void clearDatabase() {
+        jdbcTemplate.execute("truncate table inquiry_analysis_log, manual_chunk, inquiry, manual_document restart identity cascade");
     }
 }

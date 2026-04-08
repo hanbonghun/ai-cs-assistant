@@ -20,8 +20,13 @@ class LocalSeedDataInitializerTest extends PostgresVectorIntegrationTest {
     @Autowired
     ManualDocumentRepository manualDocumentRepository;
 
+    @Autowired
+    LocalSeedDataInitializer localSeedDataInitializer;
+
     @Test
-    void insertsDemoRecords() {
+    void insertsDemoRecordsIntoEmptyTables() {
+        localSeedDataInitializer.run();
+
         assertThat(inquiryRepository.count()).isGreaterThanOrEqualTo(8);
         assertThat(manualDocumentRepository.count()).isGreaterThanOrEqualTo(5);
     }
