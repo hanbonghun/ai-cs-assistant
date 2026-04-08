@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>문의 등록</title>
+    <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<main class="page">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">Counselor UI</p>
+            <h1>문의 등록</h1>
+            <p class="muted">API로 바로 전달하는 단순 입력 폼입니다.</p>
+        </div>
+        <a class="button secondary" href="/ui/inquiries">목록</a>
+    </header>
+
+    <section class="panel">
+        <form class="form" action="/api/inquiries" method="post">
+            <label>
+                고객 식별자
+                <input type="text" name="customerIdentifier" placeholder="cust-001">
+            </label>
+            <label>
+                제목
+                <input type="text" name="title" placeholder="환불 문의">
+            </label>
+            <label>
+                내용
+                <textarea name="content" rows="7" placeholder="문의 내용을 입력하세요."></textarea>
+            </label>
+            <div class="grid-two">
+                <label>
+                    카테고리
+                    <select name="category">
+                        <option th:each="category : ${categories}" th:value="${category}" th:text="${category}">REFUND</option>
+                    </select>
+                </label>
+                <label>
+                    긴급도
+                    <select name="urgency">
+                        <option th:each="urgency : ${urgencies}" th:value="${urgency}" th:text="${urgency}">HIGH</option>
+                    </select>
+                </label>
+            </div>
+            <div class="actions">
+                <button class="button" type="submit">등록</button>
+            </div>
+        </form>
+    </section>
+</main>
+</body>
+</html>

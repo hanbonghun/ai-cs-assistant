@@ -1,6 +1,10 @@
 spring:
   main:
     lazy-initialization: true
+  mvc:
+    hiddenmethod:
+      filter:
+        enabled: true
 
 app:
   ai:

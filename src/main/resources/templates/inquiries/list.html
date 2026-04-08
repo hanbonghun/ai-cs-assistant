@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>문의 목록</title>
+    <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<main class="page">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">Counselor UI</p>
+            <h1>문의 목록</h1>
+            <p class="muted">상담사 검토용 데모 화면입니다.</p>
+        </div>
+        <a class="button" href="/ui/inquiries/new">문의 등록</a>
+    </header>
+
+    <section class="panel">
+        <table class="table">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>제목</th>
+                <th>고객</th>
+                <th>카테고리</th>
+                <th>긴급도</th>
+                <th>상태</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="inquiry : ${inquiries}">
+                <td th:text="${inquiry.id}">1</td>
+                <td th:text="${inquiry.title}">문의 제목</td>
+                <td th:text="${inquiry.customerIdentifier}">cust-1</td>
+                <td th:text="${inquiry.category}">REFUND</td>
+                <td th:text="${inquiry.urgency}">HIGH</td>
+                <td th:text="${inquiry.status}">NEW</td>
+                <td><a th:href="@{/ui/inquiries/{id}(id=${inquiry.id})}">상세</a></td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(inquiries)}">
+                <td colspan="7" class="muted">등록된 문의가 없습니다.</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>

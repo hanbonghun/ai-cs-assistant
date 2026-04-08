@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>문의 상세</title>
+    <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<main class="page">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">Counselor UI</p>
+            <h1 th:text="${detail.inquiry.title}">문의 상세</h1>
+            <p class="muted">
+                <span th:text="${detail.inquiry.customerIdentifier}">cust-1</span>
+                <span class="dot">•</span>
+                <span th:text="${detail.inquiry.status}">NEW</span>
+            </p>
+        </div>
+        <a class="button secondary" href="/ui/inquiries">목록</a>
+    </header>
+
+    <section class="panel stack">
+        <div class="summary-grid">
+            <div><span class="label">카테고리</span><strong th:text="${detail.inquiry.category}">REFUND</strong></div>
+            <div><span class="label">긴급도</span><strong th:text="${detail.inquiry.urgency}">HIGH</strong></div>
+            <div><span class="label">생성일</span><strong th:text="${#temporals.format(detail.inquiry.createdAt, 'yyyy-MM-dd HH:mm')}">2026-04-08 09:00</strong></div>
+            <div><span class="label">수정일</span><strong th:text="${#temporals.format(detail.inquiry.updatedAt, 'yyyy-MM-dd HH:mm')}">2026-04-08 09:00</strong></div>
+        </div>
+
+        <article class="card">
+            <h2>문의 내용</h2>
+            <p th:text="${detail.inquiry.content}">문의 내용</p>
+        </article>
+
+        <article class="card">
+            <h2>AI 결과</h2>
+            <p><span class="label">분류</span> <strong th:text="${detail.inquiry.category}">REFUND</strong></p>
+            <p><span class="label">긴급도</span> <strong th:text="${detail.inquiry.urgency}">HIGH</strong></p>
+            <p><span class="label">초안 답변</span></p>
+            <pre class="code" th:text="${detail.inquiry.aiDraftAnswer ?: '아직 AI 분석이 없습니다.'}">아직 AI 분석이 없습니다.</pre>
+        </article>
+
+        <article class="card">
+            <h2>증거 청크</h2>
+            <div th:if="${#lists.isEmpty(detail.evidenceChunks)}" class="muted">분석 로그에 연결된 청크가 없습니다.</div>
+            <div th:each="chunk : ${detail.evidenceChunks}" class="chunk">
+                <div class="chunk-meta">
+                    <strong th:text="${chunk.manualDocumentTitle}">매뉴얼</strong>
+                    <span th:text="${chunk.manualCategory}">REFUND</span>
+                    <span th:text="${'Chunk ' + chunk.chunkIndex}">Chunk 0</span>
+                    <span th:text="${'v' + chunk.documentVersion}">v1</span>
+                </div>
+                <p th:text="${chunk.content}">청크 내용</p>
+            </div>
+        </article>
+
+        <article class="card">
+            <h2>상담사 작업</h2>
+            <div class="actions">
+                <form th:action="@{/api/inquiries/{id}/analyze(id=${detail.inquiry.id})}" method="post">
+                    <button class="button" type="submit">AI 분석</button>
+                </form>
+                <form th:action="@{/api/inquiries/{id}/review(id=${detail.inquiry.id})}" method="post">
+                    <input type="hidden" name="finalAnswer" th:value="${detail.inquiry.aiDraftAnswer}">
+                    <input type="hidden" name="reviewMemo" th:value="${detail.inquiry.reviewMemo}">
+                    <input type="hidden" name="reviewedBy" value="counselor-demo">
+                    <button class="button secondary" type="submit">최종 확정</button>
+                </form>
+                <form th:action="@{/api/inquiries/{id}/close(id=${detail.inquiry.id})}" method="post">
+                    <button class="button ghost" type="submit">종료</button>
+                </form>
+            </div>
+        </article>
+    </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>매뉴얼 상세</title>
+    <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<main class="page">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">Counselor UI</p>
+            <h1 th:text="${manual.title}">매뉴얼 상세</h1>
+            <p class="muted">
+                <span th:text="${manual.category}">REFUND</span>
+                <span class="dot">•</span>
+                <span th:text="${manual.active ? 'ACTIVE' : 'INACTIVE'}">ACTIVE</span>
+            </p>
+        </div>
+        <a class="button secondary" href="/ui/manuals">목록</a>
+    </header>
+
+    <section class="panel stack">
+        <article class="card">
+            <h2>본문</h2>
+            <p th:text="${manual.content}">매뉴얼 본문</p>
+        </article>
+
+        <article class="card">
+            <h2>업데이트</h2>
+            <form class="form" th:action="@{/api/manual-documents/{id}(id=${manual.id})}" method="post">
+                <input type="hidden" name="_method" value="put">
+                <div class="grid-two">
+                    <label>
+                        제목
+                        <input type="text" name="title" th:value="${manual.title}">
+                    </label>
+                    <label>
+                        카테고리
+                        <select name="category">
+                            <option th:each="category : ${categories}" th:value="${category}" th:text="${category}" th:selected="${category == manual.category}">REFUND</option>
+                        </select>
+                    </label>
+                </div>
+                <label>
+                    내용
+                    <textarea name="content" rows="7" th:text="${manual.content}"></textarea>
+                </label>
+                <div class="actions">
+                    <button class="button" type="submit">저장</button>
+                </div>
+            </form>
+        </article>
+
+        <article class="card">
+            <h2>청크</h2>
+            <div th:if="${#lists.isEmpty(chunks)}" class="muted">청크가 없습니다.</div>
+            <div th:each="chunk : ${chunks}" class="chunk">
+                <div class="chunk-meta">
+                    <strong th:text="${'Chunk ' + chunk.chunkIndex}">Chunk 0</strong>
+                    <span th:text="${'v' + chunk.documentVersion}">v1</span>
+                    <span th:text="${chunk.tokenCount + ' tokens'}">0 tokens</span>
+                </div>
+                <p th:text="${chunk.content}">청크 내용</p>
+            </div>
+        </article>
+    </section>
+</main>
+</body>
+</html>

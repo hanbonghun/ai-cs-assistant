@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>매뉴얼 목록</title>
+    <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<main class="page">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">Counselor UI</p>
+            <h1>매뉴얼 목록</h1>
+            <p class="muted">상담 기준 문서를 빠르게 확인하고 추가하는 화면입니다.</p>
+        </div>
+        <a class="button secondary" href="/ui/inquiries">문의로 이동</a>
+    </header>
+
+    <section class="panel stack">
+        <form class="form compact" action="/api/manual-documents" method="post">
+            <h2>매뉴얼 추가</h2>
+            <div class="grid-two">
+                <label>
+                    제목
+                    <input type="text" name="title" placeholder="환불 정책">
+                </label>
+                <label>
+                    카테고리
+                    <select name="category">
+                        <option th:each="category : ${categories}" th:value="${category}" th:text="${category}">REFUND</option>
+                    </select>
+                </label>
+            </div>
+            <label>
+                내용
+                <textarea name="content" rows="6" placeholder="매뉴얼 내용을 입력하세요."></textarea>
+            </label>
+            <div class="actions">
+                <button class="button" type="submit">등록</button>
+            </div>
+        </form>
+
+        <table class="table">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>제목</th>
+                <th>카테고리</th>
+                <th>버전</th>
+                <th>상태</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="manual : ${manuals}">
+                <td th:text="${manual.id}">1</td>
+                <td th:text="${manual.title}">환불 정책</td>
+                <td th:text="${manual.category}">REFUND</td>
+                <td th:text="${manual.version}">1</td>
+                <td th:text="${manual.active ? 'ACTIVE' : 'INACTIVE'}">ACTIVE</td>
+                <td><a th:href="@{/ui/manuals/{id}(id=${manual.id})}">상세</a></td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(manuals)}">
+                <td colspan="6" class="muted">등록된 매뉴얼이 없습니다.</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>
