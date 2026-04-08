@@ -29,11 +29,11 @@ public class Inquiry {
     private String content;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 50)
+    @Column(length = 50)
     private InquiryCategory category;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(length = 20)
     private UrgencyLevel urgency;
 
     @Enumerated(EnumType.STRING)
@@ -66,8 +66,6 @@ public class Inquiry {
         inquiry.customerIdentifier = customerIdentifier;
         inquiry.title = title;
         inquiry.content = content;
-        inquiry.category = InquiryCategory.GENERAL;
-        inquiry.urgency = UrgencyLevel.MEDIUM;
         inquiry.status = InquiryStatus.NEW;
         return inquiry;
     }

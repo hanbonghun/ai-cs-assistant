@@ -20,14 +20,14 @@ public class ManualChunk {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "document_id", nullable = false)
+    @JoinColumn(name = "manual_document_id", nullable = false)
     private ManualDocument manualDocument;
 
     @Column(name = "chunk_index", nullable = false)
     private Integer chunkIndex;
 
-    @Column(name = "document_version", nullable = false, length = 50)
-    private String documentVersion;
+    @Column(name = "document_version", nullable = false)
+    private Integer documentVersion;
 
     @Column(nullable = false, columnDefinition = "text")
     private String content;
@@ -64,7 +64,7 @@ public class ManualChunk {
         return chunkIndex;
     }
 
-    public String getDocumentVersion() {
+    public Integer getDocumentVersion() {
         return documentVersion;
     }
 

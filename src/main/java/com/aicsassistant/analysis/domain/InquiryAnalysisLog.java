@@ -32,11 +32,11 @@ public class InquiryAnalysisLog {
     private String requestSnapshot;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "classified_category", nullable = false, length = 50)
+    @Column(name = "classified_category", length = 50)
     private InquiryCategory classifiedCategory;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "classified_urgency", nullable = false, length = 20)
+    @Column(name = "classified_urgency", length = 20)
     private UrgencyLevel classifiedUrgency;
 
     @Column(name = "retrieved_chunk_ids", columnDefinition = "text")

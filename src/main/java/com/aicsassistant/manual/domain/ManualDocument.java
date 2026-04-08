@@ -30,8 +30,8 @@ public class ManualDocument {
     @Column(nullable = false, columnDefinition = "text")
     private String content;
 
-    @Column(nullable = false, length = 50)
-    private String version;
+    @Column(nullable = false)
+    private Integer version;
 
     @Column(nullable = false)
     private boolean active;
@@ -73,7 +73,7 @@ public class ManualDocument {
         return content;
     }
 
-    public String getVersion() {
+    public Integer getVersion() {
         return version;
     }
 

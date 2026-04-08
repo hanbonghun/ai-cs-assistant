@@ -5,8 +5,8 @@ create table if not exists inquiry (
     customer_identifier varchar(100) not null,
     title varchar(200) not null,
     content text not null,
-    category varchar(50) not null,
-    urgency varchar(20) not null,
+    category varchar(50),
+    urgency varchar(20),
     status varchar(20) not null,
     ai_draft_answer text,
     final_answer text,
@@ -21,7 +21,7 @@ create table if not exists manual_document (
     title varchar(200) not null,
     category varchar(50) not null,
     content text not null,
-    version varchar(50) not null,
+    version integer not null,
     active boolean not null,
     created_at timestamp not null,
     updated_at timestamp not null
@@ -29,9 +29,9 @@ create table if not exists manual_document (
 
 create table if not exists manual_chunk (
     id bigserial primary key,
-    document_id bigint not null references manual_document(id),
+    manual_document_id bigint not null references manual_document(id),
     chunk_index integer not null,
-    document_version varchar(50) not null,
+    document_version integer not null,
     content text not null,
     token_count integer not null,
     embedding vector(1536),
@@ -43,8 +43,8 @@ create table if not exists inquiry_analysis_log (
     id bigserial primary key,
     inquiry_id bigint not null references inquiry(id),
     request_snapshot text not null,
-    classified_category varchar(50) not null,
-    classified_urgency varchar(20) not null,
+    classified_category varchar(50),
+    classified_urgency varchar(20),
     retrieved_chunk_ids text,
     generated_draft text,
     model_name varchar(100),
@@ -55,5 +55,5 @@ create table if not exists inquiry_analysis_log (
     created_at timestamp not null
 );
 
-create index if not exists idx_manual_chunk_document_id on manual_chunk(document_id);
+create index if not exists idx_manual_chunk_manual_document_id on manual_chunk(manual_document_id);
 create index if not exists idx_inquiry_analysis_log_inquiry_id on inquiry_analysis_log(inquiry_id);
