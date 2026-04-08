@@ -1,3 +1,10 @@
 spring:
   main:
     lazy-initialization: true
+
+app:
+  ai:
+    provider: openai
+    model: gpt-4.1-mini
+    api-key: test-key
+    embedding-model: text-embedding-3-small
