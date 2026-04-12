@@ -68,6 +68,9 @@ public class InquiryAnalysisLog {
     @Column(name = "latency_ms")
     private Long latencyMs;
 
+    @Column(name = "total_tokens")
+    private Integer totalTokens;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -84,7 +87,8 @@ public class InquiryAnalysisLog {
             String modelName,
             String promptVersion,
             String agentSteps,
-            long latencyMs
+            long latencyMs,
+            int totalTokens
     ) {
         InquiryAnalysisLog log = new InquiryAnalysisLog();
         log.inquiry = inquiry;
@@ -99,6 +103,7 @@ public class InquiryAnalysisLog {
         log.analysisStatus = AnalysisStatus.SUCCESS;
         log.errorMessage = null;
         log.latencyMs = latencyMs;
+        log.totalTokens = totalTokens;
         return log;
     }
 

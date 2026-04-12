@@ -36,7 +36,8 @@ public class AnalysisLogService {
             List<RetrievedManualChunkDto> chunks,
             DraftAnswerDto draft,
             List<AgentStep> agentSteps,
-            long startedAtMillis
+            long startedAtMillis,
+            int totalTokens
     ) {
         InquiryAnalysisLog logEntry = InquiryAnalysisLog.success(
                 inquiry,
@@ -48,7 +49,8 @@ public class AnalysisLogService {
                 llmClient.modelName(),
                 promptFactory.promptVersion(),
                 serializeSteps(agentSteps),
-                elapsed(startedAtMillis)
+                elapsed(startedAtMillis),
+                totalTokens
         );
         inquiryAnalysisLogRepository.save(logEntry);
     }

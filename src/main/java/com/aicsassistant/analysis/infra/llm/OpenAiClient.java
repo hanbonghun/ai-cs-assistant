@@ -53,6 +53,36 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
         return content.asText();
     }
 
+    @Override
+    public LlmResponse completeWithUsage(List<ChatMessage> messages) {
+        String messagesJson = serializeMessages(messages);
+        JsonNode response = webClient.post()
+                .uri("https://api.openai.com/v1/chat/completions")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + aiProperties.getApiKey())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {
+                          "model": "%s",
+                          "messages": %s,
+                          "temperature": 0.1
+                        }
+                        """.formatted(aiProperties.getModel(), messagesJson))
+                .retrieve()
+                .bodyToMono(JsonNode.class)
+                .block();
+
+        if (response == null) {
+            throw new IllegalStateException("OpenAI chat completion returned empty response");
+        }
+        JsonNode content = response.path("choices").path(0).path("message").path("content");
+        if (content.isMissingNode() || content.asText().isBlank()) {
+            throw new IllegalStateException("OpenAI chat completion missing content");
+        }
+        int promptTokens = response.path("usage").path("prompt_tokens").asInt(0);
+        int completionTokens = response.path("usage").path("completion_tokens").asInt(0);
+        return new LlmResponse(content.asText(), promptTokens, completionTokens);
+    }
+
     private String serializeMessages(List<ChatMessage> messages) {
         try {
             List<Map<String, String>> payload = messages.stream()

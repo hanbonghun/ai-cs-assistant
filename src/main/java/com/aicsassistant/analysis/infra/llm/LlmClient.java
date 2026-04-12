@@ -8,5 +8,7 @@ public interface LlmClient {
 
     String complete(List<ChatMessage> messages);
 
+    LlmResponse completeWithUsage(List<ChatMessage> messages);
+
     String modelName();
 }

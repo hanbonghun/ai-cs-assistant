@@ -7,6 +7,7 @@ import com.aicsassistant.analysis.application.PromptFactory;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.analysis.infra.llm.ChatMessage;
 import com.aicsassistant.analysis.infra.llm.LlmClient;
+import com.aicsassistant.analysis.infra.llm.LlmResponse;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.InquiryMessageRole;
@@ -67,23 +68,26 @@ public class InquiryAgentService {
         }
 
         List<AgentStep> steps = new ArrayList<>();
+        int totalTokens = 0;
 
         for (int step = 0; step < MAX_STEPS; step++) {
-            String raw = llmClient.complete(messages);
-            log.debug("[Agent inquiryId={} step={}] raw={}", inquiry.getId(), step, raw);
+            LlmResponse llmResponse = llmClient.completeWithUsage(messages);
+            totalTokens += llmResponse.totalTokens();
+            String raw = llmResponse.content();
+            log.debug("[Agent inquiryId={} step={} tokens={}] raw={}", inquiry.getId(), step, llmResponse.totalTokens(), raw);
 
             JsonNode node = parseJson(raw);
             String thought = node.path("thought").asText("");
 
             if (node.has("finalAnswer")) {
-                log.info("[Agent done] inquiryId={} steps={}", inquiry.getId(), step);
-                return buildFinalAnswer(node, steps, searchTool.getCollectedChunks());
+                log.info("[Agent done] inquiryId={} steps={} totalTokens={}", inquiry.getId(), step, totalTokens);
+                return buildFinalAnswer(node, steps, searchTool.getCollectedChunks(), totalTokens);
             }
 
             if (node.has("followUpQuestion")) {
                 String question = node.path("followUpQuestion").asText("").strip();
-                log.info("[Agent followUp] inquiryId={} steps={}", inquiry.getId(), step);
-                return new AgentResult.FollowUpQuestion(question, List.copyOf(steps));
+                log.info("[Agent followUp] inquiryId={} steps={} totalTokens={}", inquiry.getId(), step, totalTokens);
+                return new AgentResult.FollowUpQuestion(question, List.copyOf(steps), totalTokens);
             }
 
             String action = node.path("action").asText("");
@@ -139,7 +143,7 @@ public class InquiryAgentService {
     }
 
     private AgentResult.FinalAnswer buildFinalAnswer(
-            JsonNode node, List<AgentStep> steps, List<RetrievedManualChunkDto> chunks) {
+            JsonNode node, List<AgentStep> steps, List<RetrievedManualChunkDto> chunks, int totalTokens) {
         return new AgentResult.FinalAnswer(
                 requiredText(node, "finalAnswer"),
                 requiredText(node, "category"),
@@ -149,7 +153,8 @@ public class InquiryAgentService {
                 node.path("fraudRiskFlag").asBoolean(false),
                 node.path("reason").asText(""),
                 List.copyOf(steps),
-                chunks
+                chunks,
+                totalTokens
         );
     }
 

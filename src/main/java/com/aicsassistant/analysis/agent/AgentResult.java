@@ -19,11 +19,13 @@ public sealed interface AgentResult {
             boolean fraudRiskFlag,
             String reason,
             List<AgentStep> steps,
-            List<RetrievedManualChunkDto> retrievedChunks
+            List<RetrievedManualChunkDto> retrievedChunks,
+            int totalTokens
     ) implements AgentResult {}
 
     record FollowUpQuestion(
             String question,
-            List<AgentStep> steps
+            List<AgentStep> steps,
+            int totalTokens
     ) implements AgentResult {}
 }
