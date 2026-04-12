@@ -7,8 +7,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 데모용 더미 사용자 + 주문 데이터.
- * CheckOrderStatusTool의 목 주문 ID와 동기화되어 있습니다.
+ * 데모용 더미 사용자 데이터.
+ * 주문 상세 데이터는 InMemoryOrderRepository에서 관리합니다.
  */
 public class DummyUserStore {
 

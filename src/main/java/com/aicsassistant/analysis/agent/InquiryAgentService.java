@@ -10,6 +10,7 @@ import com.aicsassistant.analysis.infra.llm.LlmClient;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.InquiryMessageRole;
+import com.aicsassistant.order.InMemoryOrderRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
@@ -38,17 +39,20 @@ public class InquiryAgentService {
     private final ManualRetrievalService manualRetrievalService;
     private final PromptFactory promptFactory;
     private final ObjectMapper objectMapper;
+    private final InMemoryOrderRepository orderRepository;
 
     public InquiryAgentService(
             LlmClient llmClient,
             ManualRetrievalService manualRetrievalService,
             PromptFactory promptFactory,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            InMemoryOrderRepository orderRepository
     ) {
         this.llmClient = llmClient;
         this.manualRetrievalService = manualRetrievalService;
         this.promptFactory = promptFactory;
         this.objectMapper = objectMapper;
+        this.orderRepository = orderRepository;
     }
 
     /**
@@ -56,14 +60,15 @@ public class InquiryAgentService {
      * @param conversationHistory 이전 대화 메시지 (최초 분석 시 빈 리스트)
      */
     public AgentResult run(Inquiry inquiry, List<InquiryMessage> conversationHistory) {
+        CheckOrderStatusTool orderTool = new CheckOrderStatusTool(orderRepository);
         SearchManualTool searchTool = new SearchManualTool(manualRetrievalService);
-        List<AgentTool> tools = List.of(searchTool, new CheckOrderStatusTool());
+        List<AgentTool> tools = List.of(searchTool, orderTool);
 
         List<ChatMessage> messages = new ArrayList<>();
         messages.add(ChatMessage.system(promptFactory.buildAgentSystemPrompt(tools)));
 
         // 최초 문의 내용 (주문번호가 있으면 주문 정보 선주입)
-        messages.add(ChatMessage.user(buildInitialMessage(inquiry, new CheckOrderStatusTool())));
+        messages.add(ChatMessage.user(buildInitialMessage(inquiry, orderTool)));
 
         // 이전 대화 히스토리 주입 (CUSTOMER → user, AI → assistant)
         for (InquiryMessage msg : conversationHistory) {
