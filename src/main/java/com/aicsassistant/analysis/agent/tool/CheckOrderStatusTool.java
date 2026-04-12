@@ -36,6 +36,6 @@ public class CheckOrderStatusTool implements AgentTool {
         }
         return orderRepository.findById(orderId)
                 .map(orderRepository::formatText)
-                .orElseGet(() -> orderRepository.fallbackText(orderId));
+                .orElse("주문번호 [" + orderId + "]에 해당하는 주문 정보를 찾을 수 없습니다. 고객에게 주문번호를 다시 확인해달라고 안내하세요.");
     }
 }

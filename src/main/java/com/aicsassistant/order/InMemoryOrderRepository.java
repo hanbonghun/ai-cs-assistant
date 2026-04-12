@@ -126,10 +126,6 @@ public class InMemoryOrderRepository {
                 "제품 불량으로 반품 접수 후 처리 완료. 환불 완료"))
     );
 
-    private static final String[] FALLBACK_STATUSES  = {"배송중", "배송완료", "결제완료", "배송준비중", "취소처리중"};
-    private static final String[] FALLBACK_PRODUCTS  = {"생활용품 세트", "의류 상품", "전자기기 액세서리", "식품류", "뷰티 제품"};
-    private static final String[] FALLBACK_COURIERS  = {"CJ대한통운", "한진택배", "로젠택배", "우체국택배"};
-
     public Optional<OrderInfo> findById(String orderId) {
         return Optional.ofNullable(ORDERS.get(orderId));
     }
@@ -149,23 +145,4 @@ public class InMemoryOrderRepository {
         return sb.toString();
     }
 
-    /** 알 수 없는 주문 ID에 대한 결정적(deterministic) 폴백 텍스트 */
-    public String fallbackText(String orderId) {
-        int hash = Math.abs(orderId.hashCode());
-        return """
-                주문번호: %s
-                상품명: %s
-                상태: %s
-                결제금액: %,d원
-                주문일: 2026-04-%02d
-                배송사: %s
-                """.formatted(
-                orderId,
-                FALLBACK_PRODUCTS[(hash / 7) % FALLBACK_PRODUCTS.length],
-                FALLBACK_STATUSES[hash % FALLBACK_STATUSES.length],
-                15_000 + (hash % 185_000),
-                1 + (hash % 28),
-                FALLBACK_COURIERS[(hash / 13) % FALLBACK_COURIERS.length]
-        );
-    }
 }
