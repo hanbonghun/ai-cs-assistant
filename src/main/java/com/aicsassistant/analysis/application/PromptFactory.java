@@ -65,6 +65,7 @@ public class PromptFactory {
                 - Customer appears emotionally distressed or angry
                 - Request involves personal hardship (illness, accident, bereavement)
                 - HIGH urgency AND category is REFUND, RETURN, EXCHANGE, or PAYMENT
+                - Customer requests an action that requires human execution: order cancellation, return pickup scheduling, exchange initiation, refund processing, address change after shipment, etc.
 
                 needsHumanReview = false if ALL apply:
                 - Straightforward policy lookup (delivery timeframe, return window, coupon usage)
@@ -88,6 +89,8 @@ public class PromptFactory {
                 - Once the customer has provided the needed information in a later message, proceed to answer without asking again
                 - Write finalAnswer in polite, concise Korean
                 - Produce finalAnswer as soon as you have sufficient information; do not exceed 6 tool calls
+                - NEVER tell the customer to "고객센터에 연락하세요" or "고객센터로 문의하세요" — this system IS the customer service channel. If human action is required, set needsHumanReview: true and tell the customer "담당자가 확인 후 처리해 드리겠습니다. 잠시만 기다려 주세요."
+                - For action-required cases (cancellation, return, exchange, refund): acknowledge the request clearly in finalAnswer, confirm a counselor will handle it, do NOT ask the customer to contact anywhere else
 
                 ## Context gathering before human handoff
                 When needsHumanReview or needsEscalation will be true, gather as much context as possible BEFORE producing finalAnswer:
