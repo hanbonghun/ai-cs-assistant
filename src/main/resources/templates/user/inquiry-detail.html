@@ -83,9 +83,12 @@
                 <div class="bubble customer-bubble" th:text="${inquiry.content}">문의 내용</div>
             </div>
             <!-- 이후 메시지 -->
-            <div th:each="msg : ${messages}">
-                <!-- AI 메시지 -->
-                <div th:if="${msg.getRole().name() == 'AI'}" class="bubble-wrap ai">
+            <div th:each="msg : ${messages}" th:with="s=${inquiry.status.name()}">
+                <!-- AI 메시지: 추가 질문(PENDING_CUSTOMER) 또는 자동 처리(AUTO_ANSWERED)일 때만 표시
+                     AI_PROCESSED는 어드민 검토 전 초안이므로 유저에게 숨김 -->
+                <div th:if="${msg.getRole().name() == 'AI' and
+                             (s == 'PENDING_CUSTOMER' or s == 'AUTO_ANSWERED')}"
+                     class="bubble-wrap ai">
                     <div class="bubble-avatar ai-av">AI</div>
                     <div class="bubble ai-bubble" th:text="${msg.getContent()}"></div>
                 </div>
@@ -97,8 +100,8 @@
             </div>
         </div>
 
-        <!-- 최종 답변 (AI 자동 or 상담사 검토 완료) -->
-        <div th:if="${(inquiry.status.name() == 'AUTO_ANSWERED' or inquiry.status.name() == 'REVIEWED') and #lists.isEmpty(messages)}"
+        <!-- 최종 답변: 상담사 확정(REVIEWED) 또는 종료(CLOSED) 시 finalAnswer 표시 -->
+        <div th:if="${inquiry.status.name() == 'REVIEWED' or inquiry.status.name() == 'CLOSED'}"
              style="margin-top:12px;padding:14px;background:#e8f5e9;border-radius:8px;font-size:14px;line-height:1.6;white-space:pre-wrap;"
              th:text="${inquiry.finalAnswer}"></div>
 
