@@ -33,7 +33,6 @@ dependencies {
     implementation 'org.postgresql:postgresql:42.7.4'
     implementation 'com.pgvector:pgvector:0.1.6'
     implementation 'org.apache.pdfbox:pdfbox:3.0.3'
-    runtimeOnly 'io.netty:netty-resolver-dns-native-macos:4.1.115.Final:osx-aarch64'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
     testImplementation 'org.testcontainers:postgresql'

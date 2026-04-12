@@ -21,7 +21,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -33,10 +33,10 @@ class InquiryControllerTest {
     @Autowired
     MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     InquiryService inquiryService;
 
-    @MockBean
+    @MockitoBean
     ReviewService reviewService;
 
     @Test
@@ -46,7 +46,8 @@ class InquiryControllerTest {
                 "환불 문의",
                 "환불 가능한가요?",
                 InquiryCategory.REFUND,
-                UrgencyLevel.HIGH
+                UrgencyLevel.HIGH,
+                null
         )))).willReturn(new InquiryDetailResponse(
                 1L,
                 "cust-001",
@@ -55,6 +56,7 @@ class InquiryControllerTest {
                 InquiryCategory.REFUND,
                 UrgencyLevel.HIGH,
                 InquiryStatus.NEW,
+                null,
                 null,
                 null,
                 null,
@@ -114,6 +116,7 @@ class InquiryControllerTest {
                 UrgencyLevel.HIGH,
                 InquiryStatus.AI_PROCESSED,
                 "초안 답변",
+                null,
                 null,
                 null,
                 null,

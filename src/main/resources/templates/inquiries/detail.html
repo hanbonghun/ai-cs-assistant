@@ -16,7 +16,13 @@
             <p class="muted">
                 <span th:text="${detail.inquiry.customerIdentifier}">cust-1</span>
                 <span class="dot">•</span>
-                <span th:text="${detail.inquiry.status}">NEW</span>
+                <span th:with="s=${detail.inquiry.status.name()}"
+                      th:text="${s == 'NEW' ? '접수됨' :
+                               (s == 'PENDING_CUSTOMER' ? '추가 정보 요청' :
+                               (s == 'AI_PROCESSED' ? '검토 필요' :
+                               (s == 'AUTO_ANSWERED' ? 'AI 자동 처리 완료' :
+                               (s == 'REVIEWED' ? '상담사 검토 완료' :
+                               (s == 'CLOSED' ? '종료' : s)))))}">NEW</span>
             </p>
         </div>
         <a class="button secondary" href="/ui/inquiries">목록</a>

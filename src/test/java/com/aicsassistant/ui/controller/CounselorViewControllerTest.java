@@ -11,14 +11,15 @@ import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryStatus;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
+import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
 import com.aicsassistant.manual.application.ManualService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(CounselorViewController.class)
@@ -27,16 +28,19 @@ public class CounselorViewControllerTest {
     @Autowired
     MockMvc mvc;
 
-    @MockBean
+    @MockitoBean
     InquiryService inquiryService;
 
-    @MockBean
+    @MockitoBean
     ManualService manualService;
 
-    @MockBean
+    @MockitoBean
     InquiryAnalysisLogRepository inquiryAnalysisLogRepository;
 
-    @MockBean
+    @MockitoBean
+    InquiryMessageRepository messageRepository;
+
+    @MockitoBean
     JdbcTemplate jdbcTemplate;
 
     @Test
@@ -49,6 +53,7 @@ public class CounselorViewControllerTest {
                 InquiryCategory.REFUND,
                 UrgencyLevel.HIGH,
                 InquiryStatus.NEW,
+                null,
                 null,
                 null,
                 null,

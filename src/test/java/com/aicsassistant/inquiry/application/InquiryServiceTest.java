@@ -42,14 +42,16 @@ class InquiryServiceTest extends PostgresVectorIntegrationTest {
                 "환불 문의",
                 "환불 가능한가요?",
                 InquiryCategory.REFUND,
-                UrgencyLevel.HIGH
+                UrgencyLevel.HIGH,
+                null
         ));
         inquiryService.create(new CreateInquiryRequest(
                 "cust-002",
                 "주문 취소 문의",
                 "주문 취소 가능한가요?",
                 InquiryCategory.ORDER,
-                UrgencyLevel.LOW
+                UrgencyLevel.LOW,
+                null
         ));
 
         List<InquiryListResponse> filtered = inquiryService.getInquiries(InquiryStatus.NEW, InquiryCategory.REFUND, UrgencyLevel.HIGH);
