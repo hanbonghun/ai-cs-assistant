@@ -52,6 +52,7 @@ create table if not exists inquiry_analysis_log (
     analysis_status varchar(20) not null,
     error_message text,
     latency_ms bigint,
+    agent_steps text,
     created_at timestamp not null
 );
 
@@ -62,6 +63,10 @@ create table if not exists inquiry_message (
     content     text not null,
     created_at  timestamp not null
 );
+
+-- 컬럼 추가 마이그레이션 (테이블이 이미 존재하는 경우)
+alter table inquiry_analysis_log add column if not exists agent_steps text;
+alter table inquiry_analysis_log add column if not exists latency_ms bigint;
 
 create index if not exists idx_manual_chunk_manual_document_id on manual_chunk(manual_document_id);
 create index if not exists idx_inquiry_analysis_log_inquiry_id on inquiry_analysis_log(inquiry_id);

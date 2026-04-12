@@ -111,7 +111,7 @@ public class InquiryAnalysisService {
         // AI 최종 답변 메시지 저장
         messageRepository.save(InquiryMessage.of(inquiry.getId(), InquiryMessageRole.AI, fa.answer()));
 
-        analysisLogService.logSuccess(inquiry, category, urgency, fa.retrievedChunks(), draft, startedAtMillis);
+        analysisLogService.logSuccess(inquiry, category, urgency, fa.retrievedChunks(), draft, fa.steps(), startedAtMillis);
         return InquiryAnalysisResponse.of(inquiry, category, urgency, fa.retrievedChunks(), draft);
     }
 

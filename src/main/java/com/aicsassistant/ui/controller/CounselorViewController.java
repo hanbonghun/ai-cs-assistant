@@ -1,5 +1,6 @@
 package com.aicsassistant.ui.controller;
 
+import com.aicsassistant.analysis.agent.AgentStep;
 import com.aicsassistant.analysis.domain.InquiryAnalysisLog;
 import com.aicsassistant.analysis.infra.InquiryAnalysisLogRepository;
 import com.aicsassistant.inquiry.application.InquiryService;
@@ -8,6 +9,10 @@ import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
+import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView;
+import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView.DocRef;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.aicsassistant.manual.application.ManualService;
 import com.aicsassistant.manual.dto.ManualChunkResponse;
 import com.aicsassistant.manual.dto.ManualDocumentResponse;
@@ -30,6 +35,7 @@ public class CounselorViewController {
     private final ManualService manualService;
     private final InquiryAnalysisLogRepository inquiryAnalysisLogRepository;
     private final InquiryMessageRepository messageRepository;
+    private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
 
     public CounselorViewController(
@@ -37,12 +43,14 @@ public class CounselorViewController {
             ManualService manualService,
             InquiryAnalysisLogRepository inquiryAnalysisLogRepository,
             InquiryMessageRepository messageRepository,
+            ObjectMapper objectMapper,
             JdbcTemplate jdbcTemplate
     ) {
         this.inquiryService = inquiryService;
         this.manualService = manualService;
         this.inquiryAnalysisLogRepository = inquiryAnalysisLogRepository;
         this.messageRepository = messageRepository;
+        this.objectMapper = objectMapper;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -66,7 +74,8 @@ public class CounselorViewController {
                 ? List.of()
                 : loadEvidenceChunks(id);
         List<InquiryMessage> messages = messageRepository.findByInquiryIdOrderByCreatedAtAsc(id);
-        model.addAttribute("detail", InquiryDetailViewModel.from(inquiry, evidenceChunks, messages));
+        List<AgentStepView> agentSteps = loadAgentSteps(id);
+        model.addAttribute("detail", InquiryDetailViewModel.from(inquiry, evidenceChunks, messages, agentSteps));
         return "inquiries/detail";
     }
 
@@ -85,6 +94,47 @@ public class CounselorViewController {
         model.addAttribute("chunks", chunks);
         model.addAttribute("categories", InquiryCategory.values());
         return "manuals/detail";
+    }
+
+    private List<AgentStepView> loadAgentSteps(Long inquiryId) {
+        List<InquiryAnalysisLog> logs = inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId);
+        if (logs.isEmpty()) return List.of();
+
+        String stepsJson = logs.get(0).getAgentSteps();
+        if (stepsJson == null || stepsJson.isBlank()) return List.of();
+
+        try {
+            List<AgentStep> steps = objectMapper.readValue(stepsJson, new TypeReference<>() {});
+            return steps.stream().map(this::toStepView).toList();
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    private AgentStepView toStepView(AgentStep step) {
+        String label = switch (step.action()) {
+            case "search_manual"      -> "정책 문서 검색";
+            case "check_order_status" -> "주문 조회";
+            default                   -> step.action();
+        };
+
+        // 툴 결과는 200자 이내로 요약
+        String obs = step.observation();
+        String summary = (obs != null && obs.length() > 200) ? obs.substring(0, 200) + "..." : obs;
+
+        // 참조 문서 링크 (search_manual 스텝만 해당)
+        List<DocRef> docs = step.referencedChunks() == null ? List.of() :
+                step.referencedChunks().stream()
+                        .map(c -> new DocRef(c.manualDocumentId(), c.manualDocumentTitle(), c.manualCategory()))
+                        .distinct()
+                        // 같은 문서가 여러 청크로 나올 수 있으므로 docId 기준 중복 제거
+                        .collect(java.util.stream.Collectors.collectingAndThen(
+                                java.util.stream.Collectors.toMap(
+                                        DocRef::docId, d -> d, (a, b) -> a,
+                                        java.util.LinkedHashMap::new),
+                                m -> List.copyOf(m.values())));
+
+        return new AgentStepView(label, step.thought(), summary, docs);
     }
 
     private List<InquiryDetailViewModel.EvidenceChunkView> loadEvidenceChunks(@NotNull Long inquiryId) {

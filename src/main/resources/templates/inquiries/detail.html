@@ -59,13 +59,13 @@
                 <!-- 이후 메시지들 -->
                 <div th:each="msg : ${detail.messages}">
                     <!-- AI 메시지 -->
-                    <div th:if="${msg.ai()}" style="display:flex;gap:10px;align-items:flex-start;flex-direction:row-reverse;">
+                    <div th:if="${msg.role.name() == 'AI'}" style="display:flex;gap:10px;align-items:flex-start;flex-direction:row-reverse;">
                         <div style="flex-shrink:0;width:32px;height:32px;border-radius:50%;background:#1976d2;display:flex;align-items:center;justify-content:center;font-size:14px;color:white;">🤖</div>
                         <div style="background:#e3f2fd;border-radius:12px 12px 2px 12px;padding:10px 14px;max-width:80%;font-size:14px;"
                              th:text="${msg.content()}"></div>
                     </div>
                     <!-- 고객 메시지 -->
-                    <div th:if="${msg.customer()}" style="display:flex;gap:10px;align-items:flex-start;">
+                    <div th:if="${msg.role.name() == 'CUSTOMER'}" style="display:flex;gap:10px;align-items:flex-start;">
                         <div style="flex-shrink:0;width:32px;height:32px;border-radius:50%;background:#e0e0e0;display:flex;align-items:center;justify-content:center;font-size:14px;">👤</div>
                         <div style="background:#f5f5f5;border-radius:12px 12px 12px 2px;padding:10px 14px;max-width:80%;font-size:14px;"
                              th:text="${msg.content()}"></div>
@@ -144,6 +144,47 @@
             </div>
             <div style="background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:12px;font-size:14px;white-space:pre-wrap;font-family:inherit;"
                  th:text="${detail.inquiry.finalAnswer}">최종 답변</div>
+        </article>
+
+        <!-- AI 사고 과정 -->
+        <article class="card" th:if="${not #lists.isEmpty(detail.agentSteps)}">
+            <h2>AI 분석 과정</h2>
+            <p class="muted" style="font-size:13px;margin-bottom:16px;">AI가 답변을 생성하기까지 거친 단계입니다.</p>
+            <div style="display:flex;flex-direction:column;gap:0;">
+                <div th:each="step, iter : ${detail.agentSteps}"
+                     style="display:flex;gap:12px;padding-bottom:20px;position:relative;">
+                    <!-- 타임라인 선 -->
+                    <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
+                        <div style="width:28px;height:28px;border-radius:50%;background:#1976d2;color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;"
+                             th:text="${iter.index + 1}">1</div>
+                        <div th:if="${!iter.last}" style="width:2px;flex:1;background:#e0e0e0;margin-top:4px;"></div>
+                    </div>
+                    <!-- 스텝 내용 -->
+                    <div style="flex:1;padding-top:4px;">
+                        <div style="font-weight:600;font-size:14px;color:#1976d2;margin-bottom:6px;"
+                             th:text="${step.actionLabel}">정책 문서 검색</div>
+                        <!-- 판단 근거 -->
+                        <details th:if="${step.thought != null and !#strings.isEmpty(step.thought)}"
+                                 style="margin-bottom:8px;">
+                            <summary style="font-size:12px;color:#888;cursor:pointer;">판단 근거 보기</summary>
+                            <div style="margin-top:6px;padding:8px 10px;background:#f5f5f5;border-radius:4px;font-size:13px;color:#555;line-height:1.5;"
+                                 th:text="${step.thought}"></div>
+                        </details>
+                        <!-- 실행 결과 -->
+                        <div th:if="${step.observationSummary != null and !#strings.isEmpty(step.observationSummary)}"
+                             style="padding:8px 10px;background:#fafafa;border:1px solid #eee;border-radius:4px;font-size:13px;color:#444;line-height:1.5;margin-bottom:8px;"
+                             th:text="${step.observationSummary}"></div>
+                        <!-- 참고 문서 링크 -->
+                        <div th:if="${not #lists.isEmpty(step.referencedDocs)}"
+                             style="display:flex;flex-wrap:wrap;gap:6px;">
+                            <a th:each="doc : ${step.referencedDocs}"
+                               th:href="@{/ui/manuals/{id}(id=${doc.docId})}"
+                               th:text="${doc.title}"
+                               style="font-size:12px;padding:3px 8px;background:#e3f2fd;color:#1565c0;border-radius:4px;text-decoration:none;border:1px solid #90caf9;"></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </article>
 
         <article class="card">

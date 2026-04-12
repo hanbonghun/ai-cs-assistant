@@ -16,6 +16,7 @@ public class SearchManualTool implements AgentTool {
 
     private final ManualRetrievalService manualRetrievalService;
     private final List<RetrievedManualChunkDto> collectedChunks = new ArrayList<>();
+    private List<RetrievedManualChunkDto> lastCallChunks = List.of();
 
     public SearchManualTool(ManualRetrievalService manualRetrievalService) {
         this.manualRetrievalService = manualRetrievalService;
@@ -40,6 +41,7 @@ public class SearchManualTool implements AgentTool {
         }
 
         List<RetrievedManualChunkDto> chunks = manualRetrievalService.retrieve(query);
+        lastCallChunks = List.copyOf(chunks);
         collectedChunks.addAll(chunks);
 
         if (chunks.isEmpty()) {
@@ -55,5 +57,10 @@ public class SearchManualTool implements AgentTool {
     /** Returns all chunks retrieved across every call during this agent run. */
     public List<RetrievedManualChunkDto> getCollectedChunks() {
         return List.copyOf(collectedChunks);
+    }
+
+    /** Returns only the chunks retrieved in the most recent call. */
+    public List<RetrievedManualChunkDto> getLastCallChunks() {
+        return lastCallChunks;
     }
 }

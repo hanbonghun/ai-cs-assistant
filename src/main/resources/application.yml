@@ -9,10 +9,11 @@ spring:
       request-timeout: -1
 
 app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}
   ai:
     provider: openai
     model: gpt-4.1-mini
-    api-key: ${OPENAI_API_KEY:}
+    api-key: ${OPENAI_API_KEY}
     embedding-model: text-embedding-3-small
   slack:
     webhook-url: ${SLACK_WEBHOOK_URL:}

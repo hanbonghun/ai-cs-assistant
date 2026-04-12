@@ -57,6 +57,9 @@ public class InquiryAnalysisLog {
     @Column(name = "analysis_status", nullable = false, length = 20)
     private AnalysisStatus analysisStatus;
 
+    @Column(name = "agent_steps", columnDefinition = "text")
+    private String agentSteps;
+
     @Column(name = "error_message", columnDefinition = "text")
     private String errorMessage;
 
@@ -78,6 +81,7 @@ public class InquiryAnalysisLog {
             String generatedDraft,
             String modelName,
             String promptVersion,
+            String agentSteps,
             long latencyMs
     ) {
         InquiryAnalysisLog log = new InquiryAnalysisLog();
@@ -89,6 +93,7 @@ public class InquiryAnalysisLog {
         log.generatedDraft = generatedDraft;
         log.modelName = modelName;
         log.promptVersion = promptVersion;
+        log.agentSteps = agentSteps;
         log.analysisStatus = AnalysisStatus.SUCCESS;
         log.errorMessage = null;
         log.latencyMs = latencyMs;
@@ -161,6 +166,10 @@ public class InquiryAnalysisLog {
 
     public AnalysisStatus getAnalysisStatus() {
         return analysisStatus;
+    }
+
+    public String getAgentSteps() {
+        return agentSteps;
     }
 
     public String getErrorMessage() {

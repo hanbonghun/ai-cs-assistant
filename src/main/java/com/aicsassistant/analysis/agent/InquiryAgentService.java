@@ -109,7 +109,9 @@ public class InquiryAgentService {
             log.info("[Agent inquiryId={} step={}] action={} observation_len={}",
                     inquiry.getId(), step, action, observation.length());
 
-            steps.add(new AgentStep(thought, action, actionInput.toString(), observation));
+            // search_manual 스텝에는 이번 호출에서 가져온 문서 목록을 첨부
+            List<RetrievedManualChunkDto> stepChunks = (tool instanceof SearchManualTool s) ? s.getLastCallChunks() : List.of();
+            steps.add(new AgentStep(thought, action, actionInput.toString(), observation, stepChunks));
             messages.add(ChatMessage.assistant(raw));
             messages.add(ChatMessage.user("Observation:\n" + observation));
         }
