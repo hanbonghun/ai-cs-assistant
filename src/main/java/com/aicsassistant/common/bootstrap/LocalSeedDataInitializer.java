@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
-@Profile("local")
+@Profile({"local", "prod"})
 @Component
 @RequiredArgsConstructor
 public class LocalSeedDataInitializer implements CommandLineRunner {
