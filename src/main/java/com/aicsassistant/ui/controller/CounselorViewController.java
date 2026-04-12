@@ -9,6 +9,8 @@ import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
+import com.aicsassistant.ui.application.DashboardService;
+import com.aicsassistant.ui.application.DashboardService.DashboardStats;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView.DocRef;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -17,11 +19,9 @@ import com.aicsassistant.manual.application.ManualService;
 import com.aicsassistant.manual.dto.ManualChunkResponse;
 import com.aicsassistant.manual.dto.ManualDocumentResponse;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel;
-import jakarta.validation.constraints.NotNull;
 import java.util.Arrays;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,8 +36,8 @@ public class CounselorViewController {
     private final InquiryService inquiryService;
     private final ManualService manualService;
     private final AnalysisLogService analysisLogService;
+    private final DashboardService dashboardService;
     private final ObjectMapper objectMapper;
-    private final JdbcTemplate jdbcTemplate;
 
     private static final LinkedHashMap<String, String> CATEGORY_LABELS = new LinkedHashMap<>();
     private static final LinkedHashMap<String, String> URGENCY_LABELS  = new LinkedHashMap<>();
@@ -106,69 +106,19 @@ public class CounselorViewController {
 
     @GetMapping("/dashboard")
     public String dashboard(Model model) {
-        // 총 문의 수
-        Long totalInquiries = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM inquiry", Long.class);
-
-        // 상태별 문의 수
-        Map<String, Long> statusCounts = new LinkedHashMap<>();
-        jdbcTemplate.query(
-                "SELECT status, COUNT(*) AS cnt FROM inquiry GROUP BY status ORDER BY cnt DESC",
-                rs -> { statusCounts.put(rs.getString("status"), rs.getLong("cnt")); });
-
-        // 자동응답률 (AUTO_ANSWERED / 전체)
-        Long autoAnswered = statusCounts.getOrDefault("AUTO_ANSWERED", 0L);
-        double autoAnswerRate = (totalInquiries != null && totalInquiries > 0)
-                ? (autoAnswered * 100.0 / totalInquiries) : 0.0;
-
-        // 분석 성공 건수 (로그 기반)
-        Long totalAnalyzed = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM inquiry_analysis_log WHERE analysis_status = 'SUCCESS'", Long.class);
-
-        // 평균 응답 시간 (ms)
-        Double avgLatencyMs = jdbcTemplate.queryForObject(
-                "SELECT AVG(latency_ms) FROM inquiry_analysis_log WHERE analysis_status = 'SUCCESS' AND latency_ms IS NOT NULL",
-                Double.class);
-
-        // 평균 토큰 사용량
-        Double avgTokens = jdbcTemplate.queryForObject(
-                "SELECT AVG(total_tokens) FROM inquiry_analysis_log WHERE total_tokens IS NOT NULL",
-                Double.class);
-
-        // 평가 분포 (GOOD / BAD)
-        Map<String, Long> ratingCounts = new LinkedHashMap<>();
-        jdbcTemplate.query(
-                "SELECT ai_draft_rating, COUNT(*) AS cnt FROM inquiry_analysis_log WHERE ai_draft_rating IS NOT NULL GROUP BY ai_draft_rating",
-                rs -> { ratingCounts.put(rs.getString("ai_draft_rating"), rs.getLong("cnt")); });
-
-        // 부정 평가 이유 분포
-        Map<String, Long> ratingReasonCounts = new LinkedHashMap<>();
-        jdbcTemplate.query(
-                "SELECT ai_draft_rating_reason, COUNT(*) AS cnt FROM inquiry_analysis_log WHERE ai_draft_rating_reason IS NOT NULL GROUP BY ai_draft_rating_reason ORDER BY cnt DESC",
-                rs -> { ratingReasonCounts.put(rs.getString("ai_draft_rating_reason"), rs.getLong("cnt")); });
-
-        // 카테고리별 분류 분포
-        Map<String, Long> categoryCounts = new LinkedHashMap<>();
-        jdbcTemplate.query(
-                "SELECT classified_category, COUNT(*) AS cnt FROM inquiry_analysis_log WHERE classified_category IS NOT NULL GROUP BY classified_category ORDER BY cnt DESC",
-                rs -> { categoryCounts.put(rs.getString("classified_category"), rs.getLong("cnt")); });
-
-        long catTotal = categoryCounts.values().stream().mapToLong(Long::longValue).sum();
-        long ratingTotal = ratingCounts.values().stream().mapToLong(Long::longValue).sum();
-        long reasonTotal = ratingReasonCounts.values().stream().mapToLong(Long::longValue).sum();
-
-        model.addAttribute("totalInquiries", totalInquiries != null ? totalInquiries : 0L);
-        model.addAttribute("autoAnswerRate", String.format("%.1f", autoAnswerRate));
-        model.addAttribute("avgLatencySec", avgLatencyMs != null ? String.format("%.1f", avgLatencyMs / 1000.0) : "-");
-        model.addAttribute("avgTokens", avgTokens != null ? String.format("%.0f", avgTokens) : "-");
-        model.addAttribute("totalAnalyzed", totalAnalyzed != null ? totalAnalyzed : 0L);
-        model.addAttribute("statusCounts", statusCounts);
-        model.addAttribute("ratingCounts", ratingCounts);
-        model.addAttribute("ratingReasonCounts", ratingReasonCounts);
-        model.addAttribute("categoryCounts", categoryCounts);
-        model.addAttribute("catTotal", catTotal);
-        model.addAttribute("ratingTotal", ratingTotal);
-        model.addAttribute("reasonTotal", reasonTotal);
+        DashboardStats stats = dashboardService.stats();
+        model.addAttribute("totalInquiries", stats.totalInquiries());
+        model.addAttribute("totalAnalyzed", stats.totalAnalyzed());
+        model.addAttribute("autoAnswerRate", stats.autoAnswerRate());
+        model.addAttribute("avgLatencySec", stats.avgLatencySec());
+        model.addAttribute("avgTokens", stats.avgTokens());
+        model.addAttribute("statusCounts", stats.statusCounts());
+        model.addAttribute("ratingCounts", stats.ratingCounts());
+        model.addAttribute("ratingReasonCounts", stats.ratingReasonCounts());
+        model.addAttribute("categoryCounts", stats.categoryCounts());
+        model.addAttribute("catTotal", stats.catTotal());
+        model.addAttribute("ratingTotal", stats.ratingTotal());
+        model.addAttribute("reasonTotal", stats.reasonTotal());
         model.addAttribute("categoryLabels", CATEGORY_LABELS);
         return "dashboard";
     }
@@ -211,7 +161,7 @@ public class CounselorViewController {
         return new AgentStepView(label, step.thought(), summary, docs);
     }
 
-    private List<InquiryDetailViewModel.EvidenceChunkView> loadEvidenceChunks(@NotNull Long inquiryId) {
+    private List<InquiryDetailViewModel.EvidenceChunkView> loadEvidenceChunks(Long inquiryId) {
         String retrievedChunkIds = analysisLogService.getLatestRetrievedChunkIds(inquiryId).orElse(null);
         if (retrievedChunkIds == null || retrievedChunkIds.isBlank()) {
             return List.of();
@@ -227,32 +177,6 @@ public class CounselorViewController {
             return List.of();
         }
 
-        String placeholders = chunkIds.stream().map(id -> "?").reduce((left, right) -> left + ", " + right).orElse("?");
-        String sql = """
-                select
-                    mc.id,
-                    mc.manual_document_id,
-                    md.title as manual_document_title,
-                    md.category as manual_document_category,
-                    mc.chunk_index,
-                    mc.document_version,
-                    mc.token_count,
-                    mc.content
-                from manual_chunk mc
-                join manual_document md on md.id = mc.manual_document_id
-                where mc.id in (%s)
-                order by mc.id
-                """.formatted(placeholders);
-
-        return jdbcTemplate.query(sql, chunkIds.toArray(), (rs, rowNum) -> new InquiryDetailViewModel.EvidenceChunkView(
-                rs.getLong("id"),
-                rs.getLong("manual_document_id"),
-                rs.getString("manual_document_title"),
-                rs.getString("manual_document_category"),
-                rs.getInt("chunk_index"),
-                rs.getInt("document_version"),
-                rs.getInt("token_count"),
-                rs.getString("content")
-        ));
+        return manualService.getEvidenceChunks(chunkIds);
     }
 }

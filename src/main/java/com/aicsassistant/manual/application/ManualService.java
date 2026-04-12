@@ -77,6 +77,10 @@ public class ManualService {
         return manualChunkJdbcRepository.findActiveChunksByDocumentId(id);
     }
 
+    public List<com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.EvidenceChunkView> getEvidenceChunks(List<Long> chunkIds) {
+        return manualChunkJdbcRepository.findEvidenceChunksByIds(chunkIds);
+    }
+
     @Transactional
     public ManualDocumentResponse createFromFile(String title, InquiryCategory category, MultipartFile file) {
         String content = fileTextExtractor.extract(file);

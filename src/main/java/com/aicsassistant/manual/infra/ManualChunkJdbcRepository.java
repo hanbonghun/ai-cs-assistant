@@ -87,6 +87,31 @@ public class ManualChunkJdbcRepository {
                 """, CHUNK_ROW_MAPPER, documentId);
     }
 
+    public List<com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.EvidenceChunkView> findEvidenceChunksByIds(List<Long> chunkIds) {
+        if (chunkIds.isEmpty()) return List.of();
+        String placeholders = chunkIds.stream().map(id -> "?").reduce((a, b) -> a + ", " + b).orElse("?");
+        String sql = """
+                select mc.id, mc.manual_document_id, md.title as manual_document_title,
+                       md.category as manual_document_category, mc.chunk_index,
+                       mc.document_version, mc.token_count, mc.content
+                from manual_chunk mc
+                join manual_document md on md.id = mc.manual_document_id
+                where mc.id in (%s)
+                order by mc.id
+                """.formatted(placeholders);
+        return jdbcTemplate.query(sql, chunkIds.toArray(),
+                (rs, rowNum) -> new com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.EvidenceChunkView(
+                        rs.getLong("id"),
+                        rs.getLong("manual_document_id"),
+                        rs.getString("manual_document_title"),
+                        rs.getString("manual_document_category"),
+                        rs.getInt("chunk_index"),
+                        rs.getInt("document_version"),
+                        rs.getInt("token_count"),
+                        rs.getString("content")
+                ));
+    }
+
     private int estimateTokenCount(String content) {
         String trimmed = content.trim();
         if (trimmed.isEmpty()) {

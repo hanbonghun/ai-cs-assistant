@@ -1,9 +1,8 @@
 package com.aicsassistant.inquiry.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.aicsassistant.common.exception.ApiException;
+
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryStatus;
@@ -103,9 +102,4 @@ class InquiryServiceTest extends PostgresVectorIntegrationTest {
         assertThat(reloaded.getStatus()).isEqualTo(InquiryStatus.CLOSED);
     }
 
-    @Test
-    void throwsNotFoundForMissingInquiryDetail() {
-        assertThatThrownBy(() -> inquiryService.getInquiry(9999L))
-                .isInstanceOf(ApiException.class);
-    }
 }

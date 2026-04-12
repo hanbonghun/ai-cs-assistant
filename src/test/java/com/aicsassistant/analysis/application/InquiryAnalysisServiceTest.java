@@ -218,6 +218,11 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
         }
 
         @Override
+        public com.aicsassistant.analysis.infra.llm.LlmResponse completeWithUsage(List<ChatMessage> messages) {
+            return new com.aicsassistant.analysis.infra.llm.LlmResponse(complete(messages), 10, 20);
+        }
+
+        @Override
         public String modelName() {
             return "fake-llm";
         }

@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.aicsassistant.analysis.application.AnalysisLogService;
 import com.aicsassistant.analysis.application.InquiryAnalysisService;
 import com.aicsassistant.analysis.dto.CategoryResultDto;
 import com.aicsassistant.analysis.dto.DraftAnswerDto;
@@ -30,6 +31,9 @@ class InquiryAnalysisControllerTest {
 
     @MockitoBean
     InquiryAnalysisService inquiryAnalysisService;
+
+    @MockitoBean
+    AnalysisLogService analysisLogService;
 
     @Test
     void analyzesInquiry() throws Exception {
