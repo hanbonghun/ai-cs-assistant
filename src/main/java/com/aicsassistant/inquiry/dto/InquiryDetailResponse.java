@@ -20,6 +20,7 @@ public record InquiryDetailResponse(
         String finalAnswer,
         String reviewMemo,
         String reviewedBy,
+        String relatedOrderId,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         List<AnalysisLogSummary> analysisLogs
@@ -37,6 +38,7 @@ public record InquiryDetailResponse(
                 inquiry.getFinalAnswer(),
                 inquiry.getReviewMemo(),
                 inquiry.getReviewedBy(),
+                inquiry.getRelatedOrderId(),
                 inquiry.getCreatedAt(),
                 inquiry.getUpdatedAt(),
                 analysisLogs.stream().map(AnalysisLogSummary::from).toList()

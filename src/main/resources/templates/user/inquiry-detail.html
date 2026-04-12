@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>문의 상세</title>
+    <link rel="stylesheet" href="/app.css">
+    <style>
+        .status-banner { border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; font-size: 14px; display: flex; align-items: center; gap: 10px; }
+        .banner-pending  { background: #fff3e0; border: 1px solid #ffcc80; color: #e65100; }
+        .banner-answered { background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32; }
+        .banner-reviewing{ background: #e3f2fd; border: 1px solid #90caf9; color: #1565c0; }
+        .banner-closed   { background: #f5f5f5; border: 1px solid #e0e0e0; color: #757575; }
+
+        .meta-row { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: #888; margin-bottom: 20px; }
+        .meta-row span strong { color: #333; }
+
+        .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 20px 24px; margin-bottom: 16px; }
+        .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+
+        /* 대화 스레드 */
+        .thread { display: flex; flex-direction: column; gap: 12px; }
+        .bubble-wrap { display: flex; gap: 10px; align-items: flex-start; }
+        .bubble-wrap.ai { flex-direction: row-reverse; }
+        .bubble-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+        .bubble-avatar.customer { background: #e0e0e0; color: #555; }
+        .bubble-avatar.ai-av { background: #1976d2; color: #fff; }
+        .bubble { padding: 10px 14px; font-size: 14px; line-height: 1.6; max-width: 80%; white-space: pre-wrap; }
+        .bubble.customer-bubble { background: #f5f5f5; border-radius: 12px 12px 12px 2px; }
+        .bubble.ai-bubble { background: #e3f2fd; border-radius: 12px 12px 2px 12px; }
+
+        /* 답변 입력 */
+        .reply-box { border-top: 1px solid #e0e0e0; padding-top: 16px; margin-top: 4px; }
+        .reply-box textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #90caf9;
+            border-radius: 6px; font-size: 14px; font-family: inherit; resize: vertical; }
+        .reply-box textarea:focus { outline: none; border-color: #1976d2; }
+    </style>
+</head>
+<body>
+<div th:insert="~{fragments/topnav :: topnav('user')}"></div>
+<main class="page" style="max-width: 680px; margin-top: 52px;">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">고객 센터</p>
+            <h1 th:text="${inquiry.title}">문의 제목</h1>
+        </div>
+        <a class="button ghost" th:href="@{/app/home}">내 문의 목록</a>
+    </header>
+
+    <!-- 상태 배너 -->
+    <div th:if="${inquiry.status.name() == 'NEW' or inquiry.status.name() == 'AI_PROCESSED'}"
+         class="status-banner banner-reviewing">
+        <span>검토 중입니다. 잠시만 기다려 주세요.</span>
+    </div>
+    <div th:if="${inquiry.status.name() == 'PENDING_CUSTOMER'}"
+         class="status-banner banner-pending">
+        <span>추가 정보가 필요합니다. 아래 답변을 확인하고 내용을 입력해 주세요.</span>
+    </div>
+    <div th:if="${inquiry.status.name() == 'AUTO_ANSWERED' or inquiry.status.name() == 'REVIEWED'}"
+         class="status-banner banner-answered">
+        <span>답변이 완료되었습니다.</span>
+    </div>
+    <div th:if="${inquiry.status.name() == 'CLOSED'}"
+         class="status-banner banner-closed">
+        <span>종료된 문의입니다.</span>
+    </div>
+
+    <!-- 문의 정보 -->
+    <div class="meta-row">
+        <span>접수일: <strong th:text="${#temporals.format(inquiry.createdAt, 'yyyy-MM-dd HH:mm')}">-</strong></span>
+        <span th:if="${inquiry.category != null}">유형: <strong th:text="${inquiry.category.name()}">-</strong></span>
+        <span th:if="${inquiry.relatedOrderId != null}">주문번호: <strong th:text="${inquiry.relatedOrderId}">-</strong></span>
+    </div>
+
+    <!-- 대화 스레드 -->
+    <div class="card">
+        <h2>문의 내용 및 답변</h2>
+        <div class="thread">
+            <!-- 최초 문의 -->
+            <div class="bubble-wrap">
+                <div class="bubble-avatar customer" th:text="${#strings.substring(user.name, 0, 1)}">김</div>
+                <div class="bubble customer-bubble" th:text="${inquiry.content}">문의 내용</div>
+            </div>
+            <!-- 이후 메시지 -->
+            <div th:each="msg : ${messages}">
+                <!-- AI 메시지 -->
+                <div th:if="${msg.getRole().name() == 'AI'}" class="bubble-wrap ai">
+                    <div class="bubble-avatar ai-av">AI</div>
+                    <div class="bubble ai-bubble" th:text="${msg.getContent()}"></div>
+                </div>
+                <!-- 고객 추가 답변 -->
+                <div th:if="${msg.getRole().name() == 'CUSTOMER'}" class="bubble-wrap">
+                    <div class="bubble-avatar customer" th:text="${#strings.substring(user.name, 0, 1)}">김</div>
+                    <div class="bubble customer-bubble" th:text="${msg.getContent()}"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 최종 답변 (AI 자동 or 상담사 검토 완료) -->
+        <div th:if="${(inquiry.status.name() == 'AUTO_ANSWERED' or inquiry.status.name() == 'REVIEWED') and #lists.isEmpty(messages)}"
+             style="margin-top:12px;padding:14px;background:#e8f5e9;border-radius:8px;font-size:14px;line-height:1.6;white-space:pre-wrap;"
+             th:text="${inquiry.finalAnswer}"></div>
+
+        <!-- PENDING_CUSTOMER: 고객 답변 입력 -->
+        <div th:if="${inquiry.status.name() == 'PENDING_CUSTOMER'}" class="reply-box">
+            <textarea id="reply-input" rows="4" placeholder="추가 내용을 입력해 주세요..."></textarea>
+            <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+                <button type="button" class="button" onclick="sendReply()">답변 보내기</button>
+                <span id="reply-error" style="font-size:13px;color:#e53935;display:none;"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW/AI_PROCESSED 상태: 폴링 -->
+    <p th:if="${inquiry.status.name() == 'NEW' or inquiry.status.name() == 'AI_PROCESSED'}"
+       style="text-align:center;font-size:13px;color:#aaa;">
+       페이지가 자동으로 갱신됩니다...
+    </p>
+</main>
+
+<script th:inline="javascript">
+    const inquiryId = /*[[${inquiry.id}]]*/ 0;
+    const inquiryStatus = /*[[${inquiry.status.name()}]]*/ '';
+
+    if (inquiryStatus === 'NEW' || inquiryStatus === 'AI_PROCESSED') {
+        const poll = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/inquiries/${inquiryId}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.status !== 'NEW' && data.status !== 'AI_PROCESSED') {
+                    clearInterval(poll);
+                    window.location.reload();
+                }
+            } catch (e) { /* 무시 */ }
+        }, 5000);
+    }
+
+    async function sendReply() {
+        const content = document.getElementById('reply-input')?.value?.trim();
+        if (!content) { showError('내용을 입력해 주세요.'); return; }
+        const btn = document.querySelector('button[onclick="sendReply()"]');
+        btn.disabled = true;
+        btn.textContent = '전송 중...';
+        try {
+            const res = await fetch(`/api/inquiries/${inquiryId}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content })
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || '전송에 실패했습니다.');
+            }
+            window.location.reload();
+        } catch (e) {
+            showError(e.message);
+            btn.disabled = false;
+            btn.textContent = '답변 보내기';
+        }
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('reply-error');
+        el.textContent = msg;
+        el.style.display = 'inline';
+        setTimeout(() => el.style.display = 'none', 4000);
+    }
+</script>
+</body>
+</html>

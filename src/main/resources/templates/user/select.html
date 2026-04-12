@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>고객 센터 - 로그인</title>
+    <link rel="stylesheet" href="/app.css">
+    <style>
+        .user-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 24px; }
+        .user-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 24px 20px; cursor: pointer; transition: border-color .15s, box-shadow .15s; text-align: center; }
+        .user-card:hover { border-color: #1976d2; box-shadow: 0 2px 8px rgba(25,118,210,.15); }
+        .user-avatar { width: 56px; height: 56px; border-radius: 50%; background: #e3f2fd; color: #1976d2; font-size: 22px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; }
+        .user-name { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+        .user-email { font-size: 12px; color: #888; }
+        .order-count { margin-top: 10px; font-size: 12px; color: #1976d2; }
+        .hero { text-align: center; padding: 40px 0 0; }
+        .hero h1 { font-size: 24px; margin-bottom: 8px; }
+        .hero p { color: #666; font-size: 15px; }
+    </style>
+</head>
+<body>
+<div th:insert="~{fragments/topnav :: topnav('user')}"></div>
+<main class="page" style="max-width: 720px; margin-top: 52px;">
+    <div class="hero">
+        <p class="eyebrow">고객 센터</p>
+        <h1>어떤 계정으로 접속하시겠어요?</h1>
+        <p>데모용 계정을 선택해 주세요.</p>
+    </div>
+
+    <div class="user-cards">
+        <form th:each="user : ${users}" th:action="@{/app/login}" method="post" style="margin:0;">
+            <input type="hidden" name="userId" th:value="${user.id}">
+            <button type="submit" class="user-card" style="width:100%;border:1px solid #e0e0e0;background:#fff;font-family:inherit;">
+                <div class="user-avatar" th:text="${#strings.substring(user.name, 0, 1)}">김</div>
+                <div class="user-name" th:text="${user.name}">김민준</div>
+                <div class="user-email" th:text="${user.email}">email</div>
+                <div class="order-count" th:text="${#lists.size(user.orders) + '개 주문'}">3개 주문</div>
+            </button>
+        </form>
+    </div>
+
+    <p style="text-align:center;margin-top:32px;font-size:13px;color:#aaa;">
+        상담사 어드민은 <a href="/ui/inquiries" style="color:#1976d2;">여기</a>에서 접속하세요.
+    </p>
+</main>
+</body>
+</html>

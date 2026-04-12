@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>문의하기</title>
+    <link rel="stylesheet" href="/app.css">
+    <style>
+        .form-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 28px 24px; }
+        .field { margin-bottom: 20px; }
+        .field label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+        .field label .required { color: #e53935; margin-left: 2px; }
+        .field select, .field textarea, .field input[type=text] {
+            width: 100%; padding: 10px 12px; border: 1px solid #d0d0d0; border-radius: 6px;
+            font-size: 14px; font-family: inherit; box-sizing: border-box; background: #fff;
+        }
+        .field select:focus, .field textarea:focus { outline: none; border-color: #1976d2; box-shadow: 0 0 0 2px rgba(25,118,210,.1); }
+        .order-preview { margin-top: 8px; padding: 10px 12px; background: #f5f5f5; border-radius: 6px; font-size: 13px; color: #555; display: none; }
+        .order-preview.visible { display: block; }
+        .category-hint { font-size: 12px; color: #888; margin-top: 5px; }
+        #error-msg { color: #e53935; font-size: 13px; margin-top: 12px; display: none; }
+    </style>
+</head>
+<body>
+<div th:insert="~{fragments/topnav :: topnav('user')}"></div>
+<main class="page" style="max-width: 600px; margin-top: 52px;">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">고객 센터</p>
+            <h1>문의하기</h1>
+        </div>
+        <a class="button ghost" th:href="@{/app/home}">돌아가기</a>
+    </header>
+
+    <div class="form-card">
+        <!-- 카테고리 -->
+        <div class="field">
+            <label for="category">문의 유형 <span class="required">*</span></label>
+            <select id="category" onchange="onCategoryChange()">
+                <option value="">선택해 주세요</option>
+                <th:block th:each="entry : ${categoryLabels}">
+                    <option th:value="${entry.key}" th:text="${entry.value}">카테고리</option>
+                </th:block>
+            </select>
+        </div>
+
+        <!-- 주문 선택 (주문 관련 카테고리만) -->
+        <div class="field" id="order-field" style="display:none;">
+            <label for="order-select">관련 주문 <span class="required">*</span></label>
+            <select id="order-select" onchange="onOrderChange()">
+                <option value="">주문을 선택해 주세요</option>
+                <th:block th:each="order : ${user.orders}">
+                    <option th:value="${order.orderId}"
+                            th:attr="data-product=${order.productName}, data-status=${order.status}, data-amount=${order.amount}"
+                            th:text="${order.orderId + ' · ' + order.productName}">주문</option>
+                </th:block>
+            </select>
+            <div class="order-preview" id="order-preview"></div>
+        </div>
+
+        <!-- 문의 내용 -->
+        <div class="field">
+            <label for="content">문의 내용 <span class="required">*</span></label>
+            <textarea id="content" rows="6" placeholder="문의하실 내용을 자세히 입력해 주세요."></textarea>
+            <p class="category-hint">구체적으로 작성할수록 빠른 답변이 가능합니다.</p>
+        </div>
+
+        <p id="error-msg"></p>
+        <button type="button" class="button" onclick="submitInquiry()" style="width:100%;">문의 접수하기</button>
+    </div>
+</main>
+
+<script th:inline="javascript">
+    const ORDER_REQUIRED = /*[[${orderRequiredCategories}]]*/ [];
+    const userId = /*[[${user.id}]]*/ '';
+
+    function onCategoryChange() {
+        const cat = document.getElementById('category').value;
+        const orderField = document.getElementById('order-field');
+        if (ORDER_REQUIRED.includes(cat)) {
+            orderField.style.display = 'block';
+        } else {
+            orderField.style.display = 'none';
+            document.getElementById('order-select').value = '';
+            document.getElementById('order-preview').classList.remove('visible');
+        }
+    }
+
+    function onOrderChange() {
+        const select = document.getElementById('order-select');
+        const preview = document.getElementById('order-preview');
+        const option = select.options[select.selectedIndex];
+        if (!select.value) {
+            preview.classList.remove('visible');
+            return;
+        }
+        const product = option.getAttribute('data-product');
+        const status = option.getAttribute('data-status');
+        const amount = Number(option.getAttribute('data-amount')).toLocaleString();
+        preview.innerHTML = `<strong>${select.value}</strong><br>${product} · ${status} · ${amount}원`;
+        preview.classList.add('visible');
+    }
+
+    async function submitInquiry() {
+        const category = document.getElementById('category').value;
+        const relatedOrderId = document.getElementById('order-select')?.value || null;
+        const content = document.getElementById('content').value.trim();
+
+        if (!category) { showError('문의 유형을 선택해 주세요.'); return; }
+        if (ORDER_REQUIRED.includes(category) && !relatedOrderId) { showError('관련 주문을 선택해 주세요.'); return; }
+        if (!content) { showError('문의 내용을 입력해 주세요.'); return; }
+
+        const title = buildTitle(category, relatedOrderId);
+        const btn = document.querySelector('button[onclick="submitInquiry()"]');
+        btn.disabled = true;
+        btn.textContent = '접수 중...';
+
+        try {
+            const res = await fetch('/api/inquiries', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customerIdentifier: userId, title, content, category, relatedOrderId })
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || '접수에 실패했습니다.');
+            }
+            const data = await res.json();
+            window.location.href = `/app/inquiries/${data.id}`;
+        } catch (e) {
+            showError(e.message);
+            btn.disabled = false;
+            btn.textContent = '문의 접수하기';
+        }
+    }
+
+    function buildTitle(category, orderId) {
+        const labels = {
+            ORDER: '주문 문의', DELIVERY: '배송 문의', RETURN: '반품 문의',
+            EXCHANGE: '교환 문의', REFUND: '환불 문의', PAYMENT: '결제 문의',
+            PRODUCT: '상품 문의', MEMBERSHIP: '회원/계정 문의', COMPLAINT: '불만/건의', GENERAL: '기타 문의'
+        };
+        const label = labels[category] || category;
+        return orderId ? `${label} - ${orderId}` : label;
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('error-msg');
+        el.textContent = msg;
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 4000);
+    }
+</script>
+</body>
+</html>

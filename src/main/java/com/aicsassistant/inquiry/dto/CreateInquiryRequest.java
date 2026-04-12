@@ -9,6 +9,7 @@ public record CreateInquiryRequest(
         @NotBlank String title,
         @NotBlank String content,
         InquiryCategory category,
-        UrgencyLevel urgency
+        UrgencyLevel urgency,
+        String relatedOrderId
 ) {
 }

@@ -54,6 +54,9 @@ public class Inquiry {
     @Column(name = "reviewed_by", length = 100)
     private String reviewedBy;
 
+    @Column(name = "related_order_id", length = 50)
+    private String relatedOrderId;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -74,12 +77,24 @@ public class Inquiry {
             InquiryCategory category,
             UrgencyLevel urgency
     ) {
+        return create(customerIdentifier, title, content, category, urgency, null);
+    }
+
+    public static Inquiry create(
+            String customerIdentifier,
+            String title,
+            String content,
+            InquiryCategory category,
+            UrgencyLevel urgency,
+            String relatedOrderId
+    ) {
         Inquiry inquiry = new Inquiry();
         inquiry.customerIdentifier = customerIdentifier;
         inquiry.title = title;
         inquiry.content = content;
         inquiry.category = category;
         inquiry.urgency = urgency;
+        inquiry.relatedOrderId = relatedOrderId;
         inquiry.status = InquiryStatus.NEW;
         return inquiry;
     }
@@ -209,5 +224,9 @@ public class Inquiry {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public String getRelatedOrderId() {
+        return relatedOrderId;
     }
 }

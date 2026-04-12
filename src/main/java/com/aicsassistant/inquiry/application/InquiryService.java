@@ -43,11 +43,20 @@ public class InquiryService {
                 request.title(),
                 request.content(),
                 request.category(),
-                request.urgency()
+                request.urgency(),
+                request.relatedOrderId()
         );
         Inquiry saved = inquiryRepository.save(inquiry);
         eventPublisher.publishEvent(new InquiryCreatedEvent(saved.getId()));
         return InquiryDetailResponse.from(saved, List.of());
+    }
+
+    public List<InquiryListResponse> getInquiriesByCustomer(String customerIdentifier) {
+        return inquiryRepository.findAll().stream()
+                .filter(inquiry -> customerIdentifier.equals(inquiry.getCustomerIdentifier()))
+                .sorted(Comparator.comparing(Inquiry::getCreatedAt).reversed())
+                .map(InquiryListResponse::from)
+                .toList();
     }
 
     public List<InquiryListResponse> getInquiries(

@@ -7,7 +7,8 @@
     <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-<main class="page">
+<div th:insert="~{fragments/topnav :: topnav('admin')}"></div>
+<main class="page" style="margin-top: 52px;">
     <header class="page-header">
         <div>
             <p class="eyebrow">Counselor UI</p>
@@ -207,8 +208,10 @@
             <h2>상담사 작업</h2>
             <p id="action-error" style="color:red;display:none;font-size:13px;margin-bottom:8px;"></p>
             <div class="actions">
-                <button class="button secondary" type="button" onclick="confirmReview()">최종 확정</button>
-                <button class="button ghost" type="button" onclick="closeInquiry()">종료</button>
+                <button th:if="${detail.inquiry.status.name() == 'AI_PROCESSED' or detail.inquiry.status.name() == 'NEW'}"
+                        class="button secondary" type="button" onclick="confirmReview()">최종 확정</button>
+                <span th:if="${detail.inquiry.status.name() != 'AI_PROCESSED' and detail.inquiry.status.name() != 'NEW'}"
+                      style="font-size:13px;color:#aaa;">처리가 완료된 문의입니다.</span>
             </div>
         </article>
     </section>

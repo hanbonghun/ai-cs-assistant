@@ -67,6 +67,7 @@ create table if not exists inquiry_message (
 -- 컬럼 추가 마이그레이션 (테이블이 이미 존재하는 경우)
 alter table inquiry_analysis_log add column if not exists agent_steps text;
 alter table inquiry_analysis_log add column if not exists latency_ms bigint;
+alter table inquiry add column if not exists related_order_id varchar(50);
 
 create index if not exists idx_manual_chunk_manual_document_id on manual_chunk(manual_document_id);
 create index if not exists idx_inquiry_analysis_log_inquiry_id on inquiry_analysis_log(inquiry_id);

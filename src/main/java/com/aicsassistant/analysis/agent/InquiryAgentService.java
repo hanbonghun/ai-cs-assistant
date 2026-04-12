@@ -62,8 +62,8 @@ public class InquiryAgentService {
         List<ChatMessage> messages = new ArrayList<>();
         messages.add(ChatMessage.system(promptFactory.buildAgentSystemPrompt(tools)));
 
-        // 최초 문의 내용
-        messages.add(ChatMessage.user("고객 문의 제목: " + inquiry.getTitle() + "\n\n" + inquiry.getContent()));
+        // 최초 문의 내용 (주문번호가 있으면 주문 정보 선주입)
+        messages.add(ChatMessage.user(buildInitialMessage(inquiry, new CheckOrderStatusTool())));
 
         // 이전 대화 히스토리 주입 (CUSTOMER → user, AI → assistant)
         for (InquiryMessage msg : conversationHistory) {
@@ -118,6 +118,25 @@ public class InquiryAgentService {
 
         throw new IllegalStateException(
                 "Agent exceeded maximum steps (" + MAX_STEPS + ") for inquiryId=" + inquiry.getId());
+    }
+
+    private String buildInitialMessage(Inquiry inquiry, CheckOrderStatusTool orderTool) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("고객 문의 제목: ").append(inquiry.getTitle()).append("\n\n");
+
+        String orderId = inquiry.getRelatedOrderId();
+        if (orderId != null && !orderId.isBlank()) {
+            try {
+                JsonNode orderInput = objectMapper.createObjectNode().put("orderId", orderId);
+                String orderInfo = orderTool.execute(orderInput);
+                sb.append("[관련 주문 정보]\n").append(orderInfo).append("\n");
+            } catch (Exception e) {
+                log.warn("[Agent] 주문 정보 선주입 실패 orderId={}", orderId, e);
+            }
+        }
+
+        sb.append("[문의 내용]\n").append(inquiry.getContent());
+        return sb.toString();
     }
 
     private AgentTool resolveTool(List<AgentTool> tools, String name) {
