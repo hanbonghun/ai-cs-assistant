@@ -130,13 +130,13 @@
     const inquiryId = /*[[${inquiry.id}]]*/ 0;
     const inquiryStatus = /*[[${inquiry.status.name()}]]*/ '';
 
-    if (inquiryStatus === 'NEW' || inquiryStatus === 'AI_PROCESSED') {
+    if (inquiryStatus === 'NEW') {
         const poll = setInterval(async () => {
             try {
                 const res = await fetch(`/api/inquiries/${inquiryId}`);
                 if (!res.ok) return;
                 const data = await res.json();
-                if (data.status !== 'NEW' && data.status !== 'AI_PROCESSED') {
+                if (data.status !== 'NEW') {
                     clearInterval(poll);
                     window.location.reload();
                 }
