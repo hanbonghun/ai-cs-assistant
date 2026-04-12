@@ -1,9 +1,6 @@
 package com.aicsassistant.common.bootstrap;
 
-import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
-import com.aicsassistant.inquiry.domain.UrgencyLevel;
-import com.aicsassistant.inquiry.infra.InquiryRepository;
 import com.aicsassistant.manual.application.ManualService;
 import com.aicsassistant.manual.dto.CreateManualDocumentRequest;
 import com.aicsassistant.manual.infra.ManualDocumentRepository;
@@ -21,61 +18,19 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class LocalSeedDataInitializer implements CommandLineRunner {
 
-    private final InquiryRepository inquiryRepository;
     private final ManualDocumentRepository manualDocumentRepository;
     private final ManualService manualService;
 
     @Override
     @Transactional
     public void run(String... args) {
-        if (inquiryRepository.count() > 0 || manualDocumentRepository.count() > 0) {
+        if (manualDocumentRepository.count() > 0) {
             log.info("Skipping local seed data because demo tables are already populated.");
             return;
         }
 
         seedManuals();
-        seedInquiries();
-        log.info("Seeded local demo inquiries and manuals.");
-    }
-
-    private void seedInquiries() {
-        List<Inquiry> inquiries = List.of(
-                // 주문
-                Inquiry.create("cust-001", "주문한 상품을 취소하고 싶어요", "어제 오후에 주문했는데 아직 배송 준비 중 상태입니다. 지금 취소가 가능한가요? 주문번호는 ORD-20240411-00123입니다.", InquiryCategory.ORDER, UrgencyLevel.MEDIUM),
-                Inquiry.create("cust-002", "주문 수량을 변경할 수 있나요?", "방금 주문했는데 수량을 2개에서 1개로 줄이고 싶습니다. 주문번호 ORD-20240411-00456입니다.", InquiryCategory.ORDER, UrgencyLevel.HIGH),
-                // 배송
-                Inquiry.create("cust-003", "배송이 너무 늦어요", "5일 전에 주문했는데 아직도 배송 중입니다. 주문번호 ORD-20240406-00789. 내일까지 꼭 받아야 하는데 가능한가요?", InquiryCategory.DELIVERY, UrgencyLevel.HIGH),
-                Inquiry.create("cust-004", "다른 주소로 잘못 배송된 것 같아요", "택배 조회하니 이웃집에 배달됐다고 나오는데 저는 받지 못했습니다. 어떻게 해야 하나요?", InquiryCategory.DELIVERY, UrgencyLevel.HIGH),
-                Inquiry.create("cust-005", "배송지를 변경하고 싶어요", "주문 시 회사 주소로 입력했는데 집으로 바꿀 수 있을까요? 아직 출고 전인 것 같습니다.", InquiryCategory.DELIVERY, UrgencyLevel.MEDIUM),
-                // 반품
-                Inquiry.create("cust-006", "상품이 불량입니다", "받은 제품에 스크래치가 있고 포장도 찢겨 있었습니다. 반품 처리 원합니다. 사진 첨부했습니다.", InquiryCategory.RETURN, UrgencyLevel.HIGH),
-                Inquiry.create("cust-007", "단순 변심으로 반품하고 싶어요", "구매 후 일주일이 지났는데 반품이 가능한가요? 제품은 미개봉 상태입니다.", InquiryCategory.RETURN, UrgencyLevel.MEDIUM),
-                Inquiry.create("cust-008", "반품 택배를 어떻게 보내야 하나요?", "반품 신청했는데 택배사와 주소를 알려주세요. 직접 보내야 하나요?", InquiryCategory.RETURN, UrgencyLevel.LOW),
-                // 교환
-                Inquiry.create("cust-009", "사이즈 교환 요청", "XL을 주문했는데 L로 교환하고 싶습니다. 재고가 있나요?", InquiryCategory.EXCHANGE, UrgencyLevel.MEDIUM),
-                Inquiry.create("cust-010", "색상이 사진과 다릅니다", "홈페이지 사진은 진한 네이비인데 받은 제품은 거의 검정에 가깝습니다. 교환 원합니다.", InquiryCategory.EXCHANGE, UrgencyLevel.MEDIUM),
-                // 환불
-                Inquiry.create("cust-011", "환불 처리가 너무 오래 걸려요", "반품 접수한 지 7일이 지났는데 환불이 안 됐습니다. 언제 되나요?", InquiryCategory.REFUND, UrgencyLevel.HIGH),
-                Inquiry.create("cust-012", "부분 취소 환불 문의", "3개 주문 중 1개만 취소했는데 환불 금액이 맞는지 확인하고 싶습니다.", InquiryCategory.REFUND, UrgencyLevel.MEDIUM),
-                Inquiry.create("cust-013", "카드 결제 환불이 언제 되나요?", "환불 승인받았는데 카드사에 언제 반영되는지 알고 싶습니다.", InquiryCategory.REFUND, UrgencyLevel.LOW),
-                // 결제
-                Inquiry.create("cust-014", "결제가 두 번 됐어요", "같은 주문이 카드에 두 번 청구됐습니다. 확인 부탁드립니다. 매우 급합니다.", InquiryCategory.PAYMENT, UrgencyLevel.HIGH),
-                Inquiry.create("cust-015", "무통장 입금 기한이 지났어요", "어제 주문하고 오늘 입금하려고 했는데 주문이 자동 취소됐다고 합니다. 다시 주문해야 하나요?", InquiryCategory.PAYMENT, UrgencyLevel.MEDIUM),
-                // 상품
-                Inquiry.create("cust-016", "품절 상품 재입고 문의", "상품 코드 PRD-9902 재입고 예정이 있나요? 꼭 필요한 제품입니다.", InquiryCategory.PRODUCT, UrgencyLevel.LOW),
-                Inquiry.create("cust-017", "상품 상세 정보 문의", "해당 제품이 식품 알레르기 성분이 포함되어 있는지 알고 싶습니다. 땅콩 알레르기가 있습니다.", InquiryCategory.PRODUCT, UrgencyLevel.HIGH),
-                // 회원/혜택
-                Inquiry.create("cust-018", "포인트가 사라졌어요", "보유 포인트 15,000점이 갑자기 0원으로 바뀌었습니다. 확인 부탁드립니다.", InquiryCategory.MEMBERSHIP, UrgencyLevel.HIGH),
-                Inquiry.create("cust-019", "쿠폰이 적용이 안 돼요", "회원가입 쿠폰 10% 할인을 결제 시 입력했는데 적용이 안 됩니다.", InquiryCategory.MEMBERSHIP, UrgencyLevel.MEDIUM),
-                // 불만
-                Inquiry.create("cust-020", "상담사 응대가 너무 불친절했습니다", "어제 전화 상담에서 제 말을 끊고 일방적으로 말하더니 전화를 끊었습니다. 정식으로 민원을 접수하고 싶습니다.", InquiryCategory.COMPLAINT, UrgencyLevel.HIGH),
-                Inquiry.create("cust-021", "같은 문제로 세 번째 연락입니다", "지난주부터 동일한 문제로 세 번 연락드렸는데 매번 담당자가 다르고 처음부터 설명해야 합니다. 담당자 지정을 요청합니다.", InquiryCategory.COMPLAINT, UrgencyLevel.HIGH),
-                // 일반
-                Inquiry.create("cust-022", "고객센터 운영 시간 문의", "주말에도 상담이 가능한가요? 평일에 연락하기 어렵습니다.", InquiryCategory.GENERAL, UrgencyLevel.LOW),
-                Inquiry.create("cust-023", "기업 구매 담당자입니다", "법인 명의로 대량 구매 시 세금계산서 발행이 가능한지, 별도 단가 협의가 되는지 알고 싶습니다.", InquiryCategory.GENERAL, UrgencyLevel.MEDIUM)
-        );
-
-        inquiryRepository.saveAll(inquiries);
+        log.info("Seeded manual policy documents.");
     }
 
     private void seedManuals() {
