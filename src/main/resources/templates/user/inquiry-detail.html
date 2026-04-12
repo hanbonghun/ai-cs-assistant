@@ -103,12 +103,19 @@
              th:text="${inquiry.finalAnswer}"></div>
 
         <!-- PENDING_CUSTOMER: 고객 답변 입력 -->
-        <div th:if="${inquiry.status.name() == 'PENDING_CUSTOMER'}" class="reply-box">
+        <div th:if="${inquiry.status.name() == 'PENDING_CUSTOMER'}" class="reply-box" id="reply-box">
             <textarea id="reply-input" rows="4" placeholder="추가 내용을 입력해 주세요..."></textarea>
             <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
                 <button type="button" class="button" onclick="sendReply()">답변 보내기</button>
                 <span id="reply-error" style="font-size:13px;color:#e53935;display:none;"></span>
             </div>
+        </div>
+
+        <!-- 전송 후 AI 대기 중 (JS로 표시) -->
+        <div id="waiting-indicator" style="display:none; margin-top:14px; padding:12px 16px;
+             background:#f5f5f5; border-radius:8px; font-size:13px; color:#888;">
+            <span class="dot-pulse">AI가 답변을 생성하고 있습니다</span>&nbsp;
+            <span id="dot-anim">...</span>
         </div>
     </div>
 
@@ -137,6 +144,9 @@
         }, 5000);
     }
 
+    const userName = /*[[${user.name}]]*/ '나';
+    const userInitial = userName.charAt(0);
+
     async function sendReply() {
         const content = document.getElementById('reply-input')?.value?.trim();
         if (!content) { showError('내용을 입력해 주세요.'); return; }
@@ -153,12 +163,53 @@
                 const err = await res.json().catch(() => ({}));
                 throw new Error(err.message || '전송에 실패했습니다.');
             }
-            window.location.reload();
+
+            // 입력한 메시지를 즉시 버블로 추가
+            const thread = document.querySelector('.thread');
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble-wrap';
+            bubble.innerHTML = `
+                <div class="bubble-avatar customer">${userInitial}</div>
+                <div class="bubble customer-bubble" style="white-space:pre-wrap;">${escapeHtml(content)}</div>`;
+            thread.appendChild(bubble);
+
+            // 입력창 숨기고 대기 상태로 전환
+            document.getElementById('reply-box').style.display = 'none';
+            const waiting = document.getElementById('waiting-indicator');
+            waiting.style.display = 'block';
+
+            // 점 애니메이션
+            let dots = 0;
+            const dotEl = document.getElementById('dot-anim');
+            const dotTimer = setInterval(() => {
+                dots = (dots + 1) % 4;
+                dotEl.textContent = '.'.repeat(dots || 1);
+            }, 500);
+
+            // 폴링: 상태 변경 시 페이지 갱신
+            const poll = setInterval(async () => {
+                try {
+                    const r = await fetch(`/api/inquiries/${inquiryId}`);
+                    if (!r.ok) return;
+                    const data = await r.json();
+                    if (data.status !== 'PENDING_CUSTOMER') {
+                        clearInterval(poll);
+                        clearInterval(dotTimer);
+                        window.location.reload();
+                    }
+                } catch (e) { /* 무시 */ }
+            }, 3000);
+
         } catch (e) {
             showError(e.message);
             btn.disabled = false;
             btn.textContent = '답변 보내기';
         }
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
     }
 
     function showError(msg) {
