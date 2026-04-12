@@ -55,9 +55,30 @@ public class CounselorViewController {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    private static final LinkedHashMap<String, String> CATEGORY_LABELS = new LinkedHashMap<>();
+    private static final LinkedHashMap<String, String> URGENCY_LABELS  = new LinkedHashMap<>();
+    static {
+        CATEGORY_LABELS.put("ORDER",      "주문");
+        CATEGORY_LABELS.put("DELIVERY",   "배송");
+        CATEGORY_LABELS.put("RETURN",     "반품");
+        CATEGORY_LABELS.put("EXCHANGE",   "교환");
+        CATEGORY_LABELS.put("REFUND",     "환불");
+        CATEGORY_LABELS.put("PAYMENT",    "결제");
+        CATEGORY_LABELS.put("PRODUCT",    "상품");
+        CATEGORY_LABELS.put("MEMBERSHIP", "회원/혜택");
+        CATEGORY_LABELS.put("COMPLAINT",  "불만");
+        CATEGORY_LABELS.put("GENERAL",    "일반");
+
+        URGENCY_LABELS.put("LOW",    "낮음");
+        URGENCY_LABELS.put("MEDIUM", "보통");
+        URGENCY_LABELS.put("HIGH",   "높음");
+    }
+
     @GetMapping("/inquiries")
     public String inquiryList(Model model) {
         model.addAttribute("inquiries", inquiryService.getInquiries(null, null, null));
+        model.addAttribute("categoryLabels", CATEGORY_LABELS);
+        model.addAttribute("urgencyLabels", URGENCY_LABELS);
         return "inquiries/list";
     }
 
@@ -77,21 +98,9 @@ public class CounselorViewController {
         List<InquiryMessage> messages = messageRepository.findByInquiryIdOrderByCreatedAtAsc(id);
         List<AgentStepView> agentSteps = loadAgentSteps(id);
         model.addAttribute("detail", InquiryDetailViewModel.from(inquiry, evidenceChunks, messages, agentSteps));
+        model.addAttribute("categoryLabels", CATEGORY_LABELS);
+        model.addAttribute("urgencyLabels", URGENCY_LABELS);
         return "inquiries/detail";
-    }
-
-    private static final LinkedHashMap<String, String> CATEGORY_LABELS = new LinkedHashMap<>();
-    static {
-        CATEGORY_LABELS.put("ORDER",      "주문");
-        CATEGORY_LABELS.put("DELIVERY",   "배송");
-        CATEGORY_LABELS.put("RETURN",     "반품");
-        CATEGORY_LABELS.put("EXCHANGE",   "교환");
-        CATEGORY_LABELS.put("REFUND",     "환불");
-        CATEGORY_LABELS.put("PAYMENT",    "결제");
-        CATEGORY_LABELS.put("PRODUCT",    "상품");
-        CATEGORY_LABELS.put("MEMBERSHIP", "회원/혜택");
-        CATEGORY_LABELS.put("COMPLAINT",  "불만");
-        CATEGORY_LABELS.put("GENERAL",    "일반");
     }
 
     @GetMapping("/manuals")

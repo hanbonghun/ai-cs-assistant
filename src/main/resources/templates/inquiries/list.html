@@ -37,9 +37,9 @@
             <tr th:each="inquiry : ${inquiries}">
                 <td th:text="${inquiry.id}">1</td>
                 <td><a th:href="@{/ui/inquiries/{id}(id=${inquiry.id})}" th:text="${inquiry.title}">문의 제목</a></td>
-                <td th:text="${inquiry.customerIdentifier}">cust-1</td>
-                <td th:text="${inquiry.category}">REFUND</td>
-                <td th:text="${inquiry.urgency}">HIGH</td>
+                <td th:text="${#strings.replace(inquiry.customerIdentifier, 'cust-', '고객 #')}">고객 #001</td>
+                <td th:text="${categoryLabels[inquiry.category.name()] ?: inquiry.category.name()}">반품</td>
+                <td th:text="${urgencyLabels[inquiry.urgency.name()] ?: inquiry.urgency.name()}">높음</td>
                 <td>
                     <span th:switch="${inquiry.status.name()}">
                         <span th:case="'NEW'" style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:4px;font-size:12px;">접수됨</span>

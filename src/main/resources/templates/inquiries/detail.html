@@ -14,7 +14,7 @@
             <p class="eyebrow">Counselor UI</p>
             <h1 th:text="${detail.inquiry.title}">문의 상세</h1>
             <p class="muted">
-                <span th:text="${detail.inquiry.customerIdentifier}">cust-1</span>
+                <span th:text="${#strings.replace(detail.inquiry.customerIdentifier, 'cust-', '고객 #')}">고객 #001</span>
                 <span class="dot">•</span>
                 <span th:with="s=${detail.inquiry.status.name()}"
                       th:text="${s == 'NEW' ? '접수됨' :
@@ -30,8 +30,8 @@
 
     <section class="panel stack">
         <div class="summary-grid">
-            <div><span class="label">카테고리</span><strong th:text="${detail.inquiry.category}">REFUND</strong></div>
-            <div><span class="label">긴급도</span><strong th:text="${detail.inquiry.urgency}">HIGH</strong></div>
+            <div><span class="label">카테고리</span><strong th:text="${categoryLabels[detail.inquiry.category.name()] ?: detail.inquiry.category.name()}">반품</strong></div>
+            <div><span class="label">긴급도</span><strong th:text="${urgencyLabels[detail.inquiry.urgency.name()] ?: detail.inquiry.urgency.name()}">높음</strong></div>
             <div><span class="label">생성일</span><strong th:text="${#temporals.format(detail.inquiry.createdAt, 'yyyy-MM-dd HH:mm')}">2026-04-08 09:00</strong></div>
             <div><span class="label">수정일</span><strong th:text="${#temporals.format(detail.inquiry.updatedAt, 'yyyy-MM-dd HH:mm')}">2026-04-08 09:00</strong></div>
         </div>
