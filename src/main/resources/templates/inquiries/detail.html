@@ -153,6 +153,21 @@
                  th:text="${detail.inquiry.finalAnswer}">최종 답변</div>
         </article>
 
+        <!-- AI 초안 품질 평가 -->
+        <article class="card" th:if="${not #lists.isEmpty(detail.agentSteps)}">
+            <h2>AI 초안 품질 평가</h2>
+            <p class="muted" style="font-size:13px;margin-bottom:14px;">AI 초안이 실제 답변에 얼마나 적절했는지 평가해 주세요. 프롬프트 개선에 활용됩니다.</p>
+            <div id="rating-area" style="display:flex;gap:10px;align-items:center;">
+                <button type="button" id="btn-good" onclick="rateDraft('GOOD')"
+                        class="button secondary"
+                        style="font-size:15px;padding:8px 20px;">👍 적절했음</button>
+                <button type="button" id="btn-bad" onclick="rateDraft('BAD')"
+                        class="button secondary"
+                        style="font-size:15px;padding:8px 20px;">👎 부적절했음</button>
+                <span id="rating-saved" style="display:none;font-size:13px;color:#2e7d32;margin-left:8px;">✓ 저장됨</span>
+            </div>
+        </article>
+
         <!-- AI 사고 과정 -->
         <article class="card" th:if="${not #lists.isEmpty(detail.agentSteps)}">
             <h2>AI 분석 과정</h2>
@@ -317,6 +332,24 @@
         el.textContent = msg;
         el.style.display = 'block';
         setTimeout(() => el.style.display = 'none', 4000);
+    }
+
+    async function rateDraft(rating) {
+        try {
+            const res = await fetch(`/api/inquiries/${inquiryId}/rate-draft`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rating })
+            });
+            if (!res.ok) throw new Error();
+            document.getElementById('btn-good').style.opacity = rating === 'GOOD' ? '1' : '0.4';
+            document.getElementById('btn-bad').style.opacity = rating === 'BAD' ? '1' : '0.4';
+            document.getElementById('btn-good').disabled = true;
+            document.getElementById('btn-bad').disabled = true;
+            document.getElementById('rating-saved').style.display = 'inline';
+        } catch (e) {
+            showActionError('평가 저장에 실패했습니다.');
+        }
     }
 
     function copyDraft() {

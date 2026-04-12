@@ -82,6 +82,17 @@ public class AnalysisLogService {
         inquiryAnalysisLogRepository.save(log);
     }
 
+    @Transactional
+    public void rateLatestLog(Long inquiryId, String rating) {
+        inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId)
+                .stream()
+                .findFirst()
+                .ifPresent(logEntry -> {
+                    logEntry.rate(rating);
+                    inquiryAnalysisLogRepository.save(logEntry);
+                });
+    }
+
     private long elapsed(long startedAtMillis) {
         return Math.max(0L, System.currentTimeMillis() - startedAtMillis);
     }

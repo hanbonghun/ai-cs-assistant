@@ -71,6 +71,13 @@ public class InquiryAnalysisLog {
     @Column(name = "total_tokens")
     private Integer totalTokens;
 
+    @Column(name = "ai_draft_rating", length = 10)
+    private String aiDraftRating;
+
+    public void rate(String rating) {
+        this.aiDraftRating = rating;
+    }
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
