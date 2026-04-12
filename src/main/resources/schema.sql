@@ -55,5 +55,14 @@ create table if not exists inquiry_analysis_log (
     created_at timestamp not null
 );
 
+create table if not exists inquiry_message (
+    id          bigserial primary key,
+    inquiry_id  bigint not null references inquiry(id),
+    role        varchar(20) not null,
+    content     text not null,
+    created_at  timestamp not null
+);
+
 create index if not exists idx_manual_chunk_manual_document_id on manual_chunk(manual_document_id);
 create index if not exists idx_inquiry_analysis_log_inquiry_id on inquiry_analysis_log(inquiry_id);
+create index if not exists idx_inquiry_message_inquiry_id on inquiry_message(inquiry_id);

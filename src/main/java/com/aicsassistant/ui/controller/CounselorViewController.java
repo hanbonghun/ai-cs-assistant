@@ -4,8 +4,10 @@ import com.aicsassistant.analysis.domain.InquiryAnalysisLog;
 import com.aicsassistant.analysis.infra.InquiryAnalysisLogRepository;
 import com.aicsassistant.inquiry.application.InquiryService;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
+import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
+import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
 import com.aicsassistant.manual.application.ManualService;
 import com.aicsassistant.manual.dto.ManualChunkResponse;
 import com.aicsassistant.manual.dto.ManualDocumentResponse;
@@ -27,17 +29,20 @@ public class CounselorViewController {
     private final InquiryService inquiryService;
     private final ManualService manualService;
     private final InquiryAnalysisLogRepository inquiryAnalysisLogRepository;
+    private final InquiryMessageRepository messageRepository;
     private final JdbcTemplate jdbcTemplate;
 
     public CounselorViewController(
             InquiryService inquiryService,
             ManualService manualService,
             InquiryAnalysisLogRepository inquiryAnalysisLogRepository,
+            InquiryMessageRepository messageRepository,
             JdbcTemplate jdbcTemplate
     ) {
         this.inquiryService = inquiryService;
         this.manualService = manualService;
         this.inquiryAnalysisLogRepository = inquiryAnalysisLogRepository;
+        this.messageRepository = messageRepository;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -60,7 +65,8 @@ public class CounselorViewController {
         List<InquiryDetailViewModel.EvidenceChunkView> evidenceChunks = inquiry.analysisLogs().isEmpty()
                 ? List.of()
                 : loadEvidenceChunks(id);
-        model.addAttribute("detail", InquiryDetailViewModel.from(inquiry, evidenceChunks));
+        List<InquiryMessage> messages = messageRepository.findByInquiryIdOrderByCreatedAtAsc(id);
+        model.addAttribute("detail", InquiryDetailViewModel.from(inquiry, evidenceChunks, messages));
         return "inquiries/detail";
     }
 

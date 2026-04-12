@@ -45,6 +45,9 @@ public class PromptFactory {
                 **To call a tool:**
                 {"thought": "<your reasoning>", "action": "<tool_name>", "actionInput": {"<key>": "<value>"}}
 
+                **When you need more information from the customer:**
+                {"thought": "<your reasoning>", "followUpQuestion": "<polite Korean question to the customer>"}
+
                 **When you have enough information to answer:**
                 {"thought": "<your reasoning>", "finalAnswer": "<Korean response to customer>", "category": "<category>", "urgency": "<urgency>", "needsHumanReview": true|false, "needsEscalation": true|false, "fraudRiskFlag": true|false, "reason": "<2-3 sentence routing rationale in Korean>"}
 
@@ -81,6 +84,8 @@ public class PromptFactory {
                 ## Guidelines
                 - Always call search_manual before answering any policy question
                 - Call check_order_status if the customer mentions an order ID
+                - If the customer's message lacks critical information (e.g. order ID for a delivery inquiry), use followUpQuestion to ask — do not guess
+                - Once the customer has provided the needed information in a later message, proceed to answer without asking again
                 - Write finalAnswer in polite, concise Korean
                 - Produce finalAnswer as soon as you have sufficient information; do not exceed 6 tool calls
                 """.formatted(toolList, categories, urgencyLevels);

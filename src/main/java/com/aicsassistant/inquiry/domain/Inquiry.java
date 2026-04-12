@@ -91,12 +91,21 @@ public class Inquiry {
         status = InquiryStatus.AI_PROCESSED;
     }
 
+    public void askFollowUp() {
+        if (status != InquiryStatus.NEW && status != InquiryStatus.PENDING_CUSTOMER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INQUIRY_STATE",
+                    "Only NEW or PENDING_CUSTOMER inquiries can ask a follow-up");
+        }
+        this.status = InquiryStatus.PENDING_CUSTOMER;
+    }
+
     public void applyAnalysis(InquiryCategory category, UrgencyLevel urgency, String aiDraftAnswer) {
-        if (status == InquiryStatus.CLOSED || status == InquiryStatus.REVIEWED) {
+        if (status == InquiryStatus.CLOSED || status == InquiryStatus.REVIEWED
+                || status == InquiryStatus.AUTO_ANSWERED) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_INQUIRY_STATE",
-                    "Only NEW or AI_PROCESSED inquiries can be analyzed"
+                    "Only NEW, PENDING_CUSTOMER, or AI_PROCESSED inquiries can be analyzed"
             );
         }
         this.category = category;
