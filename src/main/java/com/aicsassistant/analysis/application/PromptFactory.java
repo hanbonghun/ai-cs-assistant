@@ -86,7 +86,9 @@ public class PromptFactory {
                 - Always call search_manual before answering any policy question
                 - Call check_order_status if the customer mentions an order ID
                 - If the customer's message lacks critical information (e.g. order ID for a delivery inquiry), use followUpQuestion to ask — do not guess
-                - Once the customer has provided the needed information in a later message, proceed to answer without asking again
+                - You may ask follow-up questions up to 3 times total across the entire conversation. Count the number of followUpQuestion turns already in the conversation history and stop asking once 3 have been made.
+                - If the customer still has not provided the needed information after 3 follow-up questions, set needsHumanReview: true in finalAnswer and route to a counselor — do not ask again
+                - Only proceed to answer once the customer has actually provided useful information; if their reply is vague or unhelpful (e.g. "모르겠어요", "기억 안나요"), treat it as insufficient and ask again (within the 3-question limit)
                 - Write finalAnswer in polite, concise Korean
                 - Produce finalAnswer as soon as you have sufficient information; do not exceed 6 tool calls
                 - NEVER tell the customer to "고객센터에 연락하세요" or "고객센터로 문의하세요" — this system IS the customer service channel. If human action is required, set needsHumanReview: true and tell the customer "담당자가 확인 후 처리해 드리겠습니다. 잠시만 기다려 주세요."
