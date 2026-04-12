@@ -30,13 +30,14 @@
                 <th>카테고리</th>
                 <th>긴급도</th>
                 <th>상태</th>
-                <th></th>
             </tr>
             </thead>
             <tbody>
-            <tr th:each="inquiry : ${inquiries}">
+            <tr th:each="inquiry : ${inquiries}"
+                th:onclick="|location.href='@{/ui/inquiries/{id}(id=${inquiry.id})}'|"
+                style="cursor:pointer;">
                 <td th:text="${inquiry.id}">1</td>
-                <td><a th:href="@{/ui/inquiries/{id}(id=${inquiry.id})}" th:text="${inquiry.title}">문의 제목</a></td>
+                <td th:text="${inquiry.title}">문의 제목</td>
                 <td th:text="${#strings.replace(inquiry.customerIdentifier, 'cust-', '고객 #')}">고객 #001</td>
                 <td th:text="${categoryLabels[inquiry.category.name()] ?: inquiry.category.name()}">반품</td>
                 <td th:text="${urgencyLabels[inquiry.urgency.name()] ?: inquiry.urgency.name()}">높음</td>
@@ -51,10 +52,9 @@
                         <span th:case="*" th:text="${inquiry.status}"></span>
                     </span>
                 </td>
-                <td><a th:href="@{/ui/inquiries/{id}(id=${inquiry.id})}">상세</a></td>
             </tr>
             <tr th:if="${#lists.isEmpty(inquiries)}">
-                <td colspan="7" class="muted">등록된 문의가 없습니다.</td>
+                <td colspan="6" class="muted">등록된 문의가 없습니다.</td>
             </tr>
             </tbody>
         </table>

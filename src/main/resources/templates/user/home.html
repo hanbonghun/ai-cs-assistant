@@ -104,8 +104,10 @@
                 </tr>
             </thead>
             <tbody>
-                <tr th:each="inq : ${myInquiries}">
-                    <td><a th:href="@{/app/inquiries/{id}(id=${inq.id})}" th:text="${inq.title}">제목</a></td>
+                <tr th:each="inq : ${myInquiries}"
+                    th:onclick="|location.href='@{/app/inquiries/{id}(id=${inq.id})}'|"
+                    style="cursor:pointer;">
+                    <td th:text="${inq.title}">제목</td>
                     <td th:text="${inq.category != null ? (categoryLabels[inq.category.name()] ?: inq.category.name()) : '-'}">-</td>
                     <td>
                         <span th:with="s=${inq.status.name()}"

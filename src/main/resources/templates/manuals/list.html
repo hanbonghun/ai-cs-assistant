@@ -82,17 +82,17 @@
                 <th>카테고리</th>
                 <th>버전</th>
                 <th>상태</th>
-                <th></th>
             </tr>
             </thead>
             <tbody>
-            <tr th:each="manual : ${manuals}">
+            <tr th:each="manual : ${manuals}"
+                th:onclick="|location.href='@{/ui/manuals/{id}(id=${manual.id})}'|"
+                style="cursor:pointer;">
                 <td th:text="${manual.id}">1</td>
                 <td th:text="${manual.title}">환불 정책</td>
                 <td th:text="${categoryLabels[manual.category.name()] ?: manual.category.name()}">반품</td>
                 <td th:text="${manual.version}">1</td>
                 <td th:text="${manual.active ? '활성' : '비활성'}">활성</td>
-                <td><a th:href="@{/ui/manuals/{id}(id=${manual.id})}">상세</a></td>
             </tr>
             <tr th:if="${#lists.isEmpty(manuals)}">
                 <td colspan="6" class="muted">등록된 매뉴얼이 없습니다.</td>
