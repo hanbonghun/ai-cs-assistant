@@ -19,7 +19,7 @@ class PromptFactoryTest {
         assertThat(prompt).contains("category");
         assertThat(prompt).contains("urgency");
         assertThat(prompt).contains("needsHumanReview");
-        assertThat(prompt).contains("medicalRiskFlag");
+        assertThat(prompt).contains("fraudRiskFlag");
         assertThat(prompt).contains("환불을 요청합니다.");
     }
 

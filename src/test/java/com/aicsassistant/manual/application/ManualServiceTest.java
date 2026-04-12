@@ -31,15 +31,15 @@ class ManualServiceTest extends PostgresVectorIntegrationTest {
     @Test
     void manualDocumentProvidesExplicitLifecycleMethods() {
         ManualDocument document = ManualDocument.create(
-                "예약 변경 안내",
-                InquiryCategory.RESERVATION_CHANGE,
+                "주문 처리 정책",
+                InquiryCategory.ORDER,
                 "초기 내용"
         );
 
-        document.update("예약 변경 최신 안내", InquiryCategory.RESERVATION_CHANGE, "수정 내용");
+        document.update("주문 처리 정책 최신", InquiryCategory.ORDER, "수정 내용");
         document.deactivate();
 
-        assertThat(document.getTitle()).isEqualTo("예약 변경 최신 안내");
+        assertThat(document.getTitle()).isEqualTo("주문 처리 정책 최신");
         assertThat(document.getContent()).isEqualTo("수정 내용");
         assertThat(document.getVersion()).isEqualTo(2);
         assertThat(document.isActive()).isFalse();
@@ -48,13 +48,13 @@ class ManualServiceTest extends PostgresVectorIntegrationTest {
     @Test
     void updatingManualIncrementsVersionAndReplacesActiveChunks() {
         Long documentId = manualService.create(
-                new CreateManualDocumentRequest("예약 변경 안내", InquiryCategory.RESERVATION_CHANGE, "A".repeat(1200))
+                new CreateManualDocumentRequest("주문 처리 정책", InquiryCategory.ORDER, "A".repeat(1200))
         ).id();
         List<ManualChunkResponse> chunksBeforeUpdate = manualService.getChunks(documentId);
 
         ManualDocumentResponse updated = manualService.update(
                 documentId,
-                new UpdateManualDocumentRequest("예약 변경 최신 안내", InquiryCategory.RESERVATION_CHANGE, "B".repeat(700))
+                new UpdateManualDocumentRequest("주문 처리 정책 최신", InquiryCategory.ORDER, "B".repeat(700))
         );
         List<ManualChunkResponse> activeChunksAfterUpdate = manualChunkJdbcRepository.findActiveChunks().stream()
                 .filter(chunk -> chunk.manualDocumentId().equals(documentId))

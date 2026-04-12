@@ -1,11 +1,13 @@
 package com.aicsassistant.inquiry.domain;
 
 public enum InquiryCategory {
-    RESERVATION_CHANGE,
-    RESERVATION_CANCEL,
+    ORDER,
+    DELIVERY,
+    RETURN,
+    EXCHANGE,
     REFUND,
-    PRICE,
-    POST_TREATMENT,
+    PAYMENT,
+    PRODUCT,
     MEMBERSHIP,
     COMPLAINT,
     GENERAL

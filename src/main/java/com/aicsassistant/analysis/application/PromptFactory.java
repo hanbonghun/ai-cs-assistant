@@ -28,8 +28,8 @@ public class PromptFactory {
                 .collect(Collectors.joining(", "));
 
         return """
-                You are a customer inquiry analyzer.
-                Classify the inquiry and produce only JSON.
+                You are a customer inquiry analyzer for a Korean e-commerce platform.
+                Classify the inquiry and produce only raw JSON (no markdown, no code block).
 
                 Allowed category values: %s
                 Allowed urgency values: %s
@@ -38,10 +38,10 @@ public class PromptFactory {
                 {
                   "category": "<one of allowed categories>",
                   "urgency": "<one of allowed urgency values>",
-                  "reason": "<concise explanation>",
+                  "reason": "<concise explanation in Korean>",
                   "needsHumanReview": true|false,
                   "needsEscalation": true|false,
-                  "medicalRiskFlag": true|false
+                  "fraudRiskFlag": true|false
                 }
 
                 Inquiry:
@@ -71,10 +71,10 @@ public class PromptFactory {
                 .collect(Collectors.joining("\n"));
 
         return """
-                You are drafting a customer support response in Korean.
+                You are drafting a customer support response in Korean for a Korean e-commerce platform.
                 Use only the provided manual chunks as policy basis.
                 Keep customer-facing language polite and concise.
-                Return only JSON.
+                Return only raw JSON (no markdown, no code block).
 
                 Classification:
                 - category: %s

@@ -46,9 +46,9 @@ class InquiryServiceTest extends PostgresVectorIntegrationTest {
         ));
         inquiryService.create(new CreateInquiryRequest(
                 "cust-002",
-                "예약 문의",
-                "예약 변경 가능한가요?",
-                InquiryCategory.RESERVATION_CHANGE,
+                "주문 취소 문의",
+                "주문 취소 가능한가요?",
+                InquiryCategory.ORDER,
                 UrgencyLevel.LOW
         ));
 

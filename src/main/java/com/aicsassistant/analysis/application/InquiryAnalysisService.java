@@ -6,6 +6,8 @@ import com.aicsassistant.analysis.dto.InquiryAnalysisResponse;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.analysis.dto.UrgencyResultDto;
 import com.aicsassistant.common.exception.ApiException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryStatus;
@@ -19,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 public class InquiryAnalysisService {
+
+    private static final Logger log = LoggerFactory.getLogger(InquiryAnalysisService.class);
 
     private final InquiryRepository inquiryRepository;
     private final InquiryClassifier inquiryClassifier;
@@ -70,9 +74,19 @@ public class InquiryAnalysisService {
 
             analysisLogService.logSuccess(inquiry, category, urgency, chunks, draft, startedAtMillis);
             return InquiryAnalysisResponse.of(inquiry, category, urgency, chunks, draft);
-        } catch (RuntimeException ex) {
+        } catch (ApiException ex) {
             analysisLogService.logFailure(inquiry, ex, startedAtMillis);
             throw ex;
+        } catch (IllegalStateException ex) {
+            analysisLogService.logFailure(inquiry, ex, startedAtMillis);
+            log.error("AI 분석 파싱 실패 inquiryId={}", inquiryId, ex);
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_PARSE_ERROR",
+                    "AI 응답을 파싱하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        } catch (RuntimeException ex) {
+            analysisLogService.logFailure(inquiry, ex, startedAtMillis);
+            log.error("AI 분석 실패 inquiryId={}", inquiryId, ex);
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "AI_ANALYSIS_ERROR",
+                    "AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
         }
     }
 }

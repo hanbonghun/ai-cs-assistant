@@ -35,11 +35,16 @@
         </article>
 
         <article class="card">
-            <h2>AI 결과</h2>
-            <p><span class="label">분류</span> <strong th:text="${detail.inquiry.category}">REFUND</strong></p>
-            <p><span class="label">긴급도</span> <strong th:text="${detail.inquiry.urgency}">HIGH</strong></p>
-            <p><span class="label">초안 답변</span></p>
-            <pre class="code" th:text="${detail.inquiry.aiDraftAnswer ?: '아직 AI 분석이 없습니다.'}">아직 AI 분석이 없습니다.</pre>
+            <h2>AI 자동 답변</h2>
+            <div id="analyze-section">
+                <div id="analyze-status" style="margin-bottom:12px;">
+                    <span th:if="${detail.inquiry.aiDraftAnswer == null}" class="muted">아직 AI 분석이 실행되지 않았습니다.</span>
+                </div>
+                <div id="draft-box" th:if="${detail.inquiry.aiDraftAnswer != null}">
+                    <textarea id="draft-answer" rows="8" style="width:100%;font-size:14px;padding:10px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;" th:text="${detail.inquiry.aiDraftAnswer}"></textarea>
+                    <button type="button" onclick="copyDraft()" style="margin-top:8px;" class="button secondary">답변 복사</button>
+                </div>
+            </div>
         </article>
 
         <article class="card">
@@ -59,9 +64,7 @@
         <article class="card">
             <h2>상담사 작업</h2>
             <div class="actions">
-                <form th:action="@{/api/inquiries/{id}/analyze(id=${detail.inquiry.id})}" method="post">
-                    <button class="button" type="submit">AI 분석</button>
-                </form>
+                <button id="analyze-btn" class="button" type="button" onclick="runAnalyze()">AI 자동 답변 만들기</button>
                 <form th:action="@{/api/inquiries/{id}/review(id=${detail.inquiry.id})}" method="post">
                     <input type="hidden" name="finalAnswer" th:value="${detail.inquiry.aiDraftAnswer}">
                     <input type="hidden" name="reviewMemo" th:value="${detail.inquiry.reviewMemo}">
@@ -75,5 +78,60 @@
         </article>
     </section>
 </main>
+
+<script th:inline="javascript">
+    const inquiryId = [[${detail.inquiry.id}]];
+
+    async function runAnalyze() {
+        const btn = document.getElementById('analyze-btn');
+        const status = document.getElementById('analyze-status');
+
+        btn.disabled = true;
+        btn.textContent = 'AI 분석 중...';
+        status.innerHTML = '<span class="muted">GPT가 메뉴얼을 검색하고 답변을 생성하고 있습니다...</span>';
+
+        try {
+            const res = await fetch(`/api/inquiries/${inquiryId}/analyze`, { method: 'POST' });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || `분석 실패 (${res.status})`);
+            }
+            const data = await res.json();
+
+            status.innerHTML = '';
+            const draftBox = document.getElementById('draft-box') || createDraftBox();
+            const textarea = document.getElementById('draft-answer');
+            textarea.value = data.draft?.answer ?? '';
+            btn.textContent = '다시 분석';
+            btn.disabled = false;
+        } catch (e) {
+            status.innerHTML = `<span style="color:red">오류: ${e.message}</span>`;
+            btn.textContent = 'AI 자동 답변 만들기';
+            btn.disabled = false;
+        }
+    }
+
+    function createDraftBox() {
+        const section = document.getElementById('analyze-section');
+        const div = document.createElement('div');
+        div.id = 'draft-box';
+        div.innerHTML = `
+            <textarea id="draft-answer" rows="8" style="width:100%;font-size:14px;padding:10px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;"></textarea>
+            <button type="button" onclick="copyDraft()" style="margin-top:8px;" class="button secondary">답변 복사</button>
+        `;
+        section.appendChild(div);
+        return div;
+    }
+
+    function copyDraft() {
+        const textarea = document.getElementById('draft-answer');
+        textarea.select();
+        navigator.clipboard.writeText(textarea.value).then(() => {
+            const btn = event.target;
+            btn.textContent = '복사됨!';
+            setTimeout(() => btn.textContent = '답변 복사', 1500);
+        });
+    }
+</script>
 </body>
 </html>

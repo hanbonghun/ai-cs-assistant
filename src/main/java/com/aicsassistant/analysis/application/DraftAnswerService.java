@@ -44,10 +44,22 @@ public class DraftAnswerService {
 
     private JsonNode readJson(String response) {
         try {
-            return objectMapper.readTree(response);
+            return objectMapper.readTree(stripMarkdownFence(response));
         } catch (Exception e) {
             throw new IllegalStateException("Failed to parse draft response", e);
         }
+    }
+
+    private String stripMarkdownFence(String response) {
+        String trimmed = response.strip();
+        if (trimmed.startsWith("```")) {
+            int firstNewline = trimmed.indexOf('\n');
+            int lastFence = trimmed.lastIndexOf("```");
+            if (firstNewline != -1 && lastFence > firstNewline) {
+                return trimmed.substring(firstNewline + 1, lastFence).strip();
+            }
+        }
+        return trimmed;
     }
 
     private String requiredText(JsonNode node, String fieldName) {

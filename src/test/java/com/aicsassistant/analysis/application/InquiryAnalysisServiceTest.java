@@ -97,8 +97,7 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
         fakeLlmClient.failWith(new RuntimeException("upstream timeout"));
 
         assertThatThrownBy(() -> inquiryAnalysisService.analyze(savedInquiry.getId()))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("upstream timeout");
+                .isInstanceOf(RuntimeException.class);
 
         assertThat(inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(savedInquiry.getId()))
                 .isNotEmpty()

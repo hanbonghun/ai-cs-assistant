@@ -33,7 +33,7 @@
             <tbody>
             <tr th:each="inquiry : ${inquiries}">
                 <td th:text="${inquiry.id}">1</td>
-                <td th:text="${inquiry.title}">문의 제목</td>
+                <td><a th:href="@{/ui/inquiries/{id}(id=${inquiry.id})}" th:text="${inquiry.title}">문의 제목</a></td>
                 <td th:text="${inquiry.customerIdentifier}">cust-1</td>
                 <td th:text="${inquiry.category}">REFUND</td>
                 <td th:text="${inquiry.urgency}">HIGH</td>
