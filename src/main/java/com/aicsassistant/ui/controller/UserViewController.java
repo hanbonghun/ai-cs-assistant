@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 @Controller
 @RequestMapping("/app")
+@RequiredArgsConstructor
 public class UserViewController {
 
     private static final Map<String, String> CATEGORY_LABELS = new LinkedHashMap<>();
@@ -53,11 +55,6 @@ public class UserViewController {
 
     private final InquiryService inquiryService;
     private final InquiryMessageRepository messageRepository;
-
-    public UserViewController(InquiryService inquiryService, InquiryMessageRepository messageRepository) {
-        this.inquiryService = inquiryService;
-        this.messageRepository = messageRepository;
-    }
 
     /** 사용자 선택 화면 */
     @GetMapping

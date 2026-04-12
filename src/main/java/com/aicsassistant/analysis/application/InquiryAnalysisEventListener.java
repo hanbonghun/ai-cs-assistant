@@ -1,23 +1,19 @@
 package com.aicsassistant.analysis.application;
 
 import com.aicsassistant.inquiry.application.InquiryCreatedEvent;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class InquiryAnalysisEventListener {
 
-    private static final Logger log = LoggerFactory.getLogger(InquiryAnalysisEventListener.class);
-
     private final InquiryAnalysisService inquiryAnalysisService;
-
-    public InquiryAnalysisEventListener(InquiryAnalysisService inquiryAnalysisService) {
-        this.inquiryAnalysisService = inquiryAnalysisService;
-    }
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

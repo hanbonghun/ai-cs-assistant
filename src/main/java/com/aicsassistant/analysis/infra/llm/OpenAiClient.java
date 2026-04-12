@@ -6,23 +6,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @Component
+@RequiredArgsConstructor
 public class OpenAiClient implements LlmClient, EmbeddingClient {
 
     private final WebClient webClient;
     private final AiProperties aiProperties;
     private final ObjectMapper objectMapper;
-
-    public OpenAiClient(WebClient webClient, AiProperties aiProperties, ObjectMapper objectMapper) {
-        this.webClient = webClient;
-        this.aiProperties = aiProperties;
-        this.objectMapper = objectMapper;
-    }
 
     @Override
     public String complete(String prompt) {

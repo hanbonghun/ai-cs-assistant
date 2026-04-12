@@ -10,20 +10,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class DraftAnswerService {
 
     private final LlmClient llmClient;
     private final PromptFactory promptFactory;
     private final ObjectMapper objectMapper;
-
-    public DraftAnswerService(LlmClient llmClient, PromptFactory promptFactory, ObjectMapper objectMapper) {
-        this.llmClient = llmClient;
-        this.promptFactory = promptFactory;
-        this.objectMapper = objectMapper;
-    }
 
     public DraftAnswerDto generate(
             Inquiry inquiry,

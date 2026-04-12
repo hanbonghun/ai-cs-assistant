@@ -4,19 +4,17 @@ import com.aicsassistant.common.exception.ApiException;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.dto.ReviewInquiryRequest;
 import com.aicsassistant.inquiry.infra.InquiryRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class ReviewService {
 
     private final InquiryRepository inquiryRepository;
-
-    public ReviewService(InquiryRepository inquiryRepository) {
-        this.inquiryRepository = inquiryRepository;
-    }
 
     @Transactional
     public void confirm(Long inquiryId, ReviewInquiryRequest request) {

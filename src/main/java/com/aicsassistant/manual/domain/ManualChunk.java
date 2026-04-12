@@ -11,7 +11,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import lombok.Getter;
 
+@Getter
 @Entity
 @Table(name = "manual_chunk")
 public class ManualChunk {
@@ -52,39 +54,4 @@ public class ManualChunk {
         createdAt = LocalDateTime.now();
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    public ManualDocument getManualDocument() {
-        return manualDocument;
-    }
-
-    public Integer getChunkIndex() {
-        return chunkIndex;
-    }
-
-    public Integer getDocumentVersion() {
-        return documentVersion;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public Integer getTokenCount() {
-        return tokenCount;
-    }
-
-    public String getEmbedding() {
-        return embedding;
-    }
-
-    public boolean isActive() {
-        return active;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
 }

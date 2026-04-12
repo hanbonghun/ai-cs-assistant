@@ -16,17 +16,18 @@ import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
 import com.aicsassistant.inquiry.infra.InquiryRepository;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class InquiryAnalysisService {
 
-    private static final Logger log = LoggerFactory.getLogger(InquiryAnalysisService.class);
     private static final String AUTO_PROCESSOR = "ai-auto";
 
     private final InquiryRepository inquiryRepository;
@@ -34,20 +35,6 @@ public class InquiryAnalysisService {
     private final InquiryAgentService agentService;
     private final AnalysisLogService analysisLogService;
     private final CounselorNotificationService notificationService;
-
-    public InquiryAnalysisService(
-            InquiryRepository inquiryRepository,
-            InquiryMessageRepository messageRepository,
-            InquiryAgentService agentService,
-            AnalysisLogService analysisLogService,
-            CounselorNotificationService notificationService
-    ) {
-        this.inquiryRepository = inquiryRepository;
-        this.messageRepository = messageRepository;
-        this.agentService = agentService;
-        this.analysisLogService = analysisLogService;
-        this.notificationService = notificationService;
-    }
 
     @Transactional
     public InquiryAnalysisResponse analyze(Long inquiryId) {

@@ -21,6 +21,7 @@ import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel;
 import jakarta.validation.constraints.NotNull;
 import java.util.Arrays;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 
 @Controller
 @RequestMapping("/ui")
+@RequiredArgsConstructor
 public class CounselorViewController {
 
     private final InquiryService inquiryService;
@@ -38,22 +40,6 @@ public class CounselorViewController {
     private final InquiryMessageRepository messageRepository;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
-
-    public CounselorViewController(
-            InquiryService inquiryService,
-            ManualService manualService,
-            InquiryAnalysisLogRepository inquiryAnalysisLogRepository,
-            InquiryMessageRepository messageRepository,
-            ObjectMapper objectMapper,
-            JdbcTemplate jdbcTemplate
-    ) {
-        this.inquiryService = inquiryService;
-        this.manualService = manualService;
-        this.inquiryAnalysisLogRepository = inquiryAnalysisLogRepository;
-        this.messageRepository = messageRepository;
-        this.objectMapper = objectMapper;
-        this.jdbcTemplate = jdbcTemplate;
-    }
 
     private static final LinkedHashMap<String, String> CATEGORY_LABELS = new LinkedHashMap<>();
     private static final LinkedHashMap<String, String> URGENCY_LABELS  = new LinkedHashMap<>();

@@ -8,6 +8,7 @@ import com.aicsassistant.inquiry.domain.InquiryMessageRole;
 import com.aicsassistant.inquiry.domain.InquiryStatus;
 import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
 import com.aicsassistant.inquiry.infra.InquiryRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,21 +18,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/inquiries")
+@RequiredArgsConstructor
 public class InquiryMessageController {
 
     private final InquiryRepository inquiryRepository;
     private final InquiryMessageRepository messageRepository;
     private final InquiryAnalysisService analysisService;
-
-    public InquiryMessageController(
-            InquiryRepository inquiryRepository,
-            InquiryMessageRepository messageRepository,
-            InquiryAnalysisService analysisService
-    ) {
-        this.inquiryRepository = inquiryRepository;
-        this.messageRepository = messageRepository;
-        this.analysisService = analysisService;
-    }
 
     record CustomerReplyRequest(String content) {}
 

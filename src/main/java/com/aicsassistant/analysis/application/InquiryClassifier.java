@@ -5,20 +5,16 @@ import com.aicsassistant.analysis.dto.UrgencyResultDto;
 import com.aicsassistant.analysis.infra.llm.LlmClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class InquiryClassifier {
 
     private final LlmClient llmClient;
     private final PromptFactory promptFactory;
     private final ObjectMapper objectMapper;
-
-    public InquiryClassifier(LlmClient llmClient, PromptFactory promptFactory, ObjectMapper objectMapper) {
-        this.llmClient = llmClient;
-        this.promptFactory = promptFactory;
-        this.objectMapper = objectMapper;
-    }
 
     public ClassificationResult classify(String inquiryContent) {
         String prompt = promptFactory.buildClassificationPrompt(inquiryContent);

@@ -10,7 +10,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import lombok.Getter;
 
+@Getter
 @Entity
 @Table(name = "inquiry_message")
 public class InquiryMessage {
@@ -47,9 +49,4 @@ public class InquiryMessage {
         createdAt = LocalDateTime.now();
     }
 
-    public Long getId() { return id; }
-    public Long getInquiryId() { return inquiryId; }
-    public InquiryMessageRole getRole() { return role; }
-    public String getContent() { return content; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
 }

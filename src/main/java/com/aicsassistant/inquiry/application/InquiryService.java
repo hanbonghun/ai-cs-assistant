@@ -13,6 +13,7 @@ import com.aicsassistant.inquiry.dto.InquiryListResponse;
 import com.aicsassistant.inquiry.infra.InquiryRepository;
 import java.util.Comparator;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -20,21 +21,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class InquiryService {
 
     private final InquiryRepository inquiryRepository;
     private final InquiryAnalysisLogRepository inquiryAnalysisLogRepository;
     private final ApplicationEventPublisher eventPublisher;
-
-    public InquiryService(
-            InquiryRepository inquiryRepository,
-            InquiryAnalysisLogRepository inquiryAnalysisLogRepository,
-            ApplicationEventPublisher eventPublisher
-    ) {
-        this.inquiryRepository = inquiryRepository;
-        this.inquiryAnalysisLogRepository = inquiryAnalysisLogRepository;
-        this.eventPublisher = eventPublisher;
-    }
 
     @Transactional
     public InquiryDetailResponse create(CreateInquiryRequest request) {

@@ -15,8 +15,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
@@ -29,10 +29,11 @@ import org.springframework.stereotype.Service;
  *   <li>finalAnswer — 최종 답변 생성</li>
  * </ol>
  */
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class InquiryAgentService {
 
-    private static final Logger log = LoggerFactory.getLogger(InquiryAgentService.class);
     private static final int MAX_STEPS = 8;
 
     private final LlmClient llmClient;
@@ -40,20 +41,6 @@ public class InquiryAgentService {
     private final PromptFactory promptFactory;
     private final ObjectMapper objectMapper;
     private final InMemoryOrderRepository orderRepository;
-
-    public InquiryAgentService(
-            LlmClient llmClient,
-            ManualRetrievalService manualRetrievalService,
-            PromptFactory promptFactory,
-            ObjectMapper objectMapper,
-            InMemoryOrderRepository orderRepository
-    ) {
-        this.llmClient = llmClient;
-        this.manualRetrievalService = manualRetrievalService;
-        this.promptFactory = promptFactory;
-        this.objectMapper = objectMapper;
-        this.orderRepository = orderRepository;
-    }
 
     /**
      * @param inquiry         분석할 문의

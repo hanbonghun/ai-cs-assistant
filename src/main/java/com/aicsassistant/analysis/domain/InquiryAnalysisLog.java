@@ -18,7 +18,9 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import lombok.Getter;
 
+@Getter
 @Entity
 @Table(name = "inquiry_analysis_log")
 public class InquiryAnalysisLog {
@@ -126,62 +128,6 @@ public class InquiryAnalysisLog {
     @PrePersist
     void prePersist() {
         createdAt = LocalDateTime.now();
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Inquiry getInquiry() {
-        return inquiry;
-    }
-
-    public String getRequestSnapshot() {
-        return requestSnapshot;
-    }
-
-    public InquiryCategory getClassifiedCategory() {
-        return classifiedCategory;
-    }
-
-    public UrgencyLevel getClassifiedUrgency() {
-        return classifiedUrgency;
-    }
-
-    public String getRetrievedChunkIds() {
-        return retrievedChunkIds;
-    }
-
-    public String getGeneratedDraft() {
-        return generatedDraft;
-    }
-
-    public String getModelName() {
-        return modelName;
-    }
-
-    public String getPromptVersion() {
-        return promptVersion;
-    }
-
-    public AnalysisStatus getAnalysisStatus() {
-        return analysisStatus;
-    }
-
-    public String getAgentSteps() {
-        return agentSteps;
-    }
-
-    public String getErrorMessage() {
-        return errorMessage;
-    }
-
-    public Long getLatencyMs() {
-        return latencyMs;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
     }
 
     private static String toChunkIdCsv(List<Long> chunkIds) {

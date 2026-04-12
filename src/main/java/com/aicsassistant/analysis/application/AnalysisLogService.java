@@ -13,33 +13,21 @@ import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class AnalysisLogService {
-
-    private static final Logger log = LoggerFactory.getLogger(AnalysisLogService.class);
 
     private final InquiryAnalysisLogRepository inquiryAnalysisLogRepository;
     private final PromptFactory promptFactory;
     private final LlmClient llmClient;
     private final ObjectMapper objectMapper;
-
-    public AnalysisLogService(
-            InquiryAnalysisLogRepository inquiryAnalysisLogRepository,
-            PromptFactory promptFactory,
-            LlmClient llmClient,
-            ObjectMapper objectMapper
-    ) {
-        this.inquiryAnalysisLogRepository = inquiryAnalysisLogRepository;
-        this.promptFactory = promptFactory;
-        this.llmClient = llmClient;
-        this.objectMapper = objectMapper;
-    }
 
     public void logSuccess(
             Inquiry inquiry,

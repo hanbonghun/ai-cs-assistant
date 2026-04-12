@@ -12,8 +12,10 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
+@Getter
 @Entity
 @Table(name = "inquiry")
 public class Inquiry {
@@ -174,59 +176,4 @@ public class Inquiry {
         updatedAt = LocalDateTime.now();
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    public String getCustomerIdentifier() {
-        return customerIdentifier;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public InquiryCategory getCategory() {
-        return category;
-    }
-
-    public UrgencyLevel getUrgency() {
-        return urgency;
-    }
-
-    public InquiryStatus getStatus() {
-        return status;
-    }
-
-    public String getAiDraftAnswer() {
-        return aiDraftAnswer;
-    }
-
-    public String getFinalAnswer() {
-        return finalAnswer;
-    }
-
-    public String getReviewMemo() {
-        return reviewMemo;
-    }
-
-    public String getReviewedBy() {
-        return reviewedBy;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public String getRelatedOrderId() {
-        return relatedOrderId;
-    }
 }

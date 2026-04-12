@@ -5,11 +5,13 @@ import com.aicsassistant.analysis.infra.llm.EmbeddingClient;
 import com.aicsassistant.analysis.infra.vector.PgvectorRowMapper;
 import java.util.List;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class ManualRetrievalService {
 
     private static final int DEFAULT_TOP_K = 5;
@@ -17,16 +19,6 @@ public class ManualRetrievalService {
     private final JdbcTemplate jdbcTemplate;
     private final EmbeddingClient embeddingClient;
     private final PgvectorRowMapper pgvectorRowMapper;
-
-    public ManualRetrievalService(
-            JdbcTemplate jdbcTemplate,
-            EmbeddingClient embeddingClient,
-            PgvectorRowMapper pgvectorRowMapper
-    ) {
-        this.jdbcTemplate = jdbcTemplate;
-        this.embeddingClient = embeddingClient;
-        this.pgvectorRowMapper = pgvectorRowMapper;
-    }
 
     public List<RetrievedManualChunkDto> retrieve(String inquiryContent) {
         List<Double> queryEmbedding = embeddingClient.embed(inquiryContent);

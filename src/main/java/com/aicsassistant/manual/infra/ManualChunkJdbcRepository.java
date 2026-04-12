@@ -5,11 +5,13 @@ import com.aicsassistant.manual.dto.ManualChunkResponse;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 @Repository
+@RequiredArgsConstructor
 public class ManualChunkJdbcRepository {
 
     private static final RowMapper<ManualChunkResponse> CHUNK_ROW_MAPPER = (rs, rowNum) -> new ManualChunkResponse(
@@ -24,10 +26,6 @@ public class ManualChunkJdbcRepository {
     );
 
     private final JdbcTemplate jdbcTemplate;
-
-    public ManualChunkJdbcRepository(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
-    }
 
     public void replaceActiveChunks(Long documentId, int version, List<ChunkWithEmbedding> chunks) {
         jdbcTemplate.update("update manual_chunk set active = false where manual_document_id = ?", documentId);

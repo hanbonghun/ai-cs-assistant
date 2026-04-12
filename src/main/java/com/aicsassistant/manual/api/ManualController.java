@@ -7,6 +7,7 @@ import com.aicsassistant.manual.dto.ManualChunkResponse;
 import com.aicsassistant.manual.dto.ManualDocumentResponse;
 import com.aicsassistant.manual.dto.UpdateManualDocumentRequest;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,13 +24,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/manual-documents")
+@RequiredArgsConstructor
 public class ManualController {
 
     private final ManualService manualService;
-
-    public ManualController(ManualService manualService) {
-        this.manualService = manualService;
-    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

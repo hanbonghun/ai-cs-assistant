@@ -11,6 +11,7 @@ import com.aicsassistant.inquiry.dto.InquiryListResponse;
 import com.aicsassistant.inquiry.dto.ReviewInquiryRequest;
 import jakarta.validation.Valid;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,15 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/inquiries")
+@RequiredArgsConstructor
 public class InquiryController {
 
     private final InquiryService inquiryService;
     private final ReviewService reviewService;
-
-    public InquiryController(InquiryService inquiryService, ReviewService reviewService) {
-        this.inquiryService = inquiryService;
-        this.reviewService = reviewService;
-    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

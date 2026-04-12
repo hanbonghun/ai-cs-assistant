@@ -11,38 +11,24 @@ import com.aicsassistant.manual.dto.UpdateManualDocumentRequest;
 import com.aicsassistant.manual.infra.ManualChunkJdbcRepository;
 import com.aicsassistant.manual.infra.ManualDocumentRepository;
 import java.util.List;
-import org.springframework.web.multipart.MultipartFile;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+@Slf4j
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class ManualService {
-
-    private static final Logger log = LoggerFactory.getLogger(ManualService.class);
 
     private final ManualDocumentRepository manualDocumentRepository;
     private final ManualChunkJdbcRepository manualChunkJdbcRepository;
     private final ManualChunker manualChunker;
     private final EmbeddingClient embeddingClient;
     private final FileTextExtractor fileTextExtractor;
-
-    public ManualService(
-            ManualDocumentRepository manualDocumentRepository,
-            ManualChunkJdbcRepository manualChunkJdbcRepository,
-            ManualChunker manualChunker,
-            EmbeddingClient embeddingClient,
-            FileTextExtractor fileTextExtractor
-    ) {
-        this.manualDocumentRepository = manualDocumentRepository;
-        this.manualChunkJdbcRepository = manualChunkJdbcRepository;
-        this.manualChunker = manualChunker;
-        this.embeddingClient = embeddingClient;
-        this.fileTextExtractor = fileTextExtractor;
-    }
 
     @Transactional
     public ManualDocumentResponse create(CreateManualDocumentRequest request) {
