@@ -1,6 +1,8 @@
 package com.aicsassistant.manual.application;
 
+import com.aicsassistant.analysis.infra.llm.EmbeddingClient;
 import com.aicsassistant.common.exception.ApiException;
+import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.manual.domain.ManualDocument;
 import com.aicsassistant.manual.dto.CreateManualDocumentRequest;
 import com.aicsassistant.manual.dto.ManualChunkResponse;
@@ -9,6 +11,9 @@ import com.aicsassistant.manual.dto.UpdateManualDocumentRequest;
 import com.aicsassistant.manual.infra.ManualChunkJdbcRepository;
 import com.aicsassistant.manual.infra.ManualDocumentRepository;
 import java.util.List;
+import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,18 +22,26 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ManualService {
 
+    private static final Logger log = LoggerFactory.getLogger(ManualService.class);
+
     private final ManualDocumentRepository manualDocumentRepository;
     private final ManualChunkJdbcRepository manualChunkJdbcRepository;
     private final ManualChunker manualChunker;
+    private final EmbeddingClient embeddingClient;
+    private final FileTextExtractor fileTextExtractor;
 
     public ManualService(
             ManualDocumentRepository manualDocumentRepository,
             ManualChunkJdbcRepository manualChunkJdbcRepository,
-            ManualChunker manualChunker
+            ManualChunker manualChunker,
+            EmbeddingClient embeddingClient,
+            FileTextExtractor fileTextExtractor
     ) {
         this.manualDocumentRepository = manualDocumentRepository;
         this.manualChunkJdbcRepository = manualChunkJdbcRepository;
         this.manualChunker = manualChunker;
+        this.embeddingClient = embeddingClient;
+        this.fileTextExtractor = fileTextExtractor;
     }
 
     @Transactional
@@ -40,7 +53,7 @@ public class ManualService {
         );
 
         ManualDocument saved = manualDocumentRepository.save(document);
-        manualChunkJdbcRepository.replaceActiveChunks(saved.getId(), saved.getVersion(), manualChunker.chunk(saved.getContent()));
+        manualChunkJdbcRepository.replaceActiveChunks(saved.getId(), saved.getVersion(), embedChunks(manualChunker.chunk(saved.getContent())));
         return toResponse(saved);
     }
 
@@ -61,7 +74,7 @@ public class ManualService {
         document.update(request.title(), request.category(), request.content());
 
         ManualDocument saved = manualDocumentRepository.save(document);
-        manualChunkJdbcRepository.replaceActiveChunks(saved.getId(), saved.getVersion(), manualChunker.chunk(saved.getContent()));
+        manualChunkJdbcRepository.replaceActiveChunks(saved.getId(), saved.getVersion(), embedChunks(manualChunker.chunk(saved.getContent())));
         return toResponse(saved);
     }
 
@@ -76,6 +89,24 @@ public class ManualService {
     public List<ManualChunkResponse> getChunks(Long id) {
         getActiveDocument(id);
         return manualChunkJdbcRepository.findActiveChunksByDocumentId(id);
+    }
+
+    @Transactional
+    public ManualDocumentResponse createFromFile(String title, InquiryCategory category, MultipartFile file) {
+        String content = fileTextExtractor.extract(file);
+        return create(new CreateManualDocumentRequest(title, category, content));
+    }
+
+    private List<ChunkWithEmbedding> embedChunks(List<String> contents) {
+        return contents.stream().map(content -> {
+            try {
+                List<Double> embedding = embeddingClient.embed(content);
+                return new ChunkWithEmbedding(content, embedding);
+            } catch (Exception e) {
+                log.warn("임베딩 생성 실패, null로 저장: {}", e.getMessage());
+                return new ChunkWithEmbedding(content, null);
+            }
+        }).toList();
     }
 
     private ManualDocument getActiveDocument(Long id) {

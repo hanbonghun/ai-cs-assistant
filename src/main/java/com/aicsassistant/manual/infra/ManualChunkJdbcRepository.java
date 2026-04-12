@@ -1,5 +1,6 @@
 package com.aicsassistant.manual.infra;
 
+import com.aicsassistant.manual.application.ChunkWithEmbedding;
 import com.aicsassistant.manual.dto.ManualChunkResponse;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -28,35 +29,36 @@ public class ManualChunkJdbcRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public void replaceActiveChunks(Long documentId, int version, List<String> contents) {
+    public void replaceActiveChunks(Long documentId, int version, List<ChunkWithEmbedding> chunks) {
         jdbcTemplate.update("update manual_chunk set active = false where manual_document_id = ?", documentId);
 
-        String insertSql = """
-                insert into manual_chunk (
-                    manual_document_id,
-                    chunk_index,
-                    document_version,
-                    content,
-                    token_count,
-                    embedding,
-                    active,
-                    created_at
-                ) values (?, ?, ?, ?, ?, ?, ?, ?)
-                """;
+        for (int i = 0; i < chunks.size(); i++) {
+            ChunkWithEmbedding chunk = chunks.get(i);
+            String vectorLiteral = chunk.toVectorLiteral();
 
-        for (int i = 0; i < contents.size(); i++) {
-            String content = contents.get(i);
-            jdbcTemplate.update(
-                    insertSql,
-                    documentId,
-                    i,
-                    version,
-                    content,
-                    estimateTokenCount(content),
-                    null,
-                    true,
-                    Timestamp.valueOf(LocalDateTime.now())
-            );
+            if (vectorLiteral != null) {
+                jdbcTemplate.update("""
+                        insert into manual_chunk (
+                            manual_document_id, chunk_index, document_version,
+                            content, token_count, embedding, active, created_at
+                        ) values (?, ?, ?, ?, ?, cast(? as vector), ?, ?)
+                        """,
+                        documentId, i, version,
+                        chunk.content(), estimateTokenCount(chunk.content()),
+                        vectorLiteral, true, Timestamp.valueOf(LocalDateTime.now())
+                );
+            } else {
+                jdbcTemplate.update("""
+                        insert into manual_chunk (
+                            manual_document_id, chunk_index, document_version,
+                            content, token_count, embedding, active, created_at
+                        ) values (?, ?, ?, ?, ?, null, ?, ?)
+                        """,
+                        documentId, i, version,
+                        chunk.content(), estimateTokenCount(chunk.content()),
+                        true, Timestamp.valueOf(LocalDateTime.now())
+                );
+            }
         }
     }
 
