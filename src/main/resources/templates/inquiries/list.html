@@ -40,7 +40,16 @@
                 <td th:text="${inquiry.customerIdentifier}">cust-1</td>
                 <td th:text="${inquiry.category}">REFUND</td>
                 <td th:text="${inquiry.urgency}">HIGH</td>
-                <td th:text="${inquiry.status}">NEW</td>
+                <td>
+                    <span th:switch="${inquiry.status.name()}">
+                        <span th:case="'NEW'" style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:4px;font-size:12px;">신규</span>
+                        <span th:case="'AI_PROCESSED'" style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:4px;font-size:12px;">검토 필요</span>
+                        <span th:case="'AUTO_ANSWERED'" style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:4px;font-size:12px;">자동 처리됨</span>
+                        <span th:case="'REVIEWED'" style="background:#f3e5f5;color:#6a1b9a;padding:2px 8px;border-radius:4px;font-size:12px;">검토 완료</span>
+                        <span th:case="'CLOSED'" style="background:#f5f5f5;color:#757575;padding:2px 8px;border-radius:4px;font-size:12px;">종료</span>
+                        <span th:case="*" th:text="${inquiry.status}"></span>
+                    </span>
+                </td>
                 <td><a th:href="@{/ui/inquiries/{id}(id=${inquiry.id})}">상세</a></td>
             </tr>
             <tr th:if="${#lists.isEmpty(inquiries)}">

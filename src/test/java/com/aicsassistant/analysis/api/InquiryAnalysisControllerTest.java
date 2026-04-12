@@ -11,6 +11,7 @@ import com.aicsassistant.analysis.dto.DraftAnswerDto;
 import com.aicsassistant.analysis.dto.InquiryAnalysisResponse;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.analysis.dto.UrgencyResultDto;
+import com.aicsassistant.inquiry.domain.InquiryStatus;
 import com.aicsassistant.common.exception.GlobalExceptionHandler;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,10 @@ class InquiryAnalysisControllerTest {
     void analyzesInquiry() throws Exception {
         given(inquiryAnalysisService.analyze(1L)).willReturn(new InquiryAnalysisResponse(
                 1L,
+                InquiryStatus.AI_PROCESSED,
+                false,
+                true,
+                false,
                 new CategoryResultDto("REFUND", "refund request", true, false, false),
                 new UrgencyResultDto("MEDIUM", "standard SLA"),
                 List.of(new RetrievedManualChunkDto(

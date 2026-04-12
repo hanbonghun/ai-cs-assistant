@@ -31,7 +31,7 @@ public class InquiryClassifier {
                 reason,
                 node.path("needsHumanReview").asBoolean(false),
                 node.path("needsEscalation").asBoolean(false),
-                node.path("medicalRiskFlag").asBoolean(false)
+                node.path("fraudRiskFlag").asBoolean(false)
         );
         UrgencyResultDto urgency = new UrgencyResultDto(
                 requiredText(node, "urgency"),

@@ -24,12 +24,15 @@ public class InquiryAnalysisService {
 
     private static final Logger log = LoggerFactory.getLogger(InquiryAnalysisService.class);
 
+    private static final String AUTO_PROCESSOR = "ai-auto";
+
     private final InquiryRepository inquiryRepository;
     private final InquiryClassifier inquiryClassifier;
     private final UrgencyClassifier urgencyClassifier;
     private final ManualRetrievalService manualRetrievalService;
     private final DraftAnswerService draftAnswerService;
     private final AnalysisLogService analysisLogService;
+    private final CounselorNotificationService notificationService;
 
     public InquiryAnalysisService(
             InquiryRepository inquiryRepository,
@@ -37,7 +40,8 @@ public class InquiryAnalysisService {
             UrgencyClassifier urgencyClassifier,
             ManualRetrievalService manualRetrievalService,
             DraftAnswerService draftAnswerService,
-            AnalysisLogService analysisLogService
+            AnalysisLogService analysisLogService,
+            CounselorNotificationService notificationService
     ) {
         this.inquiryRepository = inquiryRepository;
         this.inquiryClassifier = inquiryClassifier;
@@ -45,6 +49,7 @@ public class InquiryAnalysisService {
         this.manualRetrievalService = manualRetrievalService;
         this.draftAnswerService = draftAnswerService;
         this.analysisLogService = analysisLogService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -70,6 +75,8 @@ public class InquiryAnalysisService {
                     UrgencyLevel.valueOf(urgency.value()),
                     draft.answer()
             );
+
+            route(inquiry, category);
             inquiryRepository.save(inquiry);
 
             analysisLogService.logSuccess(inquiry, category, urgency, chunks, draft, startedAtMillis);
@@ -87,6 +94,19 @@ public class InquiryAnalysisService {
             log.error("AI 분석 실패 inquiryId={}", inquiryId, ex);
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "AI_ANALYSIS_ERROR",
                     "AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+        }
+    }
+
+    private void route(Inquiry inquiry, CategoryResultDto category) {
+        if (category.needsEscalation()) {
+            notificationService.notifyEscalationRequired(inquiry, category.reason());
+            notificationService.notifyHumanReviewRequired(inquiry, category.reason());
+        } else if (category.needsHumanReview()) {
+            notificationService.notifyHumanReviewRequired(inquiry, category.reason());
+        } else {
+            inquiry.autoProcess(AUTO_PROCESSOR);
+            log.info("[자동 처리] inquiryId={} category={} urgency={}",
+                    inquiry.getId(), inquiry.getCategory(), inquiry.getUrgency());
         }
     }
 }

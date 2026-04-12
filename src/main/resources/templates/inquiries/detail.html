@@ -107,6 +107,7 @@
             btn.textContent = '다시 분석';
             btn.disabled = false;
 
+            renderRoutingResult(data);
             renderRefDocs(data.retrievedChunks ?? []);
         } catch (e) {
             status.innerHTML = `<span style="color:red">오류: ${e.message}</span>`;
@@ -125,6 +126,31 @@
         `;
         section.appendChild(div);
         return div;
+    }
+
+    function renderRoutingResult(data) {
+        const existing = document.getElementById('routing-result');
+        if (existing) existing.remove();
+
+        const div = document.createElement('div');
+        div.id = 'routing-result';
+        div.style.cssText = 'margin-top:12px;padding:10px 14px;border-radius:6px;font-size:14px;';
+
+        if (data.autoProcessed) {
+            div.style.background = '#e8f5e9';
+            div.style.color = '#2e7d32';
+            div.innerHTML = '✓ <strong>자동 처리 완료</strong> — AI 신뢰도가 충분하여 답변이 자동 확정되었습니다.';
+        } else if (data.needsEscalation) {
+            div.style.background = '#fce4ec';
+            div.style.color = '#b71c1c';
+            div.innerHTML = '⚠ <strong>에스컬레이션 필요</strong> — 담당 매니저 확인이 필요합니다. 알림이 전송되었습니다.';
+        } else {
+            div.style.background = '#fff3e0';
+            div.style.color = '#e65100';
+            div.innerHTML = '👤 <strong>검토 필요</strong> — AI가 사람의 확인이 필요하다고 판단했습니다. 내용을 검토 후 확정해 주세요.';
+        }
+
+        document.getElementById('analyze-section').appendChild(div);
     }
 
     function renderRefDocs(chunks) {

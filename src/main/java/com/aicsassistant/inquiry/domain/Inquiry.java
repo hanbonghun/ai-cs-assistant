@@ -105,6 +105,17 @@ public class Inquiry {
         this.status = InquiryStatus.AI_PROCESSED;
     }
 
+    public void autoProcess(String reviewedBy) {
+        if (status != InquiryStatus.AI_PROCESSED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INQUIRY_STATE",
+                    "Only AI_PROCESSED inquiries can be auto-processed");
+        }
+        this.finalAnswer = this.aiDraftAnswer;
+        this.reviewedBy = reviewedBy;
+        this.reviewMemo = "AI 자동 처리";
+        this.status = InquiryStatus.AUTO_ANSWERED;
+    }
+
     public void confirmReview(String finalAnswer, String reviewMemo, String reviewedBy) {
         if (status != InquiryStatus.NEW && status != InquiryStatus.AI_PROCESSED) {
             throw new ApiException(
@@ -120,8 +131,9 @@ public class Inquiry {
     }
 
     public void close() {
-        if (status != InquiryStatus.REVIEWED) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INQUIRY_STATE", "Only REVIEWED inquiries can be closed");
+        if (status != InquiryStatus.REVIEWED && status != InquiryStatus.AUTO_ANSWERED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INQUIRY_STATE",
+                    "Only REVIEWED or AUTO_ANSWERED inquiries can be closed");
         }
         status = InquiryStatus.CLOSED;
     }

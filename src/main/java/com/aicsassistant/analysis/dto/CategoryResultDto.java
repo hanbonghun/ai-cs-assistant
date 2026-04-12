@@ -5,6 +5,6 @@ public record CategoryResultDto(
         String reason,
         boolean needsHumanReview,
         boolean needsEscalation,
-        boolean medicalRiskFlag
+        boolean fraudRiskFlag
 ) {
 }

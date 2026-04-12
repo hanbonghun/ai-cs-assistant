@@ -64,7 +64,7 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
         seedManualChunk("환불은 영업일 기준 3일 내 처리됩니다.");
 
         fakeLlmClient.enqueue("""
-                {"category":"REFUND","urgency":"MEDIUM","reason":"refund request","needsHumanReview":true,"needsEscalation":false,"medicalRiskFlag":false}
+                {"category":"REFUND","urgency":"MEDIUM","reason":"refund request","needsHumanReview":true,"needsEscalation":false,"fraudRiskFlag":false}
                 """);
         fakeLlmClient.enqueue("""
                 {"answer":"안녕하세요. 환불 규정에 따라 ...","internalNote":"정책 근거 확인 완료","usedChunkIds":[1,2]}
@@ -166,6 +166,17 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
         @Primary
         EmbeddingClient embeddingClient() {
             return text -> List.of(0.1, 0.2, 0.3);
+        }
+
+        @Bean
+        @Primary
+        com.aicsassistant.analysis.application.CounselorNotificationService counselorNotificationService() {
+            return new com.aicsassistant.analysis.application.CounselorNotificationService() {
+                @Override
+                public void notifyHumanReviewRequired(com.aicsassistant.inquiry.domain.Inquiry inquiry, String reason) {}
+                @Override
+                public void notifyEscalationRequired(com.aicsassistant.inquiry.domain.Inquiry inquiry, String reason) {}
+            };
         }
     }
 
