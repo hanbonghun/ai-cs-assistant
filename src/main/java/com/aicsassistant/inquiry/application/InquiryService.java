@@ -13,7 +13,6 @@ import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.inquiry.dto.InquiryListResponse;
 import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
 import com.aicsassistant.inquiry.infra.InquiryRepository;
-import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -47,9 +46,8 @@ public class InquiryService {
     }
 
     public List<InquiryListResponse> getInquiriesByCustomer(String customerIdentifier) {
-        return inquiryRepository.findAll().stream()
-                .filter(inquiry -> customerIdentifier.equals(inquiry.getCustomerIdentifier()))
-                .sorted(Comparator.comparing(Inquiry::getCreatedAt).reversed())
+        return inquiryRepository.findByCustomerIdentifierOrderByCreatedAtDesc(customerIdentifier)
+                .stream()
                 .map(InquiryListResponse::from)
                 .toList();
     }
@@ -59,20 +57,17 @@ public class InquiryService {
             InquiryCategory category,
             UrgencyLevel urgency
     ) {
-        return inquiryRepository.findAll().stream()
-                .filter(inquiry -> status == null || inquiry.getStatus() == status)
-                .filter(inquiry -> category == null || inquiry.getCategory() == category)
-                .filter(inquiry -> urgency == null || inquiry.getUrgency() == urgency)
-                .sorted(Comparator.comparing(Inquiry::getCreatedAt).reversed())
+        return inquiryRepository.findByFilters(status, category, urgency)
+                .stream()
                 .map(InquiryListResponse::from)
                 .toList();
     }
 
     public InquiryDetailResponse getInquiry(Long id) {
         Inquiry inquiry = getInquiryEntity(id);
-        List<InquiryAnalysisLog> logs = inquiryAnalysisLogRepository.findAll().stream()
-                .filter(log -> log.getInquiry().getId().equals(id))
-                .sorted(Comparator.comparing(InquiryAnalysisLog::getCreatedAt).reversed())
+        List<InquiryAnalysisLog> logs = inquiryAnalysisLogRepository
+                .findByInquiryIdOrderByCreatedAtDesc(id)
+                .stream()
                 .limit(5)
                 .toList();
         return InquiryDetailResponse.from(inquiry, logs);
