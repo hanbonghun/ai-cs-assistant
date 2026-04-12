@@ -7,6 +7,7 @@ import com.aicsassistant.inquiry.application.InquiryService;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
+import java.util.LinkedHashMap;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView;
@@ -79,10 +80,24 @@ public class CounselorViewController {
         return "inquiries/detail";
     }
 
+    private static final LinkedHashMap<String, String> CATEGORY_LABELS = new LinkedHashMap<>();
+    static {
+        CATEGORY_LABELS.put("ORDER",      "주문");
+        CATEGORY_LABELS.put("DELIVERY",   "배송");
+        CATEGORY_LABELS.put("RETURN",     "반품");
+        CATEGORY_LABELS.put("EXCHANGE",   "교환");
+        CATEGORY_LABELS.put("REFUND",     "환불");
+        CATEGORY_LABELS.put("PAYMENT",    "결제");
+        CATEGORY_LABELS.put("PRODUCT",    "상품");
+        CATEGORY_LABELS.put("MEMBERSHIP", "회원/혜택");
+        CATEGORY_LABELS.put("COMPLAINT",  "불만");
+        CATEGORY_LABELS.put("GENERAL",    "일반");
+    }
+
     @GetMapping("/manuals")
     public String manualList(Model model) {
         model.addAttribute("manuals", manualService.getAll());
-        model.addAttribute("categories", InquiryCategory.values());
+        model.addAttribute("categoryLabels", CATEGORY_LABELS);
         return "manuals/list";
     }
 
@@ -92,7 +107,7 @@ public class CounselorViewController {
         List<ManualChunkResponse> chunks = manualService.getChunks(id);
         model.addAttribute("manual", manual);
         model.addAttribute("chunks", chunks);
-        model.addAttribute("categories", InquiryCategory.values());
+        model.addAttribute("categoryLabels", CATEGORY_LABELS);
         return "manuals/detail";
     }
 

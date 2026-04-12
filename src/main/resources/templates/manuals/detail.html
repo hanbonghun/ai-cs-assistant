@@ -7,15 +7,16 @@
     <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-<main class="page">
+<div th:insert="~{fragments/topnav :: topnav('admin')}"></div>
+<main class="page" style="margin-top: 52px;">
     <header class="page-header">
         <div>
             <p class="eyebrow">Counselor UI</p>
             <h1 th:text="${manual.title}">매뉴얼 상세</h1>
             <p class="muted">
-                <span th:text="${manual.category}">REFUND</span>
+                <span th:text="${categoryLabels[manual.category.name()] ?: manual.category.name()}">반품</span>
                 <span class="dot">•</span>
-                <span th:text="${manual.active ? 'ACTIVE' : 'INACTIVE'}">ACTIVE</span>
+                <span th:text="${manual.active ? '활성' : '비활성'}">활성</span>
             </p>
         </div>
         <a class="button secondary" href="/ui/manuals">목록</a>
@@ -24,33 +25,36 @@
     <section class="panel stack">
         <article class="card">
             <h2>본문</h2>
-            <p th:text="${manual.content}">매뉴얼 본문</p>
+            <p th:text="${manual.content}" style="white-space:pre-wrap;">매뉴얼 본문</p>
         </article>
 
         <article class="card">
             <h2>업데이트</h2>
-            <form class="form" th:action="@{/api/manual-documents/{id}(id=${manual.id})}" method="post">
-                <input type="hidden" name="_method" value="put">
+            <div class="form">
                 <div class="grid-two">
                     <label>
                         제목
-                        <input type="text" name="title" th:value="${manual.title}">
+                        <input type="text" id="edit-title" th:value="${manual.title}">
                     </label>
                     <label>
                         카테고리
-                        <select name="category">
-                            <option th:each="category : ${categories}" th:value="${category}" th:text="${category}" th:selected="${category == manual.category}">REFUND</option>
+                        <select id="edit-category">
+                            <option th:each="entry : ${categoryLabels}"
+                                    th:value="${entry.key}"
+                                    th:text="${entry.value}"
+                                    th:selected="${entry.key == manual.category.name()}">반품</option>
                         </select>
                     </label>
                 </div>
                 <label>
                     내용
-                    <textarea name="content" rows="7" th:text="${manual.content}"></textarea>
+                    <textarea id="edit-content" rows="7" th:text="${manual.content}"></textarea>
                 </label>
+                <div id="edit-status" style="display:none;margin-top:8px;font-size:13px;"></div>
                 <div class="actions">
-                    <button class="button" type="submit">저장</button>
+                    <button class="button" type="button" onclick="submitUpdate()">저장</button>
                 </div>
-            </form>
+            </div>
         </article>
 
         <article class="card">
@@ -67,5 +71,43 @@
         </article>
     </section>
 </main>
+
+<script th:inline="javascript">
+    const manualId = /*[[${manual.id}]]*/ 0;
+
+    async function submitUpdate() {
+        const title = document.getElementById('edit-title').value.trim();
+        const category = document.getElementById('edit-category').value;
+        const content = document.getElementById('edit-content').value.trim();
+        const status = document.getElementById('edit-status');
+        const btn = document.querySelector('button[onclick="submitUpdate()"]');
+
+        if (!title || !content) { alert('제목과 내용을 입력해 주세요.'); return; }
+
+        status.style.display = 'block';
+        status.style.color = '#666';
+        status.textContent = '저장 중...';
+        btn.disabled = true;
+
+        try {
+            const res = await fetch(`/api/manual-documents/${manualId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, category, content })
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || `저장 실패 (${res.status})`);
+            }
+            status.style.color = 'green';
+            status.textContent = '✓ 저장되었습니다.';
+            setTimeout(() => location.reload(), 1000);
+        } catch (e) {
+            status.style.color = 'red';
+            status.textContent = '오류: ' + e.message;
+            btn.disabled = false;
+        }
+    }
+</script>
 </body>
 </html>

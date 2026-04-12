@@ -93,6 +93,7 @@ public class UserViewController {
         List<InquiryListResponse> myInquiries = inquiryService.getInquiriesByCustomer(user.id());
         model.addAttribute("user", user);
         model.addAttribute("myInquiries", myInquiries);
+        model.addAttribute("categoryLabels", CATEGORY_LABELS);
         return "user/home";
     }
 
@@ -115,6 +116,7 @@ public class UserViewController {
         model.addAttribute("user", user);
         model.addAttribute("inquiry", inquiry);
         model.addAttribute("messages", messages);
+        model.addAttribute("categoryLabels", CATEGORY_LABELS);
         return "user/inquiry-detail";
     }
 

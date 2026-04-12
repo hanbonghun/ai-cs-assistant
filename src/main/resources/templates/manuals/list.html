@@ -33,7 +33,7 @@
                     <label>
                         카테고리
                         <select name="category">
-                            <option th:each="category : ${categories}" th:value="${category}" th:text="${category}">REFUND</option>
+                            <option th:each="entry : ${categoryLabels}" th:value="${entry.key}" th:text="${entry.value}">반품</option>
                         </select>
                     </label>
                 </div>
@@ -47,27 +47,28 @@
                 </div>
             </form>
 
-            <form class="form compact" action="/api/manual-documents" method="post">
+            <form class="form compact" id="text-form">
                 <h2>✏️ 직접 입력</h2>
                 <p class="muted" style="font-size:13px;margin-bottom:12px;">텍스트를 직접 입력하여 등록합니다.</p>
                 <div class="grid-two">
                     <label>
                         제목
-                        <input type="text" name="title" placeholder="환불 정책" required>
+                        <input type="text" id="text-title" placeholder="환불 정책" required>
                     </label>
                     <label>
                         카테고리
-                        <select name="category">
-                            <option th:each="category : ${categories}" th:value="${category}" th:text="${category}">REFUND</option>
+                        <select id="text-category">
+                            <option th:each="entry : ${categoryLabels}" th:value="${entry.key}" th:text="${entry.value}">반품</option>
                         </select>
                     </label>
                 </div>
                 <label>
                     내용
-                    <textarea name="content" rows="6" placeholder="매뉴얼 내용을 입력하세요." required></textarea>
+                    <textarea id="text-content" rows="6" placeholder="매뉴얼 내용을 입력하세요." required></textarea>
                 </label>
+                <div id="text-status" style="display:none;margin-top:8px;font-size:13px;"></div>
                 <div class="actions">
-                    <button class="button secondary" type="submit">등록</button>
+                    <button class="button secondary" type="button" onclick="submitText()">등록</button>
                 </div>
             </form>
 
@@ -88,9 +89,9 @@
             <tr th:each="manual : ${manuals}">
                 <td th:text="${manual.id}">1</td>
                 <td th:text="${manual.title}">환불 정책</td>
-                <td th:text="${manual.category}">REFUND</td>
+                <td th:text="${categoryLabels[manual.category.name()] ?: manual.category.name()}">반품</td>
                 <td th:text="${manual.version}">1</td>
-                <td th:text="${manual.active ? 'ACTIVE' : 'INACTIVE'}">ACTIVE</td>
+                <td th:text="${manual.active ? '활성' : '비활성'}">활성</td>
                 <td><a th:href="@{/ui/manuals/{id}(id=${manual.id})}">상세</a></td>
             </tr>
             <tr th:if="${#lists.isEmpty(manuals)}">
@@ -101,6 +102,41 @@
     </section>
 </main>
 <script>
+    async function submitText() {
+        const title = document.getElementById('text-title').value.trim();
+        const category = document.getElementById('text-category').value;
+        const content = document.getElementById('text-content').value.trim();
+        const status = document.getElementById('text-status');
+        const btn = document.querySelector('#text-form button[type="button"]');
+
+        if (!title || !content) { alert('제목과 내용을 입력해 주세요.'); return; }
+
+        status.style.display = 'block';
+        status.style.color = '#666';
+        status.textContent = '등록 중... 임베딩 생성에 수십 초가 소요될 수 있습니다.';
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/manual-documents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, category, content })
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || `등록 실패 (${res.status})`);
+            }
+            const data = await res.json();
+            status.style.color = 'green';
+            status.textContent = `✓ "${data.title}" 등록 완료`;
+            setTimeout(() => location.reload(), 1200);
+        } catch (e) {
+            status.style.color = 'red';
+            status.textContent = '오류: ' + e.message;
+            btn.disabled = false;
+        }
+    }
+
     async function submitUpload() {
         const form = document.getElementById('upload-form');
         const status = document.getElementById('upload-status');

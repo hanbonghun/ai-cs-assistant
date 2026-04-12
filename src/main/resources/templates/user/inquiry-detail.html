@@ -69,7 +69,7 @@
     <!-- 문의 정보 -->
     <div class="meta-row">
         <span>접수일: <strong th:text="${#temporals.format(inquiry.createdAt, 'yyyy-MM-dd HH:mm')}">-</strong></span>
-        <span th:if="${inquiry.category != null}">유형: <strong th:text="${inquiry.category.name()}">-</strong></span>
+        <span th:if="${inquiry.category != null}">유형: <strong th:text="${categoryLabels[inquiry.category.name()] ?: inquiry.category.name()}">-</strong></span>
         <span th:if="${inquiry.relatedOrderId != null}">주문번호: <strong th:text="${inquiry.relatedOrderId}">-</strong></span>
     </div>
 

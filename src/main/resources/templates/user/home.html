@@ -106,7 +106,7 @@
             <tbody>
                 <tr th:each="inq : ${myInquiries}">
                     <td><a th:href="@{/app/inquiries/{id}(id=${inq.id})}" th:text="${inq.title}">제목</a></td>
-                    <td th:text="${inq.category != null ? inq.category.name() : '-'}">-</td>
+                    <td th:text="${inq.category != null ? (categoryLabels[inq.category.name()] ?: inq.category.name()) : '-'}">-</td>
                     <td>
                         <span th:with="s=${inq.status.name()}"
                               th:classappend="${(s == 'NEW' or s == 'PENDING_CUSTOMER') ? 'badge-orange' :
