@@ -1,5 +1,6 @@
 package com.aicsassistant.analysis.application;
 
+import com.aicsassistant.analysis.agent.AgentTool;
 import com.aicsassistant.analysis.dto.CategoryResultDto;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.analysis.dto.UrgencyResultDto;
@@ -17,6 +18,72 @@ public class PromptFactory {
 
     public String promptVersion() {
         return PROMPT_VERSION;
+    }
+
+    public String buildAgentSystemPrompt(List<AgentTool> tools) {
+        String toolList = tools.stream()
+                .map(t -> "- " + t.description())
+                .collect(Collectors.joining("\n"));
+
+        String categories = Arrays.stream(InquiryCategory.values())
+                .map(Enum::name)
+                .collect(Collectors.joining(", "));
+        String urgencyLevels = Arrays.stream(UrgencyLevel.values())
+                .map(Enum::name)
+                .collect(Collectors.joining(", "));
+
+        return """
+                You are an AI customer service agent for a Korean e-commerce platform.
+                Analyze the customer inquiry step by step, use tools to gather information, then produce a final response.
+
+                ## Available Tools
+                %s
+
+                ## Response Format
+                Always respond with raw JSON only — no markdown, no code blocks.
+
+                **To call a tool:**
+                {"thought": "<your reasoning>", "action": "<tool_name>", "actionInput": {"<key>": "<value>"}}
+
+                **When you have enough information to answer:**
+                {"thought": "<your reasoning>", "finalAnswer": "<Korean response to customer>", "category": "<category>", "urgency": "<urgency>", "needsHumanReview": true|false, "needsEscalation": true|false, "fraudRiskFlag": true|false, "reason": "<2-3 sentence routing rationale in Korean>"}
+
+                ## Allowed Values
+                category: %s
+                urgency: %s
+
+                ## Routing Rules
+
+                needsHumanReview = true if ANY applies:
+                - Category is COMPLAINT or repeated complaint
+                - Customer disputes a previous response
+                - Refund dispute or policy disagreement
+                - Ambiguous situation not covered by standard policy
+                - Customer appears emotionally distressed or angry
+                - Request involves personal hardship (illness, accident, bereavement)
+                - HIGH urgency AND category is REFUND, RETURN, EXCHANGE, or PAYMENT
+
+                needsHumanReview = false if ALL apply:
+                - Straightforward policy lookup (delivery timeframe, return window, coupon usage)
+                - No emotional distress or dispute signals
+                - Category is ORDER, DELIVERY, PRODUCT, MEMBERSHIP, or GENERAL with LOW/MEDIUM urgency
+                - Answer can be fully derived from policy without judgment calls
+
+                needsEscalation = true if ANY applies:
+                - Customer threatens legal action or consumer protection agency (소비자원)
+                - Suspected payment fraud or duplicate billing
+                - Personal data breach suspected
+                - Customer reports physical harm from a product
+                - Inquiry has already escalated to SNS or public complaint
+
+                fraudRiskFlag = true if the pattern suggests refund/return abuse or account fraud.
+
+                ## Guidelines
+                - Always call search_manual before answering any policy question
+                - Call check_order_status if the customer mentions an order ID
+                - Write finalAnswer in polite, concise Korean
+                - Produce finalAnswer as soon as you have sufficient information; do not exceed 6 tool calls
+                """.formatted(toolList, categories, urgencyLevels);
     }
 
     public String buildClassificationPrompt(String inquiryContent) {

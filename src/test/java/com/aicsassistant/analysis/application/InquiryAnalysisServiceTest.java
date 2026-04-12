@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.aicsassistant.analysis.domain.AnalysisStatus;
 import com.aicsassistant.analysis.dto.InquiryAnalysisResponse;
 import com.aicsassistant.analysis.infra.InquiryAnalysisLogRepository;
+import com.aicsassistant.analysis.infra.llm.ChatMessage;
 import com.aicsassistant.analysis.infra.llm.EmbeddingClient;
 import com.aicsassistant.analysis.infra.llm.LlmClient;
 import com.aicsassistant.common.exception.ApiException;
@@ -63,11 +64,13 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
         Inquiry savedInquiry = inquiryRepository.save(Inquiry.create("cust-001", "문의", "멤버십 환불이 가능한가요?"));
         seedManualChunk("환불은 영업일 기준 3일 내 처리됩니다.");
 
+        // Step 1: agent calls search_manual tool
         fakeLlmClient.enqueue("""
-                {"category":"REFUND","urgency":"MEDIUM","reason":"refund request","needsHumanReview":true,"needsEscalation":false,"fraudRiskFlag":false}
+                {"thought":"환불 관련 정책을 먼저 검색해야 합니다.","action":"search_manual","actionInput":{"query":"멤버십 환불 정책"}}
                 """);
+        // Step 2: agent produces final answer after seeing the retrieved chunks
         fakeLlmClient.enqueue("""
-                {"answer":"안녕하세요. 환불 규정에 따라 ...","internalNote":"정책 근거 확인 완료","usedChunkIds":[1,2]}
+                {"thought":"정책 문서를 확인했습니다. 최종 답변을 작성합니다.","finalAnswer":"안녕하세요. 환불 규정에 따라 ...","category":"REFUND","urgency":"MEDIUM","needsHumanReview":true,"needsEscalation":false,"fraudRiskFlag":false,"reason":"refund request"}
                 """);
 
         InquiryAnalysisResponse response = inquiryAnalysisService.analyze(savedInquiry.getId());
@@ -75,7 +78,6 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
         assertThat(response.category().value()).isEqualTo(InquiryCategory.REFUND.name());
         assertThat(response.category().reason()).isEqualTo("refund request");
         assertThat(response.category().needsHumanReview()).isTrue();
-        assertThat(response.draft().usedChunkIds()).containsExactly(1L, 2L);
         assertThat(response.retrievedChunks()).isNotEmpty();
 
         Inquiry reloaded = inquiryRepository.findById(savedInquiry.getId()).orElseThrow();
@@ -200,6 +202,11 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
 
         @Override
         public String complete(String prompt) {
+            return complete(List.of());
+        }
+
+        @Override
+        public String complete(List<ChatMessage> messages) {
             if (failure != null) {
                 throw failure;
             }

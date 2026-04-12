@@ -2,8 +2,10 @@ package com.aicsassistant.analysis.infra.llm;
 
 import com.aicsassistant.common.config.AiProperties;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -14,14 +16,22 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
 
     private final WebClient webClient;
     private final AiProperties aiProperties;
+    private final ObjectMapper objectMapper;
 
-    public OpenAiClient(WebClient webClient, AiProperties aiProperties) {
+    public OpenAiClient(WebClient webClient, AiProperties aiProperties, ObjectMapper objectMapper) {
         this.webClient = webClient;
         this.aiProperties = aiProperties;
+        this.objectMapper = objectMapper;
     }
 
     @Override
     public String complete(String prompt) {
+        return complete(List.of(ChatMessage.user(prompt)));
+    }
+
+    @Override
+    public String complete(List<ChatMessage> messages) {
+        String messagesJson = serializeMessages(messages);
         JsonNode response = webClient.post()
                 .uri("https://api.openai.com/v1/chat/completions")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + aiProperties.getApiKey())
@@ -29,12 +39,10 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
                 .bodyValue("""
                         {
                           "model": "%s",
-                          "messages": [
-                            {"role": "user", "content": %s}
-                          ],
+                          "messages": %s,
                           "temperature": 0.1
                         }
-                        """.formatted(aiProperties.getModel(), toJsonString(prompt)))
+                        """.formatted(aiProperties.getModel(), messagesJson))
                 .retrieve()
                 .bodyToMono(JsonNode.class)
                 .block();
@@ -47,6 +55,17 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
             throw new IllegalStateException("OpenAI chat completion missing content");
         }
         return content.asText();
+    }
+
+    private String serializeMessages(List<ChatMessage> messages) {
+        try {
+            List<Map<String, String>> payload = messages.stream()
+                    .map(m -> Map.of("role", m.role(), "content", m.content()))
+                    .toList();
+            return objectMapper.writeValueAsString(payload);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to serialize chat messages", e);
+        }
     }
 
     @Override

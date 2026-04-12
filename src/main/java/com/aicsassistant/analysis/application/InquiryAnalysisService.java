@@ -1,9 +1,10 @@
 package com.aicsassistant.analysis.application;
 
+import com.aicsassistant.analysis.agent.AgentFinalResult;
+import com.aicsassistant.analysis.agent.InquiryAgentService;
 import com.aicsassistant.analysis.dto.CategoryResultDto;
 import com.aicsassistant.analysis.dto.DraftAnswerDto;
 import com.aicsassistant.analysis.dto.InquiryAnalysisResponse;
-import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.analysis.dto.UrgencyResultDto;
 import com.aicsassistant.common.exception.ApiException;
 import org.slf4j.Logger;
@@ -23,31 +24,21 @@ import org.springframework.transaction.annotation.Transactional;
 public class InquiryAnalysisService {
 
     private static final Logger log = LoggerFactory.getLogger(InquiryAnalysisService.class);
-
     private static final String AUTO_PROCESSOR = "ai-auto";
 
     private final InquiryRepository inquiryRepository;
-    private final InquiryClassifier inquiryClassifier;
-    private final UrgencyClassifier urgencyClassifier;
-    private final ManualRetrievalService manualRetrievalService;
-    private final DraftAnswerService draftAnswerService;
+    private final InquiryAgentService agentService;
     private final AnalysisLogService analysisLogService;
     private final CounselorNotificationService notificationService;
 
     public InquiryAnalysisService(
             InquiryRepository inquiryRepository,
-            InquiryClassifier inquiryClassifier,
-            UrgencyClassifier urgencyClassifier,
-            ManualRetrievalService manualRetrievalService,
-            DraftAnswerService draftAnswerService,
+            InquiryAgentService agentService,
             AnalysisLogService analysisLogService,
             CounselorNotificationService notificationService
     ) {
         this.inquiryRepository = inquiryRepository;
-        this.inquiryClassifier = inquiryClassifier;
-        this.urgencyClassifier = urgencyClassifier;
-        this.manualRetrievalService = manualRetrievalService;
-        this.draftAnswerService = draftAnswerService;
+        this.agentService = agentService;
         this.analysisLogService = analysisLogService;
         this.notificationService = notificationService;
     }
@@ -64,34 +55,41 @@ public class InquiryAnalysisService {
         long startedAtMillis = System.currentTimeMillis();
 
         try {
-            InquiryClassifier.ClassificationResult classification = inquiryClassifier.classify(inquiry.getContent());
-            CategoryResultDto category = classification.category();
-            UrgencyResultDto urgency = urgencyClassifier.classify(classification);
-            List<RetrievedManualChunkDto> chunks = manualRetrievalService.retrieve(inquiry.getContent());
-            DraftAnswerDto draft = draftAnswerService.generate(inquiry, category, urgency, chunks);
+            AgentFinalResult result = agentService.run(inquiry);
+
+            CategoryResultDto category = new CategoryResultDto(
+                    result.category(),
+                    result.reason(),
+                    result.needsHumanReview(),
+                    result.needsEscalation(),
+                    result.fraudRiskFlag()
+            );
+            UrgencyResultDto urgency = new UrgencyResultDto(result.urgency(), result.reason());
+            DraftAnswerDto draft = new DraftAnswerDto(result.finalAnswer(), "", List.of());
 
             inquiry.applyAnalysis(
-                    InquiryCategory.valueOf(category.value()),
-                    UrgencyLevel.valueOf(urgency.value()),
-                    draft.answer()
+                    InquiryCategory.valueOf(result.category()),
+                    UrgencyLevel.valueOf(result.urgency()),
+                    result.finalAnswer()
             );
 
             route(inquiry, category);
             inquiryRepository.save(inquiry);
 
-            analysisLogService.logSuccess(inquiry, category, urgency, chunks, draft, startedAtMillis);
-            return InquiryAnalysisResponse.of(inquiry, category, urgency, chunks, draft);
+            analysisLogService.logSuccess(inquiry, category, urgency, result.retrievedChunks(), draft, startedAtMillis);
+            return InquiryAnalysisResponse.of(inquiry, category, urgency, result.retrievedChunks(), draft);
+
         } catch (ApiException ex) {
             analysisLogService.logFailure(inquiry, ex, startedAtMillis);
             throw ex;
         } catch (IllegalStateException ex) {
             analysisLogService.logFailure(inquiry, ex, startedAtMillis);
-            log.error("AI 분석 파싱 실패 inquiryId={}", inquiryId, ex);
+            log.error("AI 에이전트 파싱 실패 inquiryId={}", inquiryId, ex);
             throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_PARSE_ERROR",
                     "AI 응답을 파싱하지 못했습니다. 잠시 후 다시 시도해 주세요.");
         } catch (RuntimeException ex) {
             analysisLogService.logFailure(inquiry, ex, startedAtMillis);
-            log.error("AI 분석 실패 inquiryId={}", inquiryId, ex);
+            log.error("AI 에이전트 실패 inquiryId={}", inquiryId, ex);
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "AI_ANALYSIS_ERROR",
                     "AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
         }
