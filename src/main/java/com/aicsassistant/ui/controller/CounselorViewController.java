@@ -156,6 +156,10 @@ public class CounselorViewController {
                 "SELECT classified_category, COUNT(*) AS cnt FROM inquiry_analysis_log WHERE classified_category IS NOT NULL GROUP BY classified_category ORDER BY cnt DESC",
                 rs -> { categoryCounts.put(rs.getString("classified_category"), rs.getLong("cnt")); });
 
+        long catTotal = categoryCounts.values().stream().mapToLong(Long::longValue).sum();
+        long ratingTotal = ratingCounts.values().stream().mapToLong(Long::longValue).sum();
+        long reasonTotal = ratingReasonCounts.values().stream().mapToLong(Long::longValue).sum();
+
         model.addAttribute("totalInquiries", totalInquiries != null ? totalInquiries : 0L);
         model.addAttribute("autoAnswerRate", String.format("%.1f", autoAnswerRate));
         model.addAttribute("avgLatencySec", avgLatencyMs != null ? String.format("%.1f", avgLatencyMs / 1000.0) : "-");
@@ -165,6 +169,9 @@ public class CounselorViewController {
         model.addAttribute("ratingCounts", ratingCounts);
         model.addAttribute("ratingReasonCounts", ratingReasonCounts);
         model.addAttribute("categoryCounts", categoryCounts);
+        model.addAttribute("catTotal", catTotal);
+        model.addAttribute("ratingTotal", ratingTotal);
+        model.addAttribute("reasonTotal", reasonTotal);
         model.addAttribute("categoryLabels", CATEGORY_LABELS);
         return "dashboard";
     }
