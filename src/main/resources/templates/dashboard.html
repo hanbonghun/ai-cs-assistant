@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>대시보드</title>
+    <link rel="stylesheet" href="/app.css">
+    <style>
+        .stat-card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(20,30,40,0.04);
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--accent);
+            margin: 6px 0 4px;
+            line-height: 1.1;
+        }
+        .stat-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--muted);
+        }
+        .stat-sub {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+        .section-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            margin: 0 0 14px;
+        }
+        .bar-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        .bar-label {
+            width: 130px;
+            flex-shrink: 0;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .bar-track {
+            flex: 1;
+            height: 8px;
+            background: var(--bg);
+            border-radius: 99px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 99px;
+            background: var(--accent);
+        }
+        .bar-fill.good { background: #2e7d32; }
+        .bar-fill.bad  { background: #c62828; }
+        .bar-count {
+            width: 36px;
+            text-align: right;
+            color: var(--muted);
+            font-variant-numeric: tabular-nums;
+        }
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 99px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge.status-new        { background:#e3f2fd;color:#0d47a1; }
+        .badge.status-pending    { background:#fff3e0;color:#e65100; }
+        .badge.status-ai         { background:#e8f5e9;color:#1b5e20; }
+        .badge.status-auto       { background:#f3e5f5;color:#4a148c; }
+        .badge.status-reviewed   { background:#e0f2f1;color:#004d40; }
+        .badge.status-closed     { background:#fafafa;color:#555; }
+        @media (max-width: 760px) {
+            .two-col { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+<div th:insert="~{fragments/topnav :: topnav('dashboard')}"></div>
+
+<main class="page" style="margin-top:52px;">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">Analytics</p>
+            <h1>대시보드</h1>
+            <p class="muted">AI 분석 성능 및 문의 현황을 한눈에 확인합니다.</p>
+        </div>
+    </header>
+
+    <!-- KPI 카드 4개 -->
+    <div class="summary-grid" style="margin-bottom:16px;">
+        <div class="stat-card">
+            <div class="stat-label">총 문의</div>
+            <div class="stat-value" th:text="${totalInquiries}">0</div>
+            <div class="stat-sub" th:text="'분석 완료 ' + ${totalAnalyzed} + '건'">분석 완료 0건</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">자동 응답률</div>
+            <div class="stat-value" th:text="${autoAnswerRate} + '%'">0.0%</div>
+            <div class="stat-sub">AI가 직접 답변을 완료한 비율</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">평균 응답 시간</div>
+            <div class="stat-value" th:text="${avgLatencySec} + 's'">-</div>
+            <div class="stat-sub">에이전트 파이프라인 전체 기준</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">평균 토큰 사용량</div>
+            <div class="stat-value" th:text="${avgTokens}">-</div>
+            <div class="stat-sub">분석 1건당 평균 (input + output)</div>
+        </div>
+    </div>
+
+    <div class="two-col" style="margin-bottom:16px;">
+        <!-- 상태별 문의 분포 -->
+        <div class="panel">
+            <p class="section-title">문의 상태 분포</p>
+            <div th:if="${statusCounts.isEmpty()}" class="muted" style="font-size:13px;">데이터 없음</div>
+            <div th:each="entry : ${statusCounts}" class="bar-row">
+                <span class="bar-label">
+                    <span th:class="'badge status-' + ${entry.key.toLowerCase().replace('_','-')}"
+                          th:switch="${entry.key}">
+                        <span th:case="'NEW'">NEW</span>
+                        <span th:case="'PENDING_CUSTOMER'">추가정보 대기</span>
+                        <span th:case="'AI_PROCESSED'">AI 처리</span>
+                        <span th:case="'AUTO_ANSWERED'">자동 응답</span>
+                        <span th:case="'REVIEWED'">검토 완료</span>
+                        <span th:case="'CLOSED'">종료</span>
+                        <span th:case="*" th:text="${entry.key}"></span>
+                    </span>
+                </span>
+                <div class="bar-track">
+                    <div class="bar-fill"
+                         th:style="'width:' + (${totalInquiries} > 0 ? ${entry.value * 100 / totalInquiries} : 0) + '%'"></div>
+                </div>
+                <span class="bar-count" th:text="${entry.value}">0</span>
+            </div>
+        </div>
+
+        <!-- 카테고리별 분류 분포 -->
+        <div class="panel">
+            <p class="section-title">카테고리 분포</p>
+            <div th:if="${categoryCounts.isEmpty()}" class="muted" style="font-size:13px;">데이터 없음</div>
+            <div th:with="catTotal=${categoryCounts.values().stream().mapToLong(v -> v).sum()}">
+                <div th:each="entry : ${categoryCounts}" class="bar-row">
+                    <span class="bar-label"
+                          th:text="${categoryLabels.containsKey(entry.key) ? categoryLabels[entry.key] : entry.key}">카테고리</span>
+                    <div class="bar-track">
+                        <div class="bar-fill"
+                             th:style="'width:' + (${catTotal} > 0 ? ${entry.value * 100 / catTotal} : 0) + '%'"></div>
+                    </div>
+                    <span class="bar-count" th:text="${entry.value}">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 평가 분포 -->
+    <div class="two-col">
+        <div class="panel">
+            <p class="section-title">AI 초안 평가 분포</p>
+            <div th:if="${ratingCounts.isEmpty()}" class="muted" style="font-size:13px;">아직 평가 데이터가 없습니다.</div>
+            <div th:with="ratingTotal=${ratingCounts.values().stream().mapToLong(v -> v).sum()}">
+                <div th:each="entry : ${ratingCounts}" class="bar-row">
+                    <span class="bar-label">
+                        <span th:if="${entry.key == 'GOOD'}" style="font-size:18px;">👍</span>
+                        <span th:if="${entry.key == 'BAD'}" style="font-size:18px;">👎</span>
+                        <span th:text="${entry.key == 'GOOD'} ? '도움됨' : '개선 필요'"></span>
+                    </span>
+                    <div class="bar-track">
+                        <div th:class="'bar-fill ' + ${entry.key == 'GOOD' ? 'good' : 'bad'}"
+                             th:style="'width:' + (${ratingTotal} > 0 ? ${entry.value * 100 / ratingTotal} : 0) + '%'"></div>
+                    </div>
+                    <span class="bar-count" th:text="${entry.value}">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <p class="section-title">부정 평가 이유</p>
+            <div th:if="${ratingReasonCounts.isEmpty()}" class="muted" style="font-size:13px;">아직 이유 데이터가 없습니다.</div>
+            <div th:with="reasonTotal=${ratingReasonCounts.values().stream().mapToLong(v -> v).sum()}">
+                <div th:each="entry : ${ratingReasonCounts}" class="bar-row">
+                    <span class="bar-label" th:switch="${entry.key}">
+                        <span th:case="'WRONG_POLICY'">잘못된 정책 참조</span>
+                        <span th:case="'WRONG_CONTEXT'">문맥 오해</span>
+                        <span th:case="'UNNECESSARY_CONTENT'">불필요한 내용</span>
+                        <span th:case="'WRONG_ESCALATION'">에스컬레이션 판단 오류</span>
+                        <span th:case="'OTHER'">기타</span>
+                        <span th:case="*" th:text="${entry.key}"></span>
+                    </span>
+                    <div class="bar-track">
+                        <div class="bar-fill bad"
+                             th:style="'width:' + (${reasonTotal} > 0 ? ${entry.value * 100 / reasonTotal} : 0) + '%'"></div>
+                    </div>
+                    <span class="bar-count" th:text="${entry.value}">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+</body>
+</html>

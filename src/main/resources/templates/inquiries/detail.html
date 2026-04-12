@@ -161,10 +161,37 @@
                 <button type="button" id="btn-good" onclick="rateDraft('GOOD')"
                         class="button secondary"
                         style="font-size:15px;padding:8px 20px;">👍 적절했음</button>
-                <button type="button" id="btn-bad" onclick="rateDraft('BAD')"
+                <button type="button" id="btn-bad" onclick="showBadReasons()"
                         class="button secondary"
                         style="font-size:15px;padding:8px 20px;">👎 부적절했음</button>
                 <span id="rating-saved" style="display:none;font-size:13px;color:#2e7d32;margin-left:8px;">✓ 저장됨</span>
+            </div>
+            <!-- 👎 이유 선택 (접혀있다가 펼쳐짐) -->
+            <div id="bad-reason-area" style="display:none;margin-top:16px;padding:14px;background:#fff8f8;border:1px solid #ffcdd2;border-radius:8px;">
+                <p style="font-size:13px;font-weight:600;margin-bottom:10px;color:#c62828;">어떤 점이 부적절했나요?</p>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+                    <label style="font-size:13px;display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="radio" name="bad-reason" value="WRONG_POLICY"> 정책 내용이 틀렸음
+                    </label>
+                    <label style="font-size:13px;display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="radio" name="bad-reason" value="WRONG_CONTEXT"> 고객 상황을 잘못 파악함
+                    </label>
+                    <label style="font-size:13px;display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="radio" name="bad-reason" value="UNNECESSARY_CONTENT"> 불필요한 내용이 포함됨
+                    </label>
+                    <label style="font-size:13px;display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="radio" name="bad-reason" value="WRONG_ESCALATION"> 에스컬레이션 판단이 잘못됨
+                    </label>
+                    <label style="font-size:13px;display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="radio" name="bad-reason" value="OTHER"> 기타 (아래에 직접 입력)
+                    </label>
+                </div>
+                <textarea id="bad-reason-note" rows="2" placeholder="추가 의견 (선택사항)"
+                          style="width:100%;font-size:13px;padding:8px;border:1px solid #e0e0e0;border-radius:6px;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
+                <div style="margin-top:10px;display:flex;gap:8px;">
+                    <button type="button" onclick="submitBadRating()" class="button" style="font-size:13px;">저장</button>
+                    <button type="button" onclick="hideBadReasons()" class="button secondary" style="font-size:13px;">취소</button>
+                </div>
             </div>
         </article>
 
@@ -334,12 +361,30 @@
         setTimeout(() => el.style.display = 'none', 4000);
     }
 
-    async function rateDraft(rating) {
+    function showBadReasons() {
+        document.getElementById('bad-reason-area').style.display = 'block';
+    }
+
+    function hideBadReasons() {
+        document.getElementById('bad-reason-area').style.display = 'none';
+        document.querySelectorAll('input[name="bad-reason"]').forEach(r => r.checked = false);
+        document.getElementById('bad-reason-note').value = '';
+    }
+
+    async function submitBadRating() {
+        const selected = document.querySelector('input[name="bad-reason"]:checked');
+        if (!selected) { showActionError('이유를 선택해 주세요.'); return; }
+        const note = document.getElementById('bad-reason-note').value.trim();
+        await rateDraft('BAD', selected.value, note);
+        hideBadReasons();
+    }
+
+    async function rateDraft(rating, reason = null, note = null) {
         try {
             const res = await fetch(`/api/inquiries/${inquiryId}/rate-draft`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ rating })
+                body: JSON.stringify({ rating, reason, note })
             });
             if (!res.ok) throw new Error();
             document.getElementById('btn-good').style.opacity = rating === 'GOOD' ? '1' : '0.4';

@@ -83,12 +83,12 @@ public class AnalysisLogService {
     }
 
     @Transactional
-    public void rateLatestLog(Long inquiryId, String rating) {
+    public void rateLatestLog(Long inquiryId, String rating, String reason, String note) {
         inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId)
                 .stream()
                 .findFirst()
                 .ifPresent(logEntry -> {
-                    logEntry.rate(rating);
+                    logEntry.rate(rating, reason, note);
                     inquiryAnalysisLogRepository.save(logEntry);
                 });
     }

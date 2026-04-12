@@ -17,6 +17,10 @@
     <a th:href="@{/ui/inquiries}"
        th:style="${mode == 'admin'} ? 'color:#fff;font-weight:600;background:#1976d2;padding:3px 10px;border-radius:4px;text-decoration:none;' : 'color:#888;text-decoration:none;padding:3px 10px;'"
        style="text-decoration:none;">어드민</a>
+
+    <a th:href="@{/ui/dashboard}"
+       th:style="${mode == 'dashboard'} ? 'color:#fff;font-weight:600;background:#1976d2;padding:3px 10px;border-radius:4px;text-decoration:none;' : 'color:#888;text-decoration:none;padding:3px 10px;'"
+       style="text-decoration:none;">대시보드</a>
 </div>
 </body>
 </html>

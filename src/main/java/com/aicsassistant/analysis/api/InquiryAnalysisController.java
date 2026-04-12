@@ -26,9 +26,9 @@ public class InquiryAnalysisController {
 
     @PostMapping("/{id}/rate-draft")
     public ResponseEntity<Void> rateDraft(@PathVariable Long id, @RequestBody RateDraftRequest request) {
-        analysisLogService.rateLatestLog(id, request.rating());
+        analysisLogService.rateLatestLog(id, request.rating(), request.reason(), request.note());
         return ResponseEntity.ok().build();
     }
 
-    record RateDraftRequest(String rating) {}
+    record RateDraftRequest(String rating, String reason, String note) {}
 }

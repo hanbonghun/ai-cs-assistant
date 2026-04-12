@@ -8,6 +8,7 @@ import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView;
@@ -104,6 +105,68 @@ public class CounselorViewController {
         model.addAttribute("chunks", chunks);
         model.addAttribute("categoryLabels", CATEGORY_LABELS);
         return "manuals/detail";
+    }
+
+    @GetMapping("/dashboard")
+    public String dashboard(Model model) {
+        // 총 문의 수
+        Long totalInquiries = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM inquiry", Long.class);
+
+        // 상태별 문의 수
+        Map<String, Long> statusCounts = new LinkedHashMap<>();
+        jdbcTemplate.query(
+                "SELECT status, COUNT(*) AS cnt FROM inquiry GROUP BY status ORDER BY cnt DESC",
+                rs -> { statusCounts.put(rs.getString("status"), rs.getLong("cnt")); });
+
+        // 자동응답률 (AUTO_ANSWERED / 전체)
+        Long autoAnswered = statusCounts.getOrDefault("AUTO_ANSWERED", 0L);
+        double autoAnswerRate = (totalInquiries != null && totalInquiries > 0)
+                ? (autoAnswered * 100.0 / totalInquiries) : 0.0;
+
+        // 분석 성공 건수 (로그 기반)
+        Long totalAnalyzed = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM inquiry_analysis_log WHERE analysis_status = 'SUCCESS'", Long.class);
+
+        // 평균 응답 시간 (ms)
+        Double avgLatencyMs = jdbcTemplate.queryForObject(
+                "SELECT AVG(latency_ms) FROM inquiry_analysis_log WHERE analysis_status = 'SUCCESS' AND latency_ms IS NOT NULL",
+                Double.class);
+
+        // 평균 토큰 사용량
+        Double avgTokens = jdbcTemplate.queryForObject(
+                "SELECT AVG(total_tokens) FROM inquiry_analysis_log WHERE total_tokens IS NOT NULL",
+                Double.class);
+
+        // 평가 분포 (GOOD / BAD)
+        Map<String, Long> ratingCounts = new LinkedHashMap<>();
+        jdbcTemplate.query(
+                "SELECT ai_draft_rating, COUNT(*) AS cnt FROM inquiry_analysis_log WHERE ai_draft_rating IS NOT NULL GROUP BY ai_draft_rating",
+                rs -> { ratingCounts.put(rs.getString("ai_draft_rating"), rs.getLong("cnt")); });
+
+        // 부정 평가 이유 분포
+        Map<String, Long> ratingReasonCounts = new LinkedHashMap<>();
+        jdbcTemplate.query(
+                "SELECT ai_draft_rating_reason, COUNT(*) AS cnt FROM inquiry_analysis_log WHERE ai_draft_rating_reason IS NOT NULL GROUP BY ai_draft_rating_reason ORDER BY cnt DESC",
+                rs -> { ratingReasonCounts.put(rs.getString("ai_draft_rating_reason"), rs.getLong("cnt")); });
+
+        // 카테고리별 분류 분포
+        Map<String, Long> categoryCounts = new LinkedHashMap<>();
+        jdbcTemplate.query(
+                "SELECT classified_category, COUNT(*) AS cnt FROM inquiry_analysis_log WHERE classified_category IS NOT NULL GROUP BY classified_category ORDER BY cnt DESC",
+                rs -> { categoryCounts.put(rs.getString("classified_category"), rs.getLong("cnt")); });
+
+        model.addAttribute("totalInquiries", totalInquiries != null ? totalInquiries : 0L);
+        model.addAttribute("autoAnswerRate", String.format("%.1f", autoAnswerRate));
+        model.addAttribute("avgLatencySec", avgLatencyMs != null ? String.format("%.1f", avgLatencyMs / 1000.0) : "-");
+        model.addAttribute("avgTokens", avgTokens != null ? String.format("%.0f", avgTokens) : "-");
+        model.addAttribute("totalAnalyzed", totalAnalyzed != null ? totalAnalyzed : 0L);
+        model.addAttribute("statusCounts", statusCounts);
+        model.addAttribute("ratingCounts", ratingCounts);
+        model.addAttribute("ratingReasonCounts", ratingReasonCounts);
+        model.addAttribute("categoryCounts", categoryCounts);
+        model.addAttribute("categoryLabels", CATEGORY_LABELS);
+        return "dashboard";
     }
 
     private List<AgentStepView> loadAgentSteps(Long inquiryId) {

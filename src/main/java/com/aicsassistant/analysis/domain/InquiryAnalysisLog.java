@@ -74,8 +74,16 @@ public class InquiryAnalysisLog {
     @Column(name = "ai_draft_rating", length = 10)
     private String aiDraftRating;
 
-    public void rate(String rating) {
+    @Column(name = "ai_draft_rating_reason", length = 50)
+    private String aiDraftRatingReason;
+
+    @Column(name = "ai_draft_rating_note", columnDefinition = "text")
+    private String aiDraftRatingNote;
+
+    public void rate(String rating, String reason, String note) {
         this.aiDraftRating = rating;
+        this.aiDraftRatingReason = reason;
+        this.aiDraftRatingNote = note;
     }
 
     @Column(name = "created_at", nullable = false)

@@ -69,6 +69,8 @@ alter table inquiry_analysis_log add column if not exists agent_steps text;
 alter table inquiry_analysis_log add column if not exists latency_ms bigint;
 alter table inquiry_analysis_log add column if not exists total_tokens integer;
 alter table inquiry_analysis_log add column if not exists ai_draft_rating varchar(10);
+alter table inquiry_analysis_log add column if not exists ai_draft_rating_reason varchar(50);
+alter table inquiry_analysis_log add column if not exists ai_draft_rating_note text;
 alter table inquiry add column if not exists related_order_id varchar(50);
 
 create index if not exists idx_manual_chunk_manual_document_id on manual_chunk(manual_document_id);
