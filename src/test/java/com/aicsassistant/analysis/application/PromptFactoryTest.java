@@ -16,10 +16,11 @@ class PromptFactoryTest {
     void buildsClassificationPromptWithOutputSchema() {
         String prompt = promptFactory.buildClassificationPrompt("환불을 요청합니다.");
 
-        assertThat(prompt).contains("category");
-        assertThat(prompt).contains("urgency");
         assertThat(prompt).contains("needsHumanReview");
+        assertThat(prompt).contains("needsEscalation");
         assertThat(prompt).contains("fraudRiskFlag");
+        assertThat(prompt).contains("needsHumanReview: false");
+        assertThat(prompt).contains("needsEscalation: true");
         assertThat(prompt).contains("환불을 요청합니다.");
     }
 

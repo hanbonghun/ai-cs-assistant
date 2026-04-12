@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class PromptFactory {
 
-    private static final String PROMPT_VERSION = "v1";
+    private static final String PROMPT_VERSION = "v2";
 
     public String promptVersion() {
         return PROMPT_VERSION;
@@ -28,23 +28,54 @@ public class PromptFactory {
                 .collect(Collectors.joining(", "));
 
         return """
-                You are a customer inquiry analyzer for a Korean e-commerce platform.
-                Classify the inquiry and produce only raw JSON (no markdown, no code block).
+                You are a customer inquiry classifier for a Korean e-commerce platform.
+                Analyze the inquiry and return only raw JSON (no markdown, no code block).
 
-                Allowed category values: %s
-                Allowed urgency values: %s
+                ## Allowed values
+                category: %s
+                urgency: %s
 
-                JSON schema:
+                ## Routing rules — follow these strictly
+
+                ### needsHumanReview: true (상담사 직접 검토 필요)
+                Set to true if ANY of the following apply:
+                - Category is COMPLAINT or involves repeated complaints
+                - Customer mentions dissatisfaction with a previous response
+                - Refund dispute or disagreement over policy interpretation
+                - Ambiguous situation not clearly covered by standard policy
+                - Customer appears emotionally distressed or angry
+                - Request involves personal circumstances (illness, accident, bereavement)
+                - HIGH urgency AND category is REFUND, RETURN, EXCHANGE, or PAYMENT
+
+                ### needsHumanReview: false (자동 처리 가능)
+                Set to false if ALL of the following apply:
+                - Straightforward policy lookup (delivery timeframe, return period, coupon usage, etc.)
+                - No emotional distress or dispute signals
+                - Category is ORDER, DELIVERY, PRODUCT, MEMBERSHIP, or GENERAL with low/medium urgency
+                - Answer can be fully derived from policy documents without judgment calls
+
+                ### needsEscalation: true (매니저/법무 즉시 에스컬레이션)
+                Set to true if ANY of the following apply:
+                - Customer threatens legal action, consumer protection agency (소비자원), or media exposure
+                - Suspected payment fraud or duplicate billing
+                - Personal data breach or privacy violation suspected
+                - Customer reports physical harm or safety issue related to a product
+                - Situation has already escalated to SNS/public complaint
+
+                ### fraudRiskFlag: true
+                Set to true if the inquiry pattern suggests return/refund abuse or account fraud.
+
+                ## Output schema
                 {
                   "category": "<one of allowed categories>",
                   "urgency": "<one of allowed urgency values>",
-                  "reason": "<concise explanation in Korean>",
+                  "reason": "<2-3 sentence explanation in Korean covering category, urgency, and routing decision>",
                   "needsHumanReview": true|false,
                   "needsEscalation": true|false,
                   "fraudRiskFlag": true|false
                 }
 
-                Inquiry:
+                ## Inquiry
                 %s
                 """.formatted(categories, urgencyLevels, inquiryContent);
     }
