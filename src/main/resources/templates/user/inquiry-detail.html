@@ -49,9 +49,13 @@
     </header>
 
     <!-- 상태 배너 -->
-    <div th:if="${inquiry.status.name() == 'NEW' or inquiry.status.name() == 'AI_PROCESSED'}"
+    <div th:if="${inquiry.status.name() == 'NEW'}"
          class="status-banner banner-reviewing">
-        <span>검토 중입니다. 잠시만 기다려 주세요.</span>
+        <span>AI가 문의를 분석하고 있습니다. 잠시만 기다려 주세요.</span>
+    </div>
+    <div th:if="${inquiry.status.name() == 'AI_PROCESSED'}"
+         class="status-banner banner-reviewing">
+        <span>담당자가 검토 중입니다. 순서에 따라 답변 드리겠습니다.</span>
     </div>
     <div th:if="${inquiry.status.name() == 'PENDING_CUSTOMER'}"
          class="status-banner banner-pending">
@@ -122,8 +126,8 @@
         </div>
     </div>
 
-    <!-- NEW/AI_PROCESSED 상태: 폴링 -->
-    <p th:if="${inquiry.status.name() == 'NEW' or inquiry.status.name() == 'AI_PROCESSED'}"
+    <!-- NEW 상태: 폴링 안내 -->
+    <p th:if="${inquiry.status.name() == 'NEW'}"
        style="text-align:center;font-size:13px;color:#aaa;">
        페이지가 자동으로 갱신됩니다...
     </p>
