@@ -34,48 +34,96 @@
             <p th:text="${detail.inquiry.content}">문의 내용</p>
         </article>
 
-        <article class="card">
-            <h2>AI 자동 답변</h2>
-            <div id="analyze-section">
-                <div id="analyze-status" style="margin-bottom:12px;">
-                    <span th:if="${detail.inquiry.aiDraftAnswer == null}" class="muted">아직 AI 분석이 실행되지 않았습니다.</span>
-                </div>
-                <div id="draft-box" th:if="${detail.inquiry.aiDraftAnswer != null}">
-                    <textarea id="draft-answer" rows="8" style="width:100%;font-size:14px;padding:10px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;" th:text="${detail.inquiry.aiDraftAnswer}"></textarea>
-                    <button type="button" onclick="copyDraft()" style="margin-top:8px;" class="button secondary">답변 복사</button>
-                </div>
+        <!-- NEW: 분석 중 -->
+        <article class="card" th:if="${detail.inquiry.status.name() == 'NEW'}">
+            <h2>답변</h2>
+            <p class="muted">🤖 AI가 문의를 분석하고 있습니다. 잠시 후 자동으로 갱신됩니다...</p>
+        </article>
+
+        <!-- AI_PROCESSED: AI 초안, 상담사 검토 필요 -->
+        <article class="card" th:if="${detail.inquiry.status.name() == 'AI_PROCESSED'}">
+            <h2>답변</h2>
+            <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#795548;">
+                ⏳ <strong>AI 초안 — 상담사 검토 필요</strong>
+                <span class="muted" style="margin-left:8px;">내용 수정 후 최종 확정하거나 그대로 확정하세요.</span>
             </div>
+            <textarea id="draft-answer" rows="8"
+                      style="width:100%;font-size:14px;padding:10px;border:1px solid #ffe082;border-radius:6px;resize:vertical;font-family:inherit;"
+                      th:text="${detail.inquiry.aiDraftAnswer}"></textarea>
+            <button type="button" onclick="copyDraft()" style="margin-top:8px;" class="button secondary">답변 복사</button>
+        </article>
+
+        <!-- AUTO_ANSWERED: AI 자동 확정 -->
+        <article class="card" th:if="${detail.inquiry.status.name() == 'AUTO_ANSWERED'}">
+            <h2>답변</h2>
+            <div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#2e7d32;">
+                ✅ <strong>AI 자동 처리 완료</strong>
+                <span class="muted" style="margin-left:8px;">검토 불필요 판단으로 AI가 직접 확정한 답변입니다.</span>
+            </div>
+            <div style="background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:12px;font-size:14px;white-space:pre-wrap;font-family:inherit;"
+                 th:text="${detail.inquiry.finalAnswer}">최종 답변</div>
+            <div style="margin-top:8px;font-size:12px;color:#888;">
+                처리: <span th:text="${detail.inquiry.reviewedBy}">ai-auto</span>
+                <span th:if="${detail.inquiry.reviewMemo != null}"> · <span th:text="${detail.inquiry.reviewMemo}"></span></span>
+            </div>
+        </article>
+
+        <!-- REVIEWED: 상담사 검토 완료 -->
+        <article class="card" th:if="${detail.inquiry.status.name() == 'REVIEWED'}">
+            <h2>답변</h2>
+            <div style="background:#ede7f6;border:1px solid #ce93d8;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#4a148c;">
+                ✍️ <strong>상담사 검토 완료</strong>
+                <span class="muted" style="margin-left:8px;">상담사가 내용을 확인하고 최종 확정한 답변입니다.</span>
+            </div>
+            <div style="background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:12px;font-size:14px;white-space:pre-wrap;font-family:inherit;"
+                 th:text="${detail.inquiry.finalAnswer}">최종 답변</div>
+            <div style="margin-top:8px;font-size:12px;color:#888;">
+                검토자: <span th:text="${detail.inquiry.reviewedBy}">counselor</span>
+                <span th:if="${detail.inquiry.reviewMemo != null and !#strings.isEmpty(detail.inquiry.reviewMemo)}">
+                    · 메모: <span th:text="${detail.inquiry.reviewMemo}"></span>
+                </span>
+            </div>
+            <div th:if="${detail.inquiry.aiDraftAnswer != null}" style="margin-top:16px;">
+                <details>
+                    <summary style="font-size:12px;color:#aaa;cursor:pointer;">AI 초안 보기</summary>
+                    <div style="margin-top:8px;background:#f5f5f5;border-radius:4px;padding:10px;font-size:13px;color:#777;white-space:pre-wrap;font-family:inherit;"
+                         th:text="${detail.inquiry.aiDraftAnswer}"></div>
+                </details>
+            </div>
+        </article>
+
+        <!-- CLOSED: 종료 -->
+        <article class="card" th:if="${detail.inquiry.status.name() == 'CLOSED'}">
+            <h2>답변</h2>
+            <div style="background:#f5f5f5;border:1px solid #ddd;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#757575;">
+                🔒 <strong>종료된 문의</strong>
+            </div>
+            <div style="background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:12px;font-size:14px;white-space:pre-wrap;font-family:inherit;"
+                 th:text="${detail.inquiry.finalAnswer}">최종 답변</div>
         </article>
 
         <article class="card">
             <h2>참고 문서</h2>
             <p class="muted" style="font-size:13px;margin-bottom:12px;">AI가 답변 생성 시 참고한 정책 문서입니다.</p>
-            <div id="ref-docs-section">
-                <div th:if="${#lists.isEmpty(detail.evidenceChunks)}" class="muted" id="ref-docs-empty">AI 분석 실행 후 참고한 정책 문서가 표시됩니다.</div>
-                <div th:each="chunk : ${detail.evidenceChunks}" class="chunk" th:attr="data-doc-id=${chunk.manualDocumentId}">
-                    <div class="chunk-meta">
-                        <strong th:text="${chunk.manualDocumentTitle}">정책 문서</strong>
-                        <span class="label" th:text="${chunk.manualCategory}">REFUND</span>
-                        <a th:href="@{/ui/manuals/{id}(id=${chunk.manualDocumentId})}" style="font-size:12px;margin-left:auto;">문서 보기 →</a>
-                    </div>
-                    <p th:text="${chunk.content}" style="font-size:13px;color:#555;margin-top:6px;">내용</p>
+            <div th:if="${#lists.isEmpty(detail.evidenceChunks)}" class="muted">
+                AI 분석 완료 후 참고한 정책 문서가 표시됩니다.
+            </div>
+            <div th:each="chunk : ${detail.evidenceChunks}" class="chunk">
+                <div class="chunk-meta">
+                    <strong th:text="${chunk.manualDocumentTitle}">정책 문서</strong>
+                    <span class="label" th:text="${chunk.manualCategory}">REFUND</span>
+                    <a th:href="@{/ui/manuals/{id}(id=${chunk.manualDocumentId})}" style="font-size:12px;margin-left:auto;">문서 보기 →</a>
                 </div>
+                <p th:text="${chunk.content}" style="font-size:13px;color:#555;margin-top:6px;">내용</p>
             </div>
         </article>
 
         <article class="card">
             <h2>상담사 작업</h2>
+            <p id="action-error" style="color:red;display:none;font-size:13px;margin-bottom:8px;"></p>
             <div class="actions">
-                <button id="analyze-btn" class="button" type="button" onclick="runAnalyze()">AI 자동 답변 만들기</button>
-                <form th:action="@{/api/inquiries/{id}/review(id=${detail.inquiry.id})}" method="post">
-                    <input type="hidden" name="finalAnswer" th:value="${detail.inquiry.aiDraftAnswer}">
-                    <input type="hidden" name="reviewMemo" th:value="${detail.inquiry.reviewMemo}">
-                    <input type="hidden" name="reviewedBy" value="counselor-demo">
-                    <button class="button secondary" type="submit">최종 확정</button>
-                </form>
-                <form th:action="@{/api/inquiries/{id}/close(id=${detail.inquiry.id})}" method="post">
-                    <button class="button ghost" type="submit">종료</button>
-                </form>
+                <button class="button secondary" type="button" onclick="confirmReview()">최종 확정</button>
+                <button class="button ghost" type="button" onclick="closeInquiry()">종료</button>
             </div>
         </article>
     </section>
@@ -83,97 +131,64 @@
 
 <script th:inline="javascript">
     const inquiryId = [[${detail.inquiry.id}]];
+    const inquiryStatus = [[${detail.inquiry.status.name()}]];
 
-    async function runAnalyze() {
-        const btn = document.getElementById('analyze-btn');
-        const status = document.getElementById('analyze-status');
+    // NEW 상태면 5초마다 폴링해서 분석 완료 시 자동 새로고침
+    if (inquiryStatus === 'NEW') {
+        const poll = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/inquiries/${inquiryId}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.status !== 'NEW') {
+                    clearInterval(poll);
+                    window.location.reload();
+                }
+            } catch (e) { /* 무시 */ }
+        }, 5000);
+    }
 
-        btn.disabled = true;
-        btn.textContent = 'AI 분석 중...';
-        status.innerHTML = '<span class="muted">GPT가 메뉴얼을 검색하고 답변을 생성하고 있습니다...</span>';
-
+    async function confirmReview() {
+        const finalAnswer = document.getElementById('draft-answer')?.value ?? '';
+        if (!finalAnswer.trim()) {
+            showActionError('AI 답변이 아직 생성되지 않았습니다. 잠시 후 다시 시도해 주세요.');
+            return;
+        }
         try {
-            const res = await fetch(`/api/inquiries/${inquiryId}/analyze`, { method: 'POST' });
+            const res = await fetch(`/api/inquiries/${inquiryId}/review`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ finalAnswer, reviewMemo: '', confirmedBy: 'counselor-demo' })
+            });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                throw new Error(err.message || `분석 실패 (${res.status})`);
+                throw new Error(err.message || `확정 실패 (${res.status})`);
             }
-            const data = await res.json();
-
-            status.innerHTML = '';
-            const draftBox = document.getElementById('draft-box') || createDraftBox();
-            const textarea = document.getElementById('draft-answer');
-            textarea.value = data.draft?.answer ?? '';
-            btn.textContent = '다시 분석';
-            btn.disabled = false;
-
-            renderRoutingResult(data);
-            renderRefDocs(data.retrievedChunks ?? []);
+            window.location.reload();
         } catch (e) {
-            status.innerHTML = `<span style="color:red">오류: ${e.message}</span>`;
-            btn.textContent = 'AI 자동 답변 만들기';
-            btn.disabled = false;
+            showActionError(e.message);
         }
     }
 
-    function createDraftBox() {
-        const section = document.getElementById('analyze-section');
-        const div = document.createElement('div');
-        div.id = 'draft-box';
-        div.innerHTML = `
-            <textarea id="draft-answer" rows="8" style="width:100%;font-size:14px;padding:10px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;"></textarea>
-            <button type="button" onclick="copyDraft()" style="margin-top:8px;" class="button secondary">답변 복사</button>
-        `;
-        section.appendChild(div);
-        return div;
-    }
-
-    function renderRoutingResult(data) {
-        const existing = document.getElementById('routing-result');
-        if (existing) existing.remove();
-
-        const div = document.createElement('div');
-        div.id = 'routing-result';
-        div.style.cssText = 'margin-top:12px;padding:10px 14px;border-radius:6px;font-size:14px;';
-
-        if (data.autoProcessed) {
-            div.style.background = '#e8f5e9';
-            div.style.color = '#2e7d32';
-            div.innerHTML = '✓ <strong>자동 처리 완료</strong> — AI 신뢰도가 충분하여 답변이 자동 확정되었습니다.';
-        } else if (data.needsEscalation) {
-            div.style.background = '#fce4ec';
-            div.style.color = '#b71c1c';
-            div.innerHTML = '⚠ <strong>에스컬레이션 필요</strong> — 담당 매니저 확인이 필요합니다. 알림이 전송되었습니다.';
-        } else {
-            div.style.background = '#fff3e0';
-            div.style.color = '#e65100';
-            div.innerHTML = '👤 <strong>검토 필요</strong> — AI가 사람의 확인이 필요하다고 판단했습니다. 내용을 검토 후 확정해 주세요.';
+    async function closeInquiry() {
+        if (!confirm('정말 종료하시겠습니까?')) return;
+        try {
+            const res = await fetch(`/api/inquiries/${inquiryId}/close`, { method: 'POST' });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || `종료 실패 (${res.status})`);
+            }
+            window.location.reload();
+        } catch (e) {
+            showActionError(e.message);
         }
-
-        document.getElementById('analyze-section').appendChild(div);
     }
 
-    function renderRefDocs(chunks) {
-        const section = document.getElementById('ref-docs-section');
-        if (!chunks.length) return;
-
-        const seen = new Set();
-        const unique = chunks.filter(c => {
-            if (seen.has(c.manualDocumentId)) return false;
-            seen.add(c.manualDocumentId);
-            return true;
-        });
-
-        section.innerHTML = unique.map(c => `
-            <div class="chunk">
-                <div class="chunk-meta">
-                    <strong>${c.manualDocumentTitle}</strong>
-                    <span class="label">${c.manualCategory}</span>
-                    <a href="/ui/manuals/${c.manualDocumentId}" style="font-size:12px;margin-left:auto;">문서 보기 →</a>
-                </div>
-                <p style="font-size:13px;color:#555;margin-top:6px;">${c.content}</p>
-            </div>
-        `).join('');
+    function showActionError(msg) {
+        const el = document.getElementById('action-error');
+        el.textContent = msg;
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 4000);
     }
 
     function copyDraft() {

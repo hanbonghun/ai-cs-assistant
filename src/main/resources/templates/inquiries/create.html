@@ -18,38 +18,74 @@
     </header>
 
     <section class="panel">
-        <form class="form" action="/api/inquiries" method="post">
+        <form class="form" id="create-form">
             <label>
                 고객 식별자
-                <input type="text" name="customerIdentifier" placeholder="cust-001">
+                <input type="text" id="customerIdentifier" placeholder="cust-001">
             </label>
             <label>
                 제목
-                <input type="text" name="title" placeholder="환불 문의">
+                <input type="text" id="title" placeholder="환불 문의">
             </label>
             <label>
                 내용
-                <textarea name="content" rows="7" placeholder="문의 내용을 입력하세요."></textarea>
+                <textarea id="content" rows="7" placeholder="문의 내용을 입력하세요."></textarea>
             </label>
             <div class="grid-two">
                 <label>
                     카테고리
-                    <select name="category">
+                    <select id="category">
                         <option th:each="category : ${categories}" th:value="${category}" th:text="${category}">REFUND</option>
                     </select>
                 </label>
                 <label>
                     긴급도
-                    <select name="urgency">
+                    <select id="urgency">
                         <option th:each="urgency : ${urgencies}" th:value="${urgency}" th:text="${urgency}">HIGH</option>
                     </select>
                 </label>
             </div>
+            <p id="error-msg" style="color:red;display:none;"></p>
             <div class="actions">
-                <button class="button" type="submit">등록</button>
+                <button class="button" type="submit" id="submit-btn">등록</button>
             </div>
         </form>
     </section>
 </main>
+<script>
+    document.getElementById('create-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const btn = document.getElementById('submit-btn');
+        const errorMsg = document.getElementById('error-msg');
+        btn.disabled = true;
+        btn.textContent = '등록 중...';
+        errorMsg.style.display = 'none';
+
+        try {
+            const res = await fetch('/api/inquiries', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    customerIdentifier: document.getElementById('customerIdentifier').value,
+                    title: document.getElementById('title').value,
+                    content: document.getElementById('content').value,
+                    category: document.getElementById('category').value,
+                    urgency: document.getElementById('urgency').value
+                })
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || `등록 실패 (${res.status})`);
+            }
+            const data = await res.json();
+            window.location.href = `/ui/inquiries/${data.id}`;
+        } catch (e) {
+            errorMsg.textContent = '오류: ' + e.message;
+            errorMsg.style.display = 'block';
+            btn.disabled = false;
+            btn.textContent = '등록';
+        }
+    });
+</script>
 </body>
 </html>
