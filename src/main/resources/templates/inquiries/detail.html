@@ -48,16 +48,18 @@
         </article>
 
         <article class="card">
-            <h2>증거 청크</h2>
-            <div th:if="${#lists.isEmpty(detail.evidenceChunks)}" class="muted">분석 로그에 연결된 청크가 없습니다.</div>
-            <div th:each="chunk : ${detail.evidenceChunks}" class="chunk">
-                <div class="chunk-meta">
-                    <strong th:text="${chunk.manualDocumentTitle}">매뉴얼</strong>
-                    <span th:text="${chunk.manualCategory}">REFUND</span>
-                    <span th:text="${'Chunk ' + chunk.chunkIndex}">Chunk 0</span>
-                    <span th:text="${'v' + chunk.documentVersion}">v1</span>
+            <h2>참고 문서</h2>
+            <p class="muted" style="font-size:13px;margin-bottom:12px;">AI가 답변 생성 시 참고한 정책 문서입니다.</p>
+            <div id="ref-docs-section">
+                <div th:if="${#lists.isEmpty(detail.evidenceChunks)}" class="muted" id="ref-docs-empty">AI 분석 실행 후 참고한 정책 문서가 표시됩니다.</div>
+                <div th:each="chunk : ${detail.evidenceChunks}" class="chunk" th:attr="data-doc-id=${chunk.manualDocumentId}">
+                    <div class="chunk-meta">
+                        <strong th:text="${chunk.manualDocumentTitle}">정책 문서</strong>
+                        <span class="label" th:text="${chunk.manualCategory}">REFUND</span>
+                        <a th:href="@{/ui/manuals/{id}(id=${chunk.manualDocumentId})}" style="font-size:12px;margin-left:auto;">문서 보기 →</a>
+                    </div>
+                    <p th:text="${chunk.content}" style="font-size:13px;color:#555;margin-top:6px;">내용</p>
                 </div>
-                <p th:text="${chunk.content}">청크 내용</p>
             </div>
         </article>
 
@@ -104,6 +106,8 @@
             textarea.value = data.draft?.answer ?? '';
             btn.textContent = '다시 분석';
             btn.disabled = false;
+
+            renderRefDocs(data.retrievedChunks ?? []);
         } catch (e) {
             status.innerHTML = `<span style="color:red">오류: ${e.message}</span>`;
             btn.textContent = 'AI 자동 답변 만들기';
@@ -121,6 +125,29 @@
         `;
         section.appendChild(div);
         return div;
+    }
+
+    function renderRefDocs(chunks) {
+        const section = document.getElementById('ref-docs-section');
+        if (!chunks.length) return;
+
+        const seen = new Set();
+        const unique = chunks.filter(c => {
+            if (seen.has(c.manualDocumentId)) return false;
+            seen.add(c.manualDocumentId);
+            return true;
+        });
+
+        section.innerHTML = unique.map(c => `
+            <div class="chunk">
+                <div class="chunk-meta">
+                    <strong>${c.manualDocumentTitle}</strong>
+                    <span class="label">${c.manualCategory}</span>
+                    <a href="/ui/manuals/${c.manualDocumentId}" style="font-size:12px;margin-left:auto;">문서 보기 →</a>
+                </div>
+                <p style="font-size:13px;color:#555;margin-top:6px;">${c.content}</p>
+            </div>
+        `).join('');
     }
 
     function copyDraft() {
