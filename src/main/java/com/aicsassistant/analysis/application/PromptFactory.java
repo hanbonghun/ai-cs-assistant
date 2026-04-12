@@ -88,6 +88,14 @@ public class PromptFactory {
                 - Once the customer has provided the needed information in a later message, proceed to answer without asking again
                 - Write finalAnswer in polite, concise Korean
                 - Produce finalAnswer as soon as you have sufficient information; do not exceed 6 tool calls
+
+                ## Context gathering before human handoff
+                When needsHumanReview or needsEscalation will be true, gather as much context as possible BEFORE producing finalAnswer:
+                - Always check order status if an order ID is present or can be inferred
+                - Always search relevant policy documents
+                - Include a clear summary of all gathered information in the finalAnswer (this becomes the counselor's briefing)
+                - The finalAnswer for human-review cases should read as a situation summary for the counselor, not a customer-facing reply
+                  Example: "고객이 주문 ORD-XXX(배송완료, 2026-04-09) 건에 대해 환불을 요청하고 있습니다. 배송 완료 후 4일 경과로 반품 가능 기간(7일) 이내이며, 고객은 상품 불량을 주장하고 있습니다. 상담사 확인이 필요합니다."
                 """.formatted(toolList, categories, urgencyLevels);
     }
 

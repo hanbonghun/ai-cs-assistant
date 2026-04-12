@@ -1,6 +1,7 @@
 package com.aicsassistant.analysis.infra;
 
 import com.aicsassistant.analysis.application.CounselorNotificationService;
+import com.aicsassistant.common.config.AppProperties;
 import com.aicsassistant.common.config.SlackProperties;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import org.slf4j.Logger;
@@ -15,10 +16,16 @@ public class SlackCounselorNotificationService implements CounselorNotificationS
     private static final Logger log = LoggerFactory.getLogger(SlackCounselorNotificationService.class);
 
     private final SlackProperties slackProperties;
+    private final AppProperties appProperties;
     private final WebClient webClient;
 
-    public SlackCounselorNotificationService(SlackProperties slackProperties, WebClient webClient) {
+    public SlackCounselorNotificationService(
+            SlackProperties slackProperties,
+            AppProperties appProperties,
+            WebClient webClient
+    ) {
         this.slackProperties = slackProperties;
+        this.appProperties = appProperties;
         this.webClient = webClient;
     }
 
@@ -28,13 +35,23 @@ public class SlackCounselorNotificationService implements CounselorNotificationS
                 inquiry.getId(), inquiry.getTitle(),
                 inquiry.getCategory(), inquiry.getUrgency(), reason);
 
-        sendSlack("""
+        String detailUrl = appProperties.inquiryDetailUrl(inquiry.getId());
+        String contextBlock = buildContextBlock(inquiry);
+
+        String text = """
                 :eyes: *[검토 필요] 문의 #%d — %s*
                 > 카테고리: `%s` | 긴급도: `%s`
                 > 사유: %s
+                %s
+                <%s|상세 화면 바로가기 →>
                 """.formatted(
                 inquiry.getId(), inquiry.getTitle(),
-                inquiry.getCategory(), inquiry.getUrgency(), reason));
+                inquiry.getCategory(), inquiry.getUrgency(),
+                reason,
+                contextBlock,
+                detailUrl);
+
+        sendSlack(text);
     }
 
     @Override
@@ -43,14 +60,38 @@ public class SlackCounselorNotificationService implements CounselorNotificationS
                 inquiry.getId(), inquiry.getTitle(),
                 inquiry.getCategory(), inquiry.getUrgency(), reason);
 
-        sendSlack("""
+        String detailUrl = appProperties.inquiryDetailUrl(inquiry.getId());
+        String contextBlock = buildContextBlock(inquiry);
+
+        String text = """
                 :rotating_light: *[에스컬레이션] 문의 #%d — %s*
                 > 카테고리: `%s` | 긴급도: `%s`
                 > 사유: %s
-                > *즉시 매니저 확인 필요*
+                %s
+                <%s|상세 화면 바로가기 →>
+                *즉시 매니저 확인 필요*
                 """.formatted(
                 inquiry.getId(), inquiry.getTitle(),
-                inquiry.getCategory(), inquiry.getUrgency(), reason));
+                inquiry.getCategory(), inquiry.getUrgency(),
+                reason,
+                contextBlock,
+                detailUrl);
+
+        sendSlack(text);
+    }
+
+    /**
+     * AI가 대화를 통해 수집한 컨텍스트(초안 답변)를 Slack 블록으로 변환한다.
+     * aiDraftAnswer에는 에이전트가 수집한 주문 상태, 정책 내용 등이 요약되어 있다.
+     */
+    private String buildContextBlock(Inquiry inquiry) {
+        String draft = inquiry.getAiDraftAnswer();
+        if (draft == null || draft.isBlank()) {
+            return "";
+        }
+        // 너무 길면 앞 200자만
+        String preview = draft.length() > 200 ? draft.substring(0, 200) + "..." : draft;
+        return "\n> :memo: *AI 수집 컨텍스트*\n> " + preview.replace("\n", "\n> ") + "\n";
     }
 
     private void sendSlack(String text) {
