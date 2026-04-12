@@ -5,11 +5,13 @@ import com.aicsassistant.analysis.infra.InquiryAnalysisLogRepository;
 import com.aicsassistant.common.exception.ApiException;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
+import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.InquiryStatus;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.CreateInquiryRequest;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.inquiry.dto.InquiryListResponse;
+import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
 import com.aicsassistant.inquiry.infra.InquiryRepository;
 import java.util.Comparator;
 import java.util.List;
@@ -26,6 +28,7 @@ public class InquiryService {
 
     private final InquiryRepository inquiryRepository;
     private final InquiryAnalysisLogRepository inquiryAnalysisLogRepository;
+    private final InquiryMessageRepository inquiryMessageRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -82,6 +85,10 @@ public class InquiryService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INQUIRY_STATE", "Only REVIEWED inquiries can be closed");
         }
         inquiry.close();
+    }
+
+    public List<InquiryMessage> getMessages(Long inquiryId) {
+        return inquiryMessageRepository.findByInquiryIdOrderByCreatedAtAsc(inquiryId);
     }
 
     private Inquiry getInquiryEntity(Long id) {

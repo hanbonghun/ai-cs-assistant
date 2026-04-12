@@ -93,6 +93,20 @@ public class AnalysisLogService {
                 });
     }
 
+    public java.util.Optional<String> getLatestAgentStepsJson(Long inquiryId) {
+        return inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId)
+                .stream()
+                .findFirst()
+                .map(InquiryAnalysisLog::getAgentSteps);
+    }
+
+    public java.util.Optional<String> getLatestRetrievedChunkIds(Long inquiryId) {
+        return inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId)
+                .stream()
+                .findFirst()
+                .map(InquiryAnalysisLog::getRetrievedChunkIds);
+    }
+
     private long elapsed(long startedAtMillis) {
         return Math.max(0L, System.currentTimeMillis() - startedAtMillis);
     }

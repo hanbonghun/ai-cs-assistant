@@ -1,8 +1,7 @@
 package com.aicsassistant.ui.controller;
 
 import com.aicsassistant.analysis.agent.AgentStep;
-import com.aicsassistant.analysis.domain.InquiryAnalysisLog;
-import com.aicsassistant.analysis.infra.InquiryAnalysisLogRepository;
+import com.aicsassistant.analysis.application.AnalysisLogService;
 import com.aicsassistant.inquiry.application.InquiryService;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryMessage;
@@ -10,7 +9,6 @@ import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
-import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView.DocRef;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -37,8 +35,7 @@ public class CounselorViewController {
 
     private final InquiryService inquiryService;
     private final ManualService manualService;
-    private final InquiryAnalysisLogRepository inquiryAnalysisLogRepository;
-    private final InquiryMessageRepository messageRepository;
+    private final AnalysisLogService analysisLogService;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
 
@@ -82,7 +79,7 @@ public class CounselorViewController {
         List<InquiryDetailViewModel.EvidenceChunkView> evidenceChunks = inquiry.analysisLogs().isEmpty()
                 ? List.of()
                 : loadEvidenceChunks(id);
-        List<InquiryMessage> messages = messageRepository.findByInquiryIdOrderByCreatedAtAsc(id);
+        List<InquiryMessage> messages = inquiryService.getMessages(id);
         List<AgentStepView> agentSteps = loadAgentSteps(id);
         model.addAttribute("detail", InquiryDetailViewModel.from(inquiry, evidenceChunks, messages, agentSteps));
         model.addAttribute("categoryLabels", CATEGORY_LABELS);
@@ -177,10 +174,7 @@ public class CounselorViewController {
     }
 
     private List<AgentStepView> loadAgentSteps(Long inquiryId) {
-        List<InquiryAnalysisLog> logs = inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId);
-        if (logs.isEmpty()) return List.of();
-
-        String stepsJson = logs.get(0).getAgentSteps();
+        String stepsJson = analysisLogService.getLatestAgentStepsJson(inquiryId).orElse(null);
         if (stepsJson == null || stepsJson.isBlank()) return List.of();
 
         try {
@@ -218,12 +212,7 @@ public class CounselorViewController {
     }
 
     private List<InquiryDetailViewModel.EvidenceChunkView> loadEvidenceChunks(@NotNull Long inquiryId) {
-        List<InquiryAnalysisLog> logs = inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId);
-        if (logs.isEmpty()) {
-            return List.of();
-        }
-
-        String retrievedChunkIds = logs.get(0).getRetrievedChunkIds();
+        String retrievedChunkIds = analysisLogService.getLatestRetrievedChunkIds(inquiryId).orElse(null);
         if (retrievedChunkIds == null || retrievedChunkIds.isBlank()) {
             return List.of();
         }

@@ -5,7 +5,6 @@ import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.inquiry.dto.InquiryListResponse;
-import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
 import com.aicsassistant.user.DummyUserStore;
 import com.aicsassistant.user.DummyUserStore.DummyUser;
 import jakarta.servlet.http.HttpSession;
@@ -54,7 +53,6 @@ public class UserViewController {
     );
 
     private final InquiryService inquiryService;
-    private final InquiryMessageRepository messageRepository;
 
     /** 사용자 선택 화면 */
     @GetMapping
@@ -109,7 +107,7 @@ public class UserViewController {
     public String inquiryDetail(@PathVariable Long id, HttpSession session, Model model) {
         DummyUser user = resolveUser(session);
         InquiryDetailResponse inquiry = inquiryService.getInquiry(id);
-        List<InquiryMessage> messages = messageRepository.findByInquiryIdOrderByCreatedAtAsc(id);
+        List<InquiryMessage> messages = inquiryService.getMessages(id);
         model.addAttribute("user", user);
         model.addAttribute("inquiry", inquiry);
         model.addAttribute("messages", messages);
