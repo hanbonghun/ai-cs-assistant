@@ -258,6 +258,89 @@ class InquiryAgentServiceTest {
     }
 
     @Test
+    void multiConcernAllAutoAnswerable_callsBothToolsAndProducesUnifiedAnswer() {
+        // 케이스 1: "ORD 배송 조회 + 반품 정책" — 두 도구 모두 호출 후 통합 답변
+        givenLlmResponds(
+                toolCall("check_order_status", "{\"orderId\":\"ORD-20260410-001\"}"),
+                toolCall("search_manual", "{\"query\":\"반품 정책\"}"),
+                finalAnswer(
+                        "1) 배송: 4월 13일 도착 예정입니다. 2) 반품 정책: 수령 후 7일 이내 가능합니다.",
+                        "DELIVERY", "MEDIUM", false)
+        );
+        when(manualRetrievalService.retrieve(any())).thenReturn(List.of());
+
+        AgentResult result = agentService.run(
+                inquiry("ORD-20260410-001 배송 언제 와요? 그리고 반품 정책 알려주세요"), List.of());
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
+        assertThat(answer.steps()).hasSize(2);
+        assertThat(answer.steps().get(0).action()).isEqualTo("check_order_status");
+        assertThat(answer.steps().get(1).action()).isEqualTo("search_manual");
+        assertThat(answer.answer()).contains("배송").contains("반품 정책");
+        assertThat(answer.needsHumanReview()).isFalse();
+    }
+
+    @Test
+    void multiConcernPartialEscalation_answersPolicyAndFlagsRefundForHuman() {
+        // 케이스 2: "환불 처리 + 반품 정책" — 정책은 답변, 환불 액션은 needsHumanReview true
+        givenLlmResponds(
+                toolCall("search_manual", "{\"query\":\"반품 정책\"}"),
+                finalAnswer(
+                        "1) 반품 정책: 수령 후 7일 이내 가능합니다. 2) 환불 처리: 담당자가 확인 후 처리해 드리겠습니다.",
+                        "REFUND", "MEDIUM", true)
+        );
+        when(manualRetrievalService.retrieve(any())).thenReturn(List.of());
+
+        AgentResult result = agentService.run(
+                inquiry("환불 처리해주세요. 그리고 반품 정책도 알려주세요"), List.of());
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
+        assertThat(answer.needsHumanReview()).isTrue();
+        assertThat(answer.answer())
+                .contains("반품 정책")
+                .contains("담당자가 확인");
+    }
+
+    @Test
+    void multiConcernBudgetGuard_summarizesPartialAnswerAndEscalates() {
+        // 케이스 3: 예산 가드(6회 한도) 발동 후 부분 답변 + needsHumanReview
+        // 인터셉터가 즉시 차단하면 도구는 실행되지 않고 PERMISSION 에러가 observation에 들어감.
+        InquiryAgentService budgetExhaustedAgent = new InquiryAgentService(
+                llmClient, manualRetrievalService, promptFactory, new ObjectMapper(),
+                new InMemoryOrderRepository(),
+                new InMemoryFaqRepository(),
+                List.of(new com.aicsassistant.analysis.agent.ToolCallInterceptor() {
+                    @Override
+                    public java.util.Optional<com.aicsassistant.analysis.agent.ToolResult> beforeExecute(
+                            String toolName, com.fasterxml.jackson.databind.JsonNode input,
+                            com.aicsassistant.analysis.agent.ToolCallContext ctx) {
+                        return java.util.Optional.of(com.aicsassistant.analysis.agent.ToolResult.error(
+                                com.aicsassistant.analysis.agent.ToolErrorCategory.PERMISSION,
+                                false,
+                                "Tool call budget exhausted"));
+                    }
+                }));
+        givenLlmResponds(
+                toolCall("search_manual", "{\"query\":\"반품 정책\"}"),
+                finalAnswer(
+                        "1) 반품 정책: 일부 정보만 확인했습니다. 2) 그 외 요청은 담당자가 확인 후 처리해 드리겠습니다.",
+                        "RETURN", "MEDIUM", true)
+        );
+
+        AgentResult result = budgetExhaustedAgent.run(
+                inquiry("반품 정책 알려주고, ORD-A 환불, ORD-B 교환, 적립금 환급도 부탁해요"),
+                List.of());
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
+        assertThat(answer.needsHumanReview()).isTrue();
+        AgentStep guardedStep = answer.steps().get(0);
+        assertThat(guardedStep.observation())
+                .contains("\"errorCategory\":\"PERMISSION\"")
+                .contains("budget exhausted");
+        assertThat(answer.answer()).contains("담당자");
+    }
+
+    @Test
     void accumulatesTotalTokensAcrossSteps() {
         givenLlmResponds(
                 toolCall("search_manual", "{\"query\":\"배송\"}"),

@@ -106,6 +106,8 @@ sequenceDiagram
     C->>A: 문의 내용 + 주문 정보 선주입
     A->>L: System Prompt + 문의 내용
 
+    Note over L: 다중 관심사면 첫 thought에서<br/>각 관심사를 열거 (분해)
+
     loop ReAct 루프 (최대 8스텝)
         L-->>A: Thought: "환불 정책을 확인해야 한다"
         L-->>A: Action: search_manual("환불 기간")
@@ -273,6 +275,9 @@ public interface AgentTool<I> {
 
 세 도구의 `usageBoundary`는 서로를 명시적으로 가리키며 (`search_faq` NOT_FOUND → `search_manual` 폴백, 등), `PromptFactory.Guidelines`에 한 줄짜리 도구 선택 규칙을 함께 노출합니다. 모델이 description의 자기설명만으로 단순 FAQ는 `search_faq`로 즉답하고, 매칭 실패 시 자동으로 `search_manual`로 폴백하는 흐름을 통합 테스트로 보호합니다.
 
+### 13. 다중 관심사 메시지 분해/통합 처리
+한 메시지에 여러 요청이 섞여 있을 때(예: *"ORD-XXX 배송 언제 와요? 그리고 반품 정책 알려주세요"*) Agent가 각 관심사를 첫 `thought`에서 열거하고, 필요한 도구를 모두 호출한 뒤, 관심사별 헤더(`1)`, `2)`)가 붙은 **하나의 통합된 finalAnswer**를 생성합니다. 자동 처리 가능한 부분과 상담사 액션이 필요한 부분이 섞여 있으면 답할 수 있는 부분은 즉시 답하고 나머지는 `needsHumanReview: true`로 라우팅합니다. 가드(예산 초과, 정책 가드)가 중간에 발동해 일부만 처리된 경우에도 누락 없이 "처리 완료 / 상담사 인계" 구분을 명시합니다.
+
 ---
 
 ## 배포
@@ -351,6 +356,11 @@ export APP_SLACK_WEBHOOK_URL=https://hooks.slack.com/...   # 선택
 **4. 메뉴얼 추가 전후 비교**
 - `/ui/manuals` → 직접 입력으로 새 정책 등록
 - 동일한 문의를 등록 전/후로 비교해 RAG 반영 여부 확인
+
+**5. 다중 관심사 메시지**
+- 유형: 배송 문의 / 주문: `ORD-20260410-001` 선택
+- 내용: "배송 언제 와요? 그리고 반품 가능 기간도 알려주세요"
+- → Agent가 `check_order_status` + `search_manual` 두 도구를 모두 호출 → `1) 배송: ... 2) 반품: ...` 형태로 통합 답변
 
 ---
 
