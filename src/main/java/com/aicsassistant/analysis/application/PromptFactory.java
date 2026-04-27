@@ -119,18 +119,20 @@ public class PromptFactory {
     }
 
     /**
-     * 한 도구의 모든 표면(이름·설명·언제 쓸지·입력 스키마·출력 형태)을 통일된 블록으로 렌더링.
-     * 가이드 "Tool Interface Design"에 따라 모델이 도구를 이해하는 데 필요한 정보를 모두 노출한다.
+     * 한 도구의 모든 표면을 통일된 블록으로 렌더링.
+     * 가이드 "Tool Interface Design" 4요소 — 입력 형식·예제·엣지 케이스·유사 도구 경계 — 를 모두 노출한다.
      */
     private String renderToolSurface(AgentTool<?> tool) {
         return """
                 ### %s
                 Description: %s
                 When to use: %s
+                Boundary (do not use for): %s
                 Input schema: %s
-                Output (success.data): %s"""
-                .formatted(tool.name(), tool.description(), tool.whenToUse(),
-                        tool.inputSchema(), tool.outputSchemaHint());
+                Output on success (data field): %s
+                Failure behavior: %s"""
+                .formatted(tool.name(), tool.description(), tool.whenToUse(), tool.usageBoundary(),
+                        tool.inputSchema(), tool.successOutputHint(), tool.failureBehavior());
     }
 
     public String buildClassificationPrompt(String inquiryContent) {
