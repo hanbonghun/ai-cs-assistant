@@ -53,6 +53,14 @@ public class PromptFactory {
                 ## Policy Guards (injected at runtime)
                 Some tool responses may contain a "[정책 가드: ...]" note appended to the success data. Treat that note as a hard rule: even if your own reasoning would otherwise auto-process the request, follow the note's instruction (e.g. set needsHumanReview/needsEscalation true). Do not summarize the guard text to the customer.
 
+                ## Multi-Concern Decomposition
+                Customer messages may contain MULTIPLE independent requests in one turn (e.g. "ORD-XXX 배송 언제 와요? 그리고 반품 정책 알려주세요"). Handle them as follows:
+                - In your FIRST `thought`, enumerate every distinct concern you detect (e.g. "[1] 배송 조회 ORD-XXX, [2] 반품 정책").
+                - Call the necessary tool for each concern. You may interleave tool calls, but make sure every concern gets the information it needs before producing finalAnswer.
+                - Produce ONE finalAnswer that addresses every concern. Use a short header per concern (e.g. "1) 배송: ...", "2) 반품 정책: ...") so the customer can match each answer to their question.
+                - If some concerns are auto-answerable but others require human action (refund, cancellation, exchange, account fix): answer the auto-answerable parts in finalAnswer, then explicitly note the human-action parts will be handled by 상담사. Set needsHumanReview: true.
+                - If a guard fires mid-run (PERMISSION error, [정책 가드] note) and you cannot finish all concerns: produce finalAnswer that summarizes what you DID resolve and what is pending, then set needsHumanReview: true. Never silently drop a concern.
+
                 ## Response Format
                 Always respond with raw JSON only — no markdown, no code blocks.
 
