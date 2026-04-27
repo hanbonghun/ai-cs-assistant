@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,7 @@ public class InquiryAgentService {
     private final PromptFactory promptFactory;
     private final ObjectMapper objectMapper;
     private final InMemoryOrderRepository orderRepository;
+    private final List<ToolCallInterceptor> interceptors;
 
     /**
      * @param inquiry         분석할 문의
@@ -69,6 +71,7 @@ public class InquiryAgentService {
 
         List<AgentStep> steps = new ArrayList<>();
         int totalTokens = 0;
+        ToolCallContext callContext = new ToolCallContext(inquiry.getId());
 
         for (int step = 0; step < MAX_STEPS; step++) {
             LlmResponse llmResponse = llmClient.completeWithUsage(messages);
@@ -94,16 +97,7 @@ public class InquiryAgentService {
             JsonNode actionInput = node.path("actionInput");
 
             AgentTool tool = resolveTool(tools, action);
-            ToolResult toolResult;
-            try {
-                toolResult = tool.execute(actionInput);
-            } catch (Exception e) {
-                toolResult = ToolResult.error(
-                        ToolErrorCategory.TRANSIENT,
-                        true,
-                        "Tool execution failed: " + e.getMessage());
-                log.warn("[Agent inquiryId={} step={}] tool error action={}", inquiry.getId(), step, action, e);
-            }
+            ToolResult toolResult = invokeWithInterceptors(tool, action, actionInput, callContext, inquiry.getId(), step);
 
             String observation = serializeObservation(toolResult);
             log.info("[Agent inquiryId={} step={}] action={} ok={} category={} observation_len={}",
@@ -141,6 +135,37 @@ public class InquiryAgentService {
 
         sb.append("[문의 내용]\n").append(inquiry.getContent());
         return sb.toString();
+    }
+
+    private ToolResult invokeWithInterceptors(
+            AgentTool tool, String action, JsonNode actionInput,
+            ToolCallContext ctx, Long inquiryId, int step) {
+
+        for (ToolCallInterceptor interceptor : interceptors) {
+            Optional<ToolResult> blocked = interceptor.beforeExecute(action, actionInput, ctx);
+            if (blocked.isPresent()) {
+                log.info("[Agent inquiryId={} step={}] action={} blocked_by={}",
+                        inquiryId, step, action, interceptor.getClass().getSimpleName());
+                return blocked.get();
+            }
+        }
+
+        ToolResult result;
+        try {
+            result = tool.execute(actionInput);
+        } catch (Exception e) {
+            result = ToolResult.error(
+                    ToolErrorCategory.TRANSIENT,
+                    true,
+                    "Tool execution failed: " + e.getMessage());
+            log.warn("[Agent inquiryId={} step={}] tool error action={}", inquiryId, step, action, e);
+        }
+        ctx.incrementToolCallCount();
+
+        for (ToolCallInterceptor interceptor : interceptors) {
+            result = interceptor.afterExecute(action, actionInput, result, ctx);
+        }
+        return result;
     }
 
     private String serializeObservation(ToolResult result) {
