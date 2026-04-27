@@ -37,7 +37,8 @@ class InquiryAgentServiceTest {
                 manualRetrievalService,
                 promptFactory,
                 new ObjectMapper(),
-                new InMemoryOrderRepository()
+                new InMemoryOrderRepository(),
+                List.of()
         );
     }
 
@@ -102,6 +103,62 @@ class InquiryAgentServiceTest {
         assertThatThrownBy(() -> agentService.run(inquiry("무한 루프 문의"), List.of()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("maximum steps");
+    }
+
+    @Test
+    void interceptorCanBlockToolCallBeforeExecution() {
+        InquiryAgentService serviceWithBlocker = new InquiryAgentService(
+                llmClient, manualRetrievalService, promptFactory, new ObjectMapper(),
+                new InMemoryOrderRepository(),
+                List.of(new com.aicsassistant.analysis.agent.ToolCallInterceptor() {
+                    @Override
+                    public java.util.Optional<com.aicsassistant.analysis.agent.ToolResult> beforeExecute(
+                            String toolName, com.fasterxml.jackson.databind.JsonNode input,
+                            com.aicsassistant.analysis.agent.ToolCallContext ctx) {
+                        return java.util.Optional.of(com.aicsassistant.analysis.agent.ToolResult.error(
+                                com.aicsassistant.analysis.agent.ToolErrorCategory.PERMISSION,
+                                false,
+                                "blocked-by-test"));
+                    }
+                }));
+        givenLlmResponds(
+                toolCall("search_manual", "{\"query\":\"환불\"}"),
+                finalAnswer("권한 부족으로 상담사에게 라우팅합니다.", "REFUND", "MEDIUM", true)
+        );
+
+        AgentResult result = serviceWithBlocker.run(inquiry("환불 문의"), List.of());
+
+        AgentStep step = ((AgentResult.FinalAnswer) result).steps().get(0);
+        assertThat(step.observation())
+                .contains("\"errorCategory\":\"PERMISSION\"")
+                .contains("blocked-by-test");
+    }
+
+    @Test
+    void interceptorCanModifyResultAfterExecution() {
+        InquiryAgentService serviceWithDecorator = new InquiryAgentService(
+                llmClient, manualRetrievalService, promptFactory, new ObjectMapper(),
+                new InMemoryOrderRepository(),
+                List.of(new com.aicsassistant.analysis.agent.ToolCallInterceptor() {
+                    @Override
+                    public com.aicsassistant.analysis.agent.ToolResult afterExecute(
+                            String toolName, com.fasterxml.jackson.databind.JsonNode input,
+                            com.aicsassistant.analysis.agent.ToolResult result,
+                            com.aicsassistant.analysis.agent.ToolCallContext ctx) {
+                        return com.aicsassistant.analysis.agent.ToolResult.success(
+                                (result.data() == null ? "" : result.data()) + "\n[GUARD]");
+                    }
+                }));
+        givenLlmResponds(
+                toolCall("search_manual", "{\"query\":\"환불\"}"),
+                finalAnswer("ok", "GENERAL", "LOW", false)
+        );
+        when(manualRetrievalService.retrieve(any())).thenReturn(List.of());
+
+        AgentResult result = serviceWithDecorator.run(inquiry("환불"), List.of());
+
+        AgentStep step = ((AgentResult.FinalAnswer) result).steps().get(0);
+        assertThat(step.observation()).contains("[GUARD]");
     }
 
     @Test

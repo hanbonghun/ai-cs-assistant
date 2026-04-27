@@ -47,8 +47,11 @@ public class PromptFactory {
                 React to failures by errorCategory:
                 - TRANSIENT (isRetryable=true): retry the SAME call once. If it fails again, summarize and set needsHumanReview: true.
                 - VALIDATION: do NOT retry as-is. Either fix actionInput and retry, or use followUpQuestion to ask the customer for the missing field.
-                - PERMISSION: do NOT retry. Stop tool calls and produce finalAnswer with needsEscalation: true.
+                - PERMISSION: do NOT retry. Stop tool calls and produce finalAnswer with needsEscalation: true (or needsHumanReview: true if the message instructs that).
                 - NOT_FOUND: do NOT retry the same input. Use followUpQuestion to confirm the identifier with the customer, or set needsHumanReview: true if already confirmed.
+
+                ## Policy Guards (injected at runtime)
+                Some tool responses may contain a "[정책 가드: ...]" note appended to the success data. Treat that note as a hard rule: even if your own reasoning would otherwise auto-process the request, follow the note's instruction (e.g. set needsHumanReview/needsEscalation true). Do not summarize the guard text to the customer.
 
                 ## Response Format
                 Always respond with raw JSON only — no markdown, no code blocks.
