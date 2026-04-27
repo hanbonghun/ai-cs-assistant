@@ -58,6 +58,15 @@ class CheckOrderStatusToolTest {
         assertThat(tool.description()).isNotBlank();
         assertThat(tool.whenToUse()).isNotBlank();
         assertThat(tool.inputSchema()).contains("orderId");
-        assertThat(tool.outputSchemaHint()).contains("주문번호").contains("결제금액");
+        assertThat(tool.successOutputHint()).contains("주문번호").contains("결제금액");
+        assertThat(tool.failureBehavior()).contains("NOT_FOUND");
+    }
+
+    @Test
+    void usageBoundaryRedirectsToSiblingToolAndForbidsActions() {
+        assertThat(tool.usageBoundary())
+                .contains("Do NOT use")
+                .contains("search_manual")
+                .contains("read-only");
     }
 }

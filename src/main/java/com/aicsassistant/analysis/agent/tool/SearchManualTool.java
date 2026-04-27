@@ -38,8 +38,14 @@ public class SearchManualTool implements AgentTool<SearchManualTool.Input> {
 
     @Override
     public String whenToUse() {
-        return "Call before answering ANY policy or process question (refund, return, delivery rules, coupons, membership, etc.). "
+        return "Call before answering ANY policy or process question (refund, return, delivery rules, coupons, membership). "
                 + "Do not answer policy from your own knowledge.";
+    }
+
+    @Override
+    public String usageBoundary() {
+        return "Do NOT use for: order-specific status/tracking/amount lookups (use check_order_status), "
+                + "or for customer personal info. This tool only returns generic policy text — it has no access to a specific customer's orders.";
     }
 
     @Override
@@ -53,9 +59,15 @@ public class SearchManualTool implements AgentTool<SearchManualTool.Input> {
     }
 
     @Override
-    public String outputSchemaHint() {
-        return "On success, data is newline-separated policy chunks formatted as '[<title> / <category>]\\n<content>' joined by '\\n\\n---\\n\\n'. "
-                + "If no chunks are found, data is the literal string 'No relevant policy documents found for this query.'";
+    public String successOutputHint() {
+        return "Newline-separated policy chunks formatted as '[<title> / <category>]\\n<content>' joined by '\\n\\n---\\n\\n'. "
+                + "If no chunks match the query, data is the literal string 'No relevant policy documents found for this query.' (this is still ok=true).";
+    }
+
+    @Override
+    public String failureBehavior() {
+        return "VALIDATION (empty query): refine the query into Korean policy keywords and retry. "
+                + "TRANSIENT (vector store error): retry once; if it fails again, summarize and set needsHumanReview: true.";
     }
 
     @Override
