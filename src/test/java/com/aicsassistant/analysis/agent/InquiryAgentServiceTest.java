@@ -10,6 +10,7 @@ import com.aicsassistant.analysis.application.ManualRetrievalService;
 import com.aicsassistant.analysis.application.PromptFactory;
 import com.aicsassistant.analysis.infra.llm.LlmClient;
 import com.aicsassistant.analysis.infra.llm.LlmResponse;
+import com.aicsassistant.faq.InMemoryFaqRepository;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.order.InMemoryOrderRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +39,7 @@ class InquiryAgentServiceTest {
                 promptFactory,
                 new ObjectMapper(),
                 new InMemoryOrderRepository(),
+                new InMemoryFaqRepository(),
                 List.of()
         );
     }
@@ -110,6 +112,7 @@ class InquiryAgentServiceTest {
         InquiryAgentService serviceWithBlocker = new InquiryAgentService(
                 llmClient, manualRetrievalService, promptFactory, new ObjectMapper(),
                 new InMemoryOrderRepository(),
+                new InMemoryFaqRepository(),
                 List.of(new com.aicsassistant.analysis.agent.ToolCallInterceptor() {
                     @Override
                     public java.util.Optional<com.aicsassistant.analysis.agent.ToolResult> beforeExecute(
@@ -139,6 +142,7 @@ class InquiryAgentServiceTest {
         InquiryAgentService serviceWithDecorator = new InquiryAgentService(
                 llmClient, manualRetrievalService, promptFactory, new ObjectMapper(),
                 new InMemoryOrderRepository(),
+                new InMemoryFaqRepository(),
                 List.of(new com.aicsassistant.analysis.agent.ToolCallInterceptor() {
                     @Override
                     public com.aicsassistant.analysis.agent.ToolResult afterExecute(
@@ -159,6 +163,43 @@ class InquiryAgentServiceTest {
 
         AgentStep step = ((AgentResult.FinalAnswer) result).steps().get(0);
         assertThat(step.observation()).contains("[GUARD]");
+    }
+
+    @Test
+    void faqMissThenFallsBackToManualSearch() {
+        // 가이드 시나리오: search_faq가 NOT_FOUND를 반환하면 LLM이 search_manual로 폴백해야 함
+        givenLlmResponds(
+                toolCall("search_faq", "{\"question\":\"우주선 발사 절차\"}"),
+                toolCall("search_manual", "{\"query\":\"우주선 발사\"}"),
+                finalAnswer("죄송합니다, 관련 정책을 찾지 못했습니다.", "GENERAL", "LOW", true)
+        );
+        when(manualRetrievalService.retrieve(any())).thenReturn(List.of());
+
+        AgentResult result = agentService.run(inquiry("우주선 발사 절차 알려주세요"), List.of());
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
+        assertThat(answer.steps()).hasSize(2);
+        assertThat(answer.steps().get(0).action()).isEqualTo("search_faq");
+        assertThat(answer.steps().get(0).observation())
+                .contains("\"errorCategory\":\"NOT_FOUND\"")
+                .contains("search_manual");
+        assertThat(answer.steps().get(1).action()).isEqualTo("search_manual");
+    }
+
+    @Test
+    void faqAnswersCommonQuestionWithoutManualFallback() {
+        // 단순 FAQ는 search_faq 한 번으로 처리, search_manual 호출 없이 finalAnswer
+        givenLlmResponds(
+                toolCall("search_faq", "{\"question\":\"환불 며칠 걸려요?\"}"),
+                finalAnswer("환불은 영업일 2~3일 내에 처리됩니다.", "REFUND", "LOW", false)
+        );
+
+        AgentResult result = agentService.run(inquiry("환불 며칠 걸려요?"), List.of());
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
+        assertThat(answer.steps()).hasSize(1);
+        assertThat(answer.steps().get(0).action()).isEqualTo("search_faq");
+        assertThat(answer.steps().get(0).observation()).contains("\"ok\":true");
     }
 
     @Test

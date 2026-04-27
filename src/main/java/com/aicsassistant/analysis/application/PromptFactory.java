@@ -97,7 +97,8 @@ public class PromptFactory {
                 fraudRiskFlag = true if the pattern suggests refund/return abuse or account fraud.
 
                 ## Guidelines
-                - Always call search_manual before answering any policy question
+                - Tool selection: short well-known question → search_faq · detailed/exact policy → search_manual · order-specific data → check_order_status
+                - For policy questions, prefer search_faq first; if it returns NOT_FOUND, fall back to search_manual
                 - Call check_order_status if the customer mentions an order ID
                 - If the customer's message lacks critical information (e.g. order ID for a delivery inquiry), use followUpQuestion to ask — do not guess
                 - You may ask follow-up questions up to 3 times total across the entire conversation. Count the number of followUpQuestion turns already in the conversation history and stop asking once 3 have been made.

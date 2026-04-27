@@ -1,7 +1,9 @@
 package com.aicsassistant.analysis.agent;
 
 import com.aicsassistant.analysis.agent.tool.CheckOrderStatusTool;
+import com.aicsassistant.analysis.agent.tool.SearchFaqTool;
 import com.aicsassistant.analysis.agent.tool.SearchManualTool;
+import com.aicsassistant.faq.InMemoryFaqRepository;
 import com.aicsassistant.analysis.application.ManualRetrievalService;
 import com.aicsassistant.analysis.application.PromptFactory;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
@@ -44,6 +46,7 @@ public class InquiryAgentService {
     private final PromptFactory promptFactory;
     private final ObjectMapper objectMapper;
     private final InMemoryOrderRepository orderRepository;
+    private final InMemoryFaqRepository faqRepository;
     private final List<ToolCallInterceptor> interceptors;
 
     /**
@@ -53,7 +56,8 @@ public class InquiryAgentService {
     public AgentResult run(Inquiry inquiry, List<InquiryMessage> conversationHistory) {
         CheckOrderStatusTool orderTool = new CheckOrderStatusTool(orderRepository);
         SearchManualTool searchTool = new SearchManualTool(manualRetrievalService);
-        List<AgentTool<?>> tools = List.of(searchTool, orderTool);
+        SearchFaqTool faqTool = new SearchFaqTool(faqRepository);
+        List<AgentTool<?>> tools = List.of(faqTool, searchTool, orderTool);
 
         List<ChatMessage> messages = new ArrayList<>();
         messages.add(ChatMessage.system(promptFactory.buildAgentSystemPrompt(tools)));

@@ -46,8 +46,9 @@ flowchart TB
     subgraph Agent["ReAct Agent"]
         AgentLoop["InquiryAgentService\nMAX 8 스텝 루프\nJsonNode → typed Input 역직렬화"]
         Interceptors["ToolCallInterceptor 체인\n(예산·고액 주문 가드)"]
-        SearchTool["SearchManualTool\nAgentTool&lt;Input&gt;"]
-        OrderTool["CheckOrderStatusTool\nAgentTool&lt;Input&gt;"]
+        FaqTool["SearchFaqTool\n큐레이션 단답"]
+        SearchTool["SearchManualTool\n정책 원문 RAG"]
+        OrderTool["CheckOrderStatusTool\n주문 데이터"]
     end
 
     subgraph RAG["RAG 파이프라인"]
@@ -74,7 +75,8 @@ flowchart TB
     InquiryService -->|InquiryCreatedEvent| EventListener
     EventListener --> AnalysisService
     AnalysisService --> AgentLoop
-    AgentLoop --> Interceptors --> SearchTool & OrderTool
+    AgentLoop --> Interceptors --> FaqTool & SearchTool & OrderTool
+    FaqTool --> InMemoryFaq["InMemoryFaqRepository\n(데모용 Mock)"]
     SearchTool --> VectorRepo
     OrderTool --> InMemoryOrder["InMemoryOrderRepository\n(데모용 Mock)"]
     VectorRepo -->|코사인 유사도| T4
@@ -258,7 +260,18 @@ public interface AgentTool<I> {
 }
 ```
 
-각 도구는 자기 입력을 nested record로 선언하고(`SearchManualTool.Input`, `CheckOrderStatusTool.Input`), `InquiryAgentService`가 `ObjectMapper.treeToValue`로 JsonNode → record를 자동 변환합니다. 변환 실패는 `ToolResult.error(VALIDATION, ...)`로 LLM에 반환되어 입력 수정/추가 질문 흐름이 자동 트리거됩니다. `PromptFactory`는 도구별 7개 표면을 통일된 블록으로 시스템 프롬프트에 노출해 모델이 첫 호출 전에 모든 정보를 갖게 합니다. 특히 `usageBoundary`는 **유사 기능 도구가 늘어났을 때 모델의 도구 선택 정확도를 좌우하는 핵심 신호**입니다.
+각 도구는 자기 입력을 nested record로 선언하고(`SearchManualTool.Input`, `CheckOrderStatusTool.Input`, `SearchFaqTool.Input`), `InquiryAgentService`가 `ObjectMapper.treeToValue`로 JsonNode → record를 자동 변환합니다. 변환 실패는 `ToolResult.error(VALIDATION, ...)`로 LLM에 반환되어 입력 수정/추가 질문 흐름이 자동 트리거됩니다. `PromptFactory`는 도구별 7개 표면을 통일된 블록으로 시스템 프롬프트에 노출해 모델이 첫 호출 전에 모든 정보를 갖게 합니다. 특히 `usageBoundary`는 **유사 기능 도구가 늘어났을 때 모델의 도구 선택 정확도를 좌우하는 핵심 신호**입니다.
+
+### 12. 유사 기능 도구 차별화 (search_faq vs search_manual)
+가이드 1단계의 "유사 기능 도구를 두어 description 차별화 압력을 만든다" 연습. 두 도구가 모두 정책 정보 텍스트를 반환하지만 의도가 다릅니다.
+
+| 도구 | 무엇을 반환 | 언제 호출 | 비용/응답 길이 |
+|---|---|---|---|
+| `search_faq` | 큐레이션된 짧은 Q&A 1개 | 자주 묻는 단순 질문 (환불 며칠 / 회원 탈퇴 등) | 저비용·즉답 |
+| `search_manual` | 정책 원문 청크 N개 (RAG) | 정확한 조항/예외/세부 절차 | 고비용·길이 김 |
+| `check_order_status` | 특정 주문 데이터 | 고객이 주문 ID 명시 | mock 조회 |
+
+세 도구의 `usageBoundary`는 서로를 명시적으로 가리키며 (`search_faq` NOT_FOUND → `search_manual` 폴백, 등), `PromptFactory.Guidelines`에 한 줄짜리 도구 선택 규칙을 함께 노출합니다. 모델이 description의 자기설명만으로 단순 FAQ는 `search_faq`로 즉답하고, 매칭 실패 시 자동으로 `search_manual`로 폴백하는 흐름을 통합 테스트로 보호합니다.
 
 ---
 
@@ -354,7 +367,7 @@ src/main/java/com/aicsassistant/
 ├── analysis/               # AI 분석 도메인
 │   ├── agent/              # ReAct Agent 루프, AgentTool, ToolResult, ToolCallInterceptor
 │   │   ├── interceptor/    # ToolCallBudgetInterceptor, HighValueOrderInterceptor
-│   │   └── tool/           # SearchManualTool, CheckOrderStatusTool
+│   │   └── tool/           # SearchFaqTool, SearchManualTool, CheckOrderStatusTool
 │   ├── application/        # InquiryAnalysisService, AnalysisLogService
 │   ├── api/
 │   ├── domain/             # InquiryAnalysisLog
@@ -365,6 +378,7 @@ src/main/java/com/aicsassistant/
 │   ├── application/        # ManualService, ManualChunker
 │   ├── api/
 │   └── infra/              # ManualChunkJdbcRepository (pgvector)
+├── faq/                    # 자주 묻는 질문 (InMemoryFaqRepository — 데모 Mock)
 ├── order/                  # 주문 조회 (InMemoryOrderRepository — 데모 Mock)
 ├── user/                   # 더미 유저 스토어 (데모용)
 ├── ui/                     # Thymeleaf 뷰 컨트롤러
