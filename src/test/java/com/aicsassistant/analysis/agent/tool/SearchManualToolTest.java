@@ -8,8 +8,6 @@ import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolResult;
 import com.aicsassistant.analysis.application.ManualRetrievalService;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,18 +19,26 @@ class SearchManualToolTest {
 
     @Mock ManualRetrievalService manualRetrievalService;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
     @Test
     void returnsValidationErrorWhenQueryMissing() {
         SearchManualTool tool = new SearchManualTool(manualRetrievalService);
 
-        ToolResult result = tool.execute(input(""));
+        ToolResult result = tool.execute(new SearchManualTool.Input(""));
 
         assertThat(result.ok()).isFalse();
         assertThat(result.errorCategory()).isEqualTo(ToolErrorCategory.VALIDATION);
         assertThat(result.isRetryable()).isFalse();
         assertThat(result.errorMessage()).contains("query");
+    }
+
+    @Test
+    void returnsValidationErrorWhenQueryNull() {
+        SearchManualTool tool = new SearchManualTool(manualRetrievalService);
+
+        ToolResult result = tool.execute(new SearchManualTool.Input(null));
+
+        assertThat(result.ok()).isFalse();
+        assertThat(result.errorCategory()).isEqualTo(ToolErrorCategory.VALIDATION);
     }
 
     @Test
@@ -42,7 +48,7 @@ class SearchManualToolTest {
                 new RetrievedManualChunkDto(1L, 10L, "환불 정책", "REFUND", 0, 1, 50, "환불 가능 기간은 7일입니다.")
         ));
 
-        ToolResult result = tool.execute(input("환불 정책"));
+        ToolResult result = tool.execute(new SearchManualTool.Input("환불 정책"));
 
         assertThat(result.ok()).isTrue();
         assertThat(result.data()).contains("환불 정책").contains("환불 가능 기간은 7일입니다.");
@@ -53,13 +59,21 @@ class SearchManualToolTest {
         SearchManualTool tool = new SearchManualTool(manualRetrievalService);
         when(manualRetrievalService.retrieve(any())).thenReturn(List.of());
 
-        ToolResult result = tool.execute(input("존재하지 않는 정책"));
+        ToolResult result = tool.execute(new SearchManualTool.Input("존재하지 않는 정책"));
 
         assertThat(result.ok()).isTrue();
         assertThat(result.data()).contains("No relevant policy documents");
     }
 
-    private ObjectNode input(String query) {
-        return objectMapper.createObjectNode().put("query", query);
+    @Test
+    void exposesAllSurfaceFieldsForLlm() {
+        SearchManualTool tool = new SearchManualTool(manualRetrievalService);
+
+        assertThat(tool.name()).isEqualTo("search_manual");
+        assertThat(tool.description()).isNotBlank();
+        assertThat(tool.whenToUse()).isNotBlank();
+        assertThat(tool.inputType()).isEqualTo(SearchManualTool.Input.class);
+        assertThat(tool.inputSchema()).contains("query");
+        assertThat(tool.outputSchemaHint()).isNotBlank();
     }
 }

@@ -20,10 +20,10 @@ public class PromptFactory {
         return PROMPT_VERSION;
     }
 
-    public String buildAgentSystemPrompt(List<AgentTool> tools) {
+    public String buildAgentSystemPrompt(List<AgentTool<?>> tools) {
         String toolList = tools.stream()
-                .map(t -> "- " + t.description())
-                .collect(Collectors.joining("\n"));
+                .map(this::renderToolSurface)
+                .collect(Collectors.joining("\n\n"));
 
         String categories = Arrays.stream(InquiryCategory.values())
                 .map(Enum::name)
@@ -116,6 +116,21 @@ public class PromptFactory {
                 - The finalAnswer for human-review cases should read as a situation summary for the counselor, not a customer-facing reply
                   Example: "고객이 주문 ORD-XXX(배송완료, 2026-04-09) 건에 대해 환불을 요청하고 있습니다. 배송 완료 후 4일 경과로 반품 가능 기간(7일) 이내이며, 고객은 상품 불량을 주장하고 있습니다. 상담사 확인이 필요합니다."
                 """.formatted(toolList, categories, urgencyLevels);
+    }
+
+    /**
+     * 한 도구의 모든 표면(이름·설명·언제 쓸지·입력 스키마·출력 형태)을 통일된 블록으로 렌더링.
+     * 가이드 "Tool Interface Design"에 따라 모델이 도구를 이해하는 데 필요한 정보를 모두 노출한다.
+     */
+    private String renderToolSurface(AgentTool<?> tool) {
+        return """
+                ### %s
+                Description: %s
+                When to use: %s
+                Input schema: %s
+                Output (success.data): %s"""
+                .formatted(tool.name(), tool.description(), tool.whenToUse(),
+                        tool.inputSchema(), tool.outputSchemaHint());
     }
 
     public String buildClassificationPrompt(String inquiryContent) {
