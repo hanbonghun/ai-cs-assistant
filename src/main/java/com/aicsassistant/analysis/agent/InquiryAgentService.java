@@ -94,16 +94,20 @@ public class InquiryAgentService {
             JsonNode actionInput = node.path("actionInput");
 
             AgentTool tool = resolveTool(tools, action);
-            String observation;
+            ToolResult toolResult;
             try {
-                observation = tool.execute(actionInput);
+                toolResult = tool.execute(actionInput);
             } catch (Exception e) {
-                observation = "Tool execution error: " + e.getMessage();
+                toolResult = ToolResult.error(
+                        ToolErrorCategory.TRANSIENT,
+                        true,
+                        "Tool execution failed: " + e.getMessage());
                 log.warn("[Agent inquiryId={} step={}] tool error action={}", inquiry.getId(), step, action, e);
             }
 
-            log.info("[Agent inquiryId={} step={}] action={} observation_len={}",
-                    inquiry.getId(), step, action, observation.length());
+            String observation = serializeObservation(toolResult);
+            log.info("[Agent inquiryId={} step={}] action={} ok={} category={} observation_len={}",
+                    inquiry.getId(), step, action, toolResult.ok(), toolResult.errorCategory(), observation.length());
 
             // search_manual 스텝에는 이번 호출에서 가져온 문서 목록을 첨부
             List<RetrievedManualChunkDto> stepChunks = (tool instanceof SearchManualTool s) ? s.getLastCallChunks() : List.of();
@@ -124,8 +128,12 @@ public class InquiryAgentService {
         if (orderId != null && !orderId.isBlank()) {
             try {
                 JsonNode orderInput = objectMapper.createObjectNode().put("orderId", orderId);
-                String orderInfo = orderTool.execute(orderInput);
-                sb.append("[관련 주문 정보]\n").append(orderInfo).append("\n");
+                ToolResult orderResult = orderTool.execute(orderInput);
+                if (orderResult.ok()) {
+                    sb.append("[관련 주문 정보]\n").append(orderResult.data()).append("\n");
+                } else {
+                    sb.append("[관련 주문 조회 실패] ").append(orderResult.errorMessage()).append("\n");
+                }
             } catch (Exception e) {
                 log.warn("[Agent] 주문 정보 선주입 실패 orderId={}", orderId, e);
             }
@@ -133,6 +141,15 @@ public class InquiryAgentService {
 
         sb.append("[문의 내용]\n").append(inquiry.getContent());
         return sb.toString();
+    }
+
+    private String serializeObservation(ToolResult result) {
+        try {
+            return objectMapper.writeValueAsString(result);
+        } catch (Exception e) {
+            return "{\"ok\":false,\"errorCategory\":\"TRANSIENT\",\"isRetryable\":true,"
+                    + "\"errorMessage\":\"Failed to serialize tool result\"}";
+        }
     }
 
     private AgentTool resolveTool(List<AgentTool> tools, String name) {

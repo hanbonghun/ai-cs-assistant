@@ -105,6 +105,27 @@ class InquiryAgentServiceTest {
     }
 
     @Test
+    void wrapsToolExceptionAsTransientObservation() {
+        givenLlmResponds(
+                toolCall("search_manual", "{\"query\":\"환불\"}"),
+                finalAnswer("일시적 오류로 답변이 어렵습니다.", "GENERAL", "LOW", true)
+        );
+        when(manualRetrievalService.retrieve(any()))
+                .thenThrow(new RuntimeException("DB connection lost"));
+
+        AgentResult result = agentService.run(inquiry("환불 문의"), List.of());
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
+        assertThat(answer.steps()).hasSize(1);
+        AgentStep step = answer.steps().get(0);
+        assertThat(step.observation())
+                .contains("\"ok\":false")
+                .contains("\"errorCategory\":\"TRANSIENT\"")
+                .contains("\"isRetryable\":true")
+                .contains("DB connection lost");
+    }
+
+    @Test
     void accumulatesTotalTokensAcrossSteps() {
         givenLlmResponds(
                 toolCall("search_manual", "{\"query\":\"배송\"}"),

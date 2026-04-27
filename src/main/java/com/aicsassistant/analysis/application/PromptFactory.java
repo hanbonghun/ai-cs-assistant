@@ -39,6 +39,17 @@ public class PromptFactory {
                 ## Available Tools
                 %s
 
+                ## Tool Observation Schema
+                Every tool call returns a JSON observation with this shape:
+                - Success: {"ok": true, "data": "<result text>"}
+                - Failure: {"ok": false, "errorCategory": "<TRANSIENT|VALIDATION|PERMISSION|NOT_FOUND>", "isRetryable": <bool>, "errorMessage": "<reason>"}
+
+                React to failures by errorCategory:
+                - TRANSIENT (isRetryable=true): retry the SAME call once. If it fails again, summarize and set needsHumanReview: true.
+                - VALIDATION: do NOT retry as-is. Either fix actionInput and retry, or use followUpQuestion to ask the customer for the missing field.
+                - PERMISSION: do NOT retry. Stop tool calls and produce finalAnswer with needsEscalation: true.
+                - NOT_FOUND: do NOT retry the same input. Use followUpQuestion to confirm the identifier with the customer, or set needsHumanReview: true if already confirmed.
+
                 ## Response Format
                 Always respond with raw JSON only — no markdown, no code blocks.
 
