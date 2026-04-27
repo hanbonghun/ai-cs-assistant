@@ -1,6 +1,8 @@
 package com.aicsassistant.analysis.agent.tool;
 
 import com.aicsassistant.analysis.agent.AgentTool;
+import com.aicsassistant.analysis.agent.ToolErrorCategory;
+import com.aicsassistant.analysis.agent.ToolResult;
 import com.aicsassistant.analysis.application.ManualRetrievalService;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -34,10 +36,13 @@ public class SearchManualTool implements AgentTool {
     }
 
     @Override
-    public String execute(JsonNode input) {
+    public ToolResult execute(JsonNode input) {
         String query = input.path("query").asText("").strip();
         if (query.isBlank()) {
-            return "Error: 'query' field is required.";
+            return ToolResult.error(
+                    ToolErrorCategory.VALIDATION,
+                    false,
+                    "'query' field is required.");
         }
 
         List<RetrievedManualChunkDto> chunks = manualRetrievalService.retrieve(query);
@@ -45,13 +50,14 @@ public class SearchManualTool implements AgentTool {
         collectedChunks.addAll(chunks);
 
         if (chunks.isEmpty()) {
-            return "No relevant policy documents found for this query.";
+            return ToolResult.success("No relevant policy documents found for this query.");
         }
 
-        return chunks.stream()
+        String formatted = chunks.stream()
                 .map(c -> "[%s / %s]\n%s".formatted(
                         c.manualDocumentTitle(), c.manualCategory(), c.content()))
                 .collect(Collectors.joining("\n\n---\n\n"));
+        return ToolResult.success(formatted);
     }
 
     /** Returns all chunks retrieved across every call during this agent run. */

@@ -9,5 +9,5 @@ public interface AgentTool {
     /** One-line description shown to the LLM in the system prompt. */
     String description();
 
-    String execute(JsonNode input);
+    ToolResult execute(JsonNode input);
 }

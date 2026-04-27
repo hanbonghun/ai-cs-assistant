@@ -1,6 +1,8 @@
 package com.aicsassistant.analysis.agent.tool;
 
 import com.aicsassistant.analysis.agent.AgentTool;
+import com.aicsassistant.analysis.agent.ToolErrorCategory;
+import com.aicsassistant.analysis.agent.ToolResult;
 import com.aicsassistant.order.InMemoryOrderRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -29,13 +31,20 @@ public class CheckOrderStatusTool implements AgentTool {
     }
 
     @Override
-    public String execute(JsonNode input) {
+    public ToolResult execute(JsonNode input) {
         String orderId = input.path("orderId").asText("").strip();
         if (orderId.isBlank()) {
-            return "Error: 'orderId' field is required.";
+            return ToolResult.error(
+                    ToolErrorCategory.VALIDATION,
+                    false,
+                    "'orderId' field is required.");
         }
         return orderRepository.findById(orderId)
-                .map(orderRepository::formatText)
-                .orElse("주문번호 [" + orderId + "]에 해당하는 주문 정보를 찾을 수 없습니다. 고객에게 주문번호를 다시 확인해달라고 안내하세요.");
+                .map(o -> ToolResult.success(orderRepository.formatText(o)))
+                .orElseGet(() -> ToolResult.error(
+                        ToolErrorCategory.NOT_FOUND,
+                        false,
+                        "주문번호 [" + orderId + "]에 해당하는 주문 정보를 찾을 수 없습니다. "
+                                + "고객에게 주문번호를 다시 확인해달라고 followUpQuestion으로 요청하세요."));
     }
 }
