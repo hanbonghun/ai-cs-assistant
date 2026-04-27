@@ -37,6 +37,12 @@ public class CheckOrderStatusTool implements AgentTool<CheckOrderStatusTool.Inpu
     }
 
     @Override
+    public String usageBoundary() {
+        return "Do NOT use for: general policy questions (use search_manual), questions about orders the customer has not identified, "
+                + "or to perform actions like cancellation/refund (this tool is read-only — for actions, set needsHumanReview: true).";
+    }
+
+    @Override
     public Class<Input> inputType() {
         return Input.class;
     }
@@ -47,10 +53,16 @@ public class CheckOrderStatusTool implements AgentTool<CheckOrderStatusTool.Inpu
     }
 
     @Override
-    public String outputSchemaHint() {
-        return "On success, data is a multi-line text with fields '주문번호', '상품명', '상태', '결제금액', '주문일' "
-                + "and optional '배송사', '운송장번호', '도착예정', '비고'. "
-                + "On NOT_FOUND, errorMessage instructs you to ask the customer to confirm the order ID via followUpQuestion.";
+    public String successOutputHint() {
+        return "Multi-line text with fields '주문번호', '상품명', '상태', '결제금액', '주문일' "
+                + "and optional '배송사', '운송장번호', '도착예정', '비고'. May also contain '[정책 가드: ...]' note for high-value orders (treat as a hard rule).";
+    }
+
+    @Override
+    public String failureBehavior() {
+        return "VALIDATION (empty orderId): ask the customer for the order ID via followUpQuestion. "
+                + "NOT_FOUND: ask the customer to confirm the order ID via followUpQuestion (the customer may have mistyped). "
+                + "Do not retry the same input.";
     }
 
     @Override

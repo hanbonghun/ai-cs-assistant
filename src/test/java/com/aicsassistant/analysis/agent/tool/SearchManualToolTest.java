@@ -74,6 +74,17 @@ class SearchManualToolTest {
         assertThat(tool.whenToUse()).isNotBlank();
         assertThat(tool.inputType()).isEqualTo(SearchManualTool.Input.class);
         assertThat(tool.inputSchema()).contains("query");
-        assertThat(tool.outputSchemaHint()).isNotBlank();
+        assertThat(tool.successOutputHint()).isNotBlank();
+        assertThat(tool.failureBehavior()).contains("VALIDATION");
+    }
+
+    @Test
+    void usageBoundaryRedirectsToSiblingTool() {
+        // 가이드 4번: 유사 도구와의 경계가 명시되어 있어야 모델이 잘못 고르지 않는다
+        SearchManualTool tool = new SearchManualTool(manualRetrievalService);
+
+        assertThat(tool.usageBoundary())
+                .contains("Do NOT use")
+                .contains("check_order_status");
     }
 }

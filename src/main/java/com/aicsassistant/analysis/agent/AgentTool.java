@@ -24,6 +24,12 @@ public interface AgentTool<I> {
     /** 모델이 이 도구를 언제 호출해야 하는지 안내 (모델용). */
     String whenToUse();
 
+    /**
+     * "이 도구를 쓰지 말아야 할 때" 또는 "유사 도구와의 경계" 명시.
+     * 가이드 4번: 경계가 없으면 모델이 가장 '그럴듯한' 도구를 잘못 고른다.
+     */
+    String usageBoundary();
+
     /** 입력 record 클래스. {@code ObjectMapper.treeToValue}로 변환된다. */
     Class<I> inputType();
 
@@ -37,7 +43,13 @@ public interface AgentTool<I> {
      * 성공 시 {@code ToolResult.data} 필드에 들어오는 텍스트의 형태 설명.
      * 모델이 첫 호출 전에 결과 형태를 미리 알 수 있도록 한다.
      */
-    String outputSchemaHint();
+    String successOutputHint();
+
+    /**
+     * 실패/엣지 케이스에서 모델이 어떻게 행동해야 하는지 안내.
+     * 예: "NOT_FOUND → followUpQuestion으로 ID 재확인", "VALIDATION → actionInput 수정 후 재시도"
+     */
+    String failureBehavior();
 
     /** 타입 안전한 실행. 입력 검증 실패 시 {@link ToolResult#error}를 반환한다. */
     ToolResult execute(I input);
