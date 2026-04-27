@@ -162,6 +162,40 @@ class InquiryAgentServiceTest {
     }
 
     @Test
+    void mapsSchemaMismatchToValidationError() {
+        // LLM이 actionInput을 객체가 아닌 문자열로 보내면(record 역직렬화 실패) VALIDATION 에러로 매핑되어야 함
+        givenLlmResponds(
+                toolCall("search_manual", "\"환불\""),
+                finalAnswer("입력 형식 오류로 답변이 어렵습니다.", "GENERAL", "LOW", true)
+        );
+
+        AgentResult result = agentService.run(inquiry("환불 문의"), List.of());
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
+        AgentStep step = answer.steps().get(0);
+        assertThat(step.observation())
+                .contains("\"ok\":false")
+                .contains("\"errorCategory\":\"VALIDATION\"")
+                .contains("does not match the declared schema");
+    }
+
+    @Test
+    void unknownInputFieldIsIgnoredAndDelegatesToToolValidation() {
+        // 잘못된 필드명(query 대신 q)은 Jackson이 무시 → query=null → 도구 자체 검증이 VALIDATION 에러 반환
+        givenLlmResponds(
+                toolCall("search_manual", "{\"q\":\"환불\"}"),
+                finalAnswer("필드 누락으로 답변이 어렵습니다.", "GENERAL", "LOW", true)
+        );
+
+        AgentResult result = agentService.run(inquiry("환불 문의"), List.of());
+
+        AgentStep step = ((AgentResult.FinalAnswer) result).steps().get(0);
+        assertThat(step.observation())
+                .contains("\"errorCategory\":\"VALIDATION\"")
+                .contains("query");
+    }
+
+    @Test
     void wrapsToolExceptionAsTransientObservation() {
         givenLlmResponds(
                 toolCall("search_manual", "{\"query\":\"환불\"}"),

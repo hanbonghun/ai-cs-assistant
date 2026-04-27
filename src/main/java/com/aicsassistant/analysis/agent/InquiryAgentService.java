@@ -12,6 +12,7 @@ import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.InquiryMessageRole;
 import com.aicsassistant.order.InMemoryOrderRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
@@ -52,7 +53,7 @@ public class InquiryAgentService {
     public AgentResult run(Inquiry inquiry, List<InquiryMessage> conversationHistory) {
         CheckOrderStatusTool orderTool = new CheckOrderStatusTool(orderRepository);
         SearchManualTool searchTool = new SearchManualTool(manualRetrievalService);
-        List<AgentTool> tools = List.of(searchTool, orderTool);
+        List<AgentTool<?>> tools = List.of(searchTool, orderTool);
 
         List<ChatMessage> messages = new ArrayList<>();
         messages.add(ChatMessage.system(promptFactory.buildAgentSystemPrompt(tools)));
@@ -96,7 +97,7 @@ public class InquiryAgentService {
             String action = node.path("action").asText("");
             JsonNode actionInput = node.path("actionInput");
 
-            AgentTool tool = resolveTool(tools, action);
+            AgentTool<?> tool = resolveTool(tools, action);
             ToolResult toolResult = invokeWithInterceptors(tool, action, actionInput, callContext, inquiry.getId(), step);
 
             String observation = serializeObservation(toolResult);
@@ -121,8 +122,7 @@ public class InquiryAgentService {
         String orderId = inquiry.getRelatedOrderId();
         if (orderId != null && !orderId.isBlank()) {
             try {
-                JsonNode orderInput = objectMapper.createObjectNode().put("orderId", orderId);
-                ToolResult orderResult = orderTool.execute(orderInput);
+                ToolResult orderResult = orderTool.execute(new CheckOrderStatusTool.Input(orderId));
                 if (orderResult.ok()) {
                     sb.append("[관련 주문 정보]\n").append(orderResult.data()).append("\n");
                 } else {
@@ -138,7 +138,7 @@ public class InquiryAgentService {
     }
 
     private ToolResult invokeWithInterceptors(
-            AgentTool tool, String action, JsonNode actionInput,
+            AgentTool<?> tool, String action, JsonNode actionInput,
             ToolCallContext ctx, Long inquiryId, int step) {
 
         for (ToolCallInterceptor interceptor : interceptors) {
@@ -150,22 +150,37 @@ public class InquiryAgentService {
             }
         }
 
-        ToolResult result;
-        try {
-            result = tool.execute(actionInput);
-        } catch (Exception e) {
-            result = ToolResult.error(
-                    ToolErrorCategory.TRANSIENT,
-                    true,
-                    "Tool execution failed: " + e.getMessage());
-            log.warn("[Agent inquiryId={} step={}] tool error action={}", inquiryId, step, action, e);
-        }
+        ToolResult result = executeTyped(tool, actionInput, action, inquiryId, step);
         ctx.incrementToolCallCount();
 
         for (ToolCallInterceptor interceptor : interceptors) {
             result = interceptor.afterExecute(action, actionInput, result, ctx);
         }
         return result;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private ToolResult executeTyped(AgentTool<?> tool, JsonNode actionInput, String action, Long inquiryId, int step) {
+        Object typedInput;
+        try {
+            typedInput = objectMapper.treeToValue(actionInput, tool.inputType());
+        } catch (JsonProcessingException | IllegalArgumentException e) {
+            log.info("[Agent inquiryId={} step={}] action={} input parse failed: {}",
+                    inquiryId, step, action, e.getMessage());
+            return ToolResult.error(
+                    ToolErrorCategory.VALIDATION,
+                    false,
+                    "Tool input does not match the declared schema: " + e.getMessage());
+        }
+        try {
+            return ((AgentTool) tool).execute(typedInput);
+        } catch (Exception e) {
+            log.warn("[Agent inquiryId={} step={}] tool error action={}", inquiryId, step, action, e);
+            return ToolResult.error(
+                    ToolErrorCategory.TRANSIENT,
+                    true,
+                    "Tool execution failed: " + e.getMessage());
+        }
     }
 
     private String serializeObservation(ToolResult result) {
@@ -177,7 +192,7 @@ public class InquiryAgentService {
         }
     }
 
-    private AgentTool resolveTool(List<AgentTool> tools, String name) {
+    private AgentTool<?> resolveTool(List<AgentTool<?>> tools, String name) {
         return tools.stream()
                 .filter(t -> t.name().equals(name))
                 .findFirst()
