@@ -5,16 +5,18 @@ import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolResult;
 import com.aicsassistant.analysis.application.ManualRetrievalService;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
-import com.fasterxml.jackson.databind.JsonNode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Agent tool that performs a RAG lookup against the policy/manual vector store.
- * Not a Spring bean — instantiated fresh per agent run to avoid shared mutable state.
+ * 정책/매뉴얼 벡터 스토어에서 RAG 검색을 수행하는 도구.
+ * 에이전트 실행마다 새 인스턴스로 생성되어 누적 청크 상태가 격리된다.
  */
-public class SearchManualTool implements AgentTool {
+public class SearchManualTool implements AgentTool<SearchManualTool.Input> {
+
+    /** 도구 입력 — 단일 한국어 검색 쿼리. */
+    public record Input(String query) {}
 
     private final ManualRetrievalService manualRetrievalService;
     private final List<RetrievedManualChunkDto> collectedChunks = new ArrayList<>();
@@ -31,13 +33,34 @@ public class SearchManualTool implements AgentTool {
 
     @Override
     public String description() {
-        return "search_manual(query: string) — Searches the policy/manual knowledge base. "
-                + "Call this before answering any policy question.";
+        return "Searches the policy/manual knowledge base via vector similarity.";
     }
 
     @Override
-    public ToolResult execute(JsonNode input) {
-        String query = input.path("query").asText("").strip();
+    public String whenToUse() {
+        return "Call before answering ANY policy or process question (refund, return, delivery rules, coupons, membership, etc.). "
+                + "Do not answer policy from your own knowledge.";
+    }
+
+    @Override
+    public Class<Input> inputType() {
+        return Input.class;
+    }
+
+    @Override
+    public String inputSchema() {
+        return "{\"query\": \"string (required) — Korean keywords describing the policy you need (e.g. '환불 가능 기간', '교환 배송비')\"}";
+    }
+
+    @Override
+    public String outputSchemaHint() {
+        return "On success, data is newline-separated policy chunks formatted as '[<title> / <category>]\\n<content>' joined by '\\n\\n---\\n\\n'. "
+                + "If no chunks are found, data is the literal string 'No relevant policy documents found for this query.'";
+    }
+
+    @Override
+    public ToolResult execute(Input input) {
+        String query = input.query() == null ? "" : input.query().strip();
         if (query.isBlank()) {
             return ToolResult.error(
                     ToolErrorCategory.VALIDATION,

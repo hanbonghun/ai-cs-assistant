@@ -5,18 +5,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolResult;
 import com.aicsassistant.order.InMemoryOrderRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 class CheckOrderStatusToolTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
     private final CheckOrderStatusTool tool = new CheckOrderStatusTool(new InMemoryOrderRepository());
 
     @Test
     void returnsSuccessForKnownOrderId() {
-        ToolResult result = tool.execute(input("ORD-20260410-001"));
+        ToolResult result = tool.execute(new CheckOrderStatusTool.Input("ORD-20260410-001"));
 
         assertThat(result.ok()).isTrue();
         assertThat(result.data()).contains("주문번호: ORD-20260410-001");
@@ -25,7 +22,7 @@ class CheckOrderStatusToolTest {
 
     @Test
     void returnsValidationErrorWhenOrderIdMissing() {
-        ToolResult result = tool.execute(input(""));
+        ToolResult result = tool.execute(new CheckOrderStatusTool.Input(""));
 
         assertThat(result.ok()).isFalse();
         assertThat(result.errorCategory()).isEqualTo(ToolErrorCategory.VALIDATION);
@@ -34,15 +31,33 @@ class CheckOrderStatusToolTest {
     }
 
     @Test
+    void returnsValidationErrorWhenOrderIdNull() {
+        ToolResult result = tool.execute(new CheckOrderStatusTool.Input(null));
+
+        assertThat(result.ok()).isFalse();
+        assertThat(result.errorCategory()).isEqualTo(ToolErrorCategory.VALIDATION);
+    }
+
+    @Test
     void returnsNotFoundForUnknownOrderId() {
-        ToolResult result = tool.execute(input("ORD-DOES-NOT-EXIST"));
+        ToolResult result = tool.execute(new CheckOrderStatusTool.Input("ORD-DOES-NOT-EXIST"));
 
         assertThat(result.ok()).isFalse();
         assertThat(result.errorCategory()).isEqualTo(ToolErrorCategory.NOT_FOUND);
         assertThat(result.isRetryable()).isFalse();
     }
 
-    private ObjectNode input(String orderId) {
-        return objectMapper.createObjectNode().put("orderId", orderId);
+    @Test
+    void exposesInputTypeForRuntimeDeserialization() {
+        assertThat(tool.inputType()).isEqualTo(CheckOrderStatusTool.Input.class);
+    }
+
+    @Test
+    void exposesAllSurfaceFieldsForLlm() {
+        assertThat(tool.name()).isEqualTo("check_order_status");
+        assertThat(tool.description()).isNotBlank();
+        assertThat(tool.whenToUse()).isNotBlank();
+        assertThat(tool.inputSchema()).contains("orderId");
+        assertThat(tool.outputSchemaHint()).contains("주문번호").contains("결제금액");
     }
 }
