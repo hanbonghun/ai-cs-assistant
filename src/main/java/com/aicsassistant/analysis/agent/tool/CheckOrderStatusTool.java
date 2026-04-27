@@ -38,8 +38,9 @@ public class CheckOrderStatusTool implements AgentTool<CheckOrderStatusTool.Inpu
 
     @Override
     public String usageBoundary() {
-        return "Do NOT use for: general policy questions (use search_manual), questions about orders the customer has not identified, "
-                + "or to perform actions like cancellation/refund (this tool is read-only — for actions, set needsHumanReview: true).";
+        return "Do NOT use for: (1) general policy questions (use search_faq for short FAQs, search_manual for detailed policy), "
+                + "(2) questions about orders the customer has not identified by ID, "
+                + "(3) performing actions like cancellation/refund (this tool is read-only — for actions, set needsHumanReview: true).";
     }
 
     @Override
