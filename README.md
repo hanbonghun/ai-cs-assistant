@@ -280,19 +280,6 @@ public interface AgentTool<I> {
 
 ---
 
-## 배포
-
-Railway에 배포되어 있습니다. 별도 설치 없이 바로 체험 가능합니다.
-
-| 화면 | URL |
-|---|---|
-| 유저 포털 | https://ai-cs-assistant-production.up.railway.app/app |
-| 어드민 | https://ai-cs-assistant-production.up.railway.app/ui/inquiries |
-| 매뉴얼 관리 | https://ai-cs-assistant-production.up.railway.app/ui/manuals |
-| Swagger UI | https://ai-cs-assistant-production.up.railway.app/swagger-ui.html |
-
----
-
 ## 로컬 실행
 
 ### 사전 요구사항
