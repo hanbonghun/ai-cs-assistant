@@ -6,4 +6,5 @@ build/
 out/
 *.log
 .env
+.env.*
 *.txt

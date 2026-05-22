@@ -13,7 +13,6 @@ import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.manual.application.ManualService;
 import com.aicsassistant.ui.application.DashboardService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -39,9 +38,6 @@ public class CounselorViewControllerTest {
 
     @MockitoBean
     DashboardService dashboardService;
-
-    @MockitoBean
-    ObjectMapper objectMapper;
 
     @Test
     public void rendersInquiryDetailPage() throws Exception {
