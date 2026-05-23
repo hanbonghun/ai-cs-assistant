@@ -1,4 +1,5 @@
 create extension if not exists vector;
+create extension if not exists pg_trgm;
 
 create table if not exists inquiry (
     id bigserial primary key,
@@ -74,5 +75,6 @@ alter table inquiry_analysis_log add column if not exists ai_draft_rating_note t
 alter table inquiry add column if not exists related_order_id varchar(50);
 
 create index if not exists idx_manual_chunk_manual_document_id on manual_chunk(manual_document_id);
+create index if not exists idx_manual_chunk_content_trgm on manual_chunk using gin (content gin_trgm_ops);
 create index if not exists idx_inquiry_analysis_log_inquiry_id on inquiry_analysis_log(inquiry_id);
 create index if not exists idx_inquiry_message_inquiry_id on inquiry_message(inquiry_id);

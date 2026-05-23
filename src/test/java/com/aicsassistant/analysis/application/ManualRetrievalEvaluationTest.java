@@ -84,9 +84,9 @@ class ManualRetrievalEvaluationTest extends PostgresVectorIntegrationTest {
         double recallAt3 = RagRetrievalMetrics.recallAt(ranks, 3);
         double mrr = RagRetrievalMetrics.meanReciprocalRank(ranks);
 
-        // baseline: easy/medium 통과(58) + hard 미통과(14) = 58/72 ≈ 0.806
-        assertThat(recallAt3).isGreaterThanOrEqualTo(0.75);
-        assertThat(mrr).isGreaterThanOrEqualTo(0.75);
+        // hybrid 도입 후 baseline: easy/medium 통과(58) + hard 일부(2) = 60/72 ≈ 0.833
+        assertThat(recallAt3).isGreaterThanOrEqualTo(0.80);
+        assertThat(mrr).isGreaterThanOrEqualTo(0.80);
     }
 
     @Test
@@ -118,16 +118,16 @@ class ManualRetrievalEvaluationTest extends PostgresVectorIntegrationTest {
     }
 
     @Test
-    @DisplayName("hard 케이스는 현재 baseline에서 잡히지 않는다 (개선 여지 가시화)")
-    void hardCasesAreCurrentlyFilteredOut() {
+    @DisplayName("hard 케이스는 hybrid 키워드 검색으로 일부 회복된다")
+    void hardCasesArePartiallyRescuedByHybrid() {
         List<Integer> hardRanks = goldenCases.stream()
                 .filter(c -> !c.negative() && c.difficulty() == RagEvaluationCase.Difficulty.HARD)
                 .map(this::rankExpectedManualTitle)
                 .toList();
 
         assertThat(hardRanks).isNotEmpty();
-        // 검색 품질 개선 시 이 테스트가 깨져야 하며 그때 새 baseline으로 갱신한다.
-        assertThat(RagRetrievalMetrics.recallAt(hardRanks, 3)).isLessThanOrEqualTo(0.25);
+        // hybrid 도입 후 baseline: 14개 중 2개 회복 (0.143). 추가 개선으로 더 올라가야 한다.
+        assertThat(RagRetrievalMetrics.recallAt(hardRanks, 3)).isBetween(0.10, 0.50);
     }
 
     @Test
