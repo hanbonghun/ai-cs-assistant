@@ -1,6 +1,8 @@
 package com.aicsassistant.analysis.application;
 
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
+import com.aicsassistant.analysis.dto.ScoredManualChunk;
+import com.aicsassistant.analysis.infra.ManualChunkRetrievalRepository;
 import com.aicsassistant.analysis.infra.llm.EmbeddingClient;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
@@ -8,15 +10,12 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,7 +35,7 @@ public class ManualRetrievalService {
     private static final AttributeKey<Long> ATTR_RESULT_COUNT = AttributeKey.longKey("retrieval.result_count");
     private static final AttributeKey<String> ATTR_PATH = AttributeKey.stringKey("retrieval.path");
 
-    private final JdbcTemplate jdbcTemplate;
+    private final ManualChunkRetrievalRepository retrievalRepository;
     private final EmbeddingClient embeddingClient;
     private final Tracer tracer;
 
@@ -64,15 +63,15 @@ public class ManualRetrievalService {
         List<Double> queryEmbedding = embeddingClient.embed(inquiryContent);
         if (queryEmbedding != null && !queryEmbedding.isEmpty()) {
             try {
-                if (!hasActiveEmbeddings()) {
-                    return new RetrievalOutcome(findFallback(), "fallback_no_embeddings");
+                if (!retrievalRepository.hasActiveEmbeddings()) {
+                    return new RetrievalOutcome(retrievalRepository.findFallbackTopK(DEFAULT_TOP_K), "fallback_no_embeddings");
                 }
                 return new RetrievalOutcome(findByHybrid(queryEmbedding, inquiryContent), "hybrid");
             } catch (DataAccessException ignored) {
                 // Fallback path is used when vector dimensions/data are not ready.
             }
         }
-        return new RetrievalOutcome(findFallback(), "fallback_query_error");
+        return new RetrievalOutcome(retrievalRepository.findFallbackTopK(DEFAULT_TOP_K), "fallback_query_error");
     }
 
     private record RetrievalOutcome(List<RetrievedManualChunkDto> chunks, String path) {
@@ -91,21 +90,21 @@ public class ManualRetrievalService {
     }
 
     private List<RetrievedManualChunkDto> findByHybrid(List<Double> queryEmbedding, String query) {
-        List<Candidate> vectorCandidates = findVectorCandidates(queryEmbedding, FUSION_CANDIDATE_K);
-        List<Candidate> keywordCandidates = findKeywordCandidates(query, FUSION_CANDIDATE_K);
+        List<ScoredManualChunk> vectorCandidates = retrievalRepository.findVectorCandidates(queryEmbedding, FUSION_CANDIDATE_K);
+        List<ScoredManualChunk> keywordCandidates = findKeywordCandidatesPreprocessed(query);
 
         Map<Long, FusionEntry> byId = new LinkedHashMap<>();
         for (int i = 0; i < vectorCandidates.size(); i++) {
-            Candidate c = vectorCandidates.get(i);
-            FusionEntry entry = byId.computeIfAbsent(c.chunk.id(), k -> new FusionEntry(c.chunk));
+            ScoredManualChunk c = vectorCandidates.get(i);
+            FusionEntry entry = byId.computeIfAbsent(c.chunk().id(), k -> new FusionEntry(c.chunk()));
             entry.vectorRank = i + 1;
-            entry.vectorScore = c.score;
+            entry.vectorScore = c.score();
         }
         for (int i = 0; i < keywordCandidates.size(); i++) {
-            Candidate c = keywordCandidates.get(i);
-            FusionEntry entry = byId.computeIfAbsent(c.chunk.id(), k -> new FusionEntry(c.chunk));
+            ScoredManualChunk c = keywordCandidates.get(i);
+            FusionEntry entry = byId.computeIfAbsent(c.chunk().id(), k -> new FusionEntry(c.chunk()));
             entry.keywordRank = i + 1;
-            entry.keywordScore = c.score;
+            entry.keywordScore = c.score();
         }
 
         // P1 수정: keyword 후보가 vector top-K 밖이면 vectorScore가 기본값 0.0이라
@@ -120,57 +119,12 @@ public class ManualRetrievalService {
                 .toList();
     }
 
-    private List<Candidate> findVectorCandidates(List<Double> queryEmbedding, int limit) {
-        String vectorLiteral = toVectorLiteral(queryEmbedding);
-        return jdbcTemplate.query("""
-                select
-                    mc.id,
-                    mc.manual_document_id,
-                    md.title as manual_document_title,
-                    md.category as manual_document_category,
-                    mc.chunk_index,
-                    mc.document_version,
-                    mc.token_count,
-                    mc.content,
-                    (1 - (mc.embedding <=> cast(? as vector))) as score
-                from manual_chunk mc
-                join manual_document md on md.id = mc.manual_document_id
-                where md.active = true
-                  and mc.active = true
-                  and mc.embedding is not null
-                order by mc.embedding <=> cast(? as vector), mc.id
-                limit ?
-                """, scoredChunkRowMapper(), vectorLiteral, vectorLiteral, limit);
-    }
-
-    private List<Candidate> findKeywordCandidates(String query, int limit) {
+    private List<ScoredManualChunk> findKeywordCandidatesPreprocessed(String query) {
         String cleaned = KoreanQueryPreprocessor.forKeywordSearch(query);
         if (cleaned.isBlank()) {
             return List.of();
         }
-        // P2 수정: <% operator + <<-> distance를 써서 gin_trgm_ops GIN 인덱스 활용.
-        // <% operator의 임계값은 pg_trgm.word_similarity_threshold GUC로 제어.
-        // SET LOCAL은 트랜잭션 스코프에서만 유효하므로 retrieve()가 @Transactional이어야 한다.
-        jdbcTemplate.execute("set local pg_trgm.word_similarity_threshold = " + MIN_KEYWORD_SCORE);
-        return jdbcTemplate.query("""
-                select
-                    mc.id,
-                    mc.manual_document_id,
-                    md.title as manual_document_title,
-                    md.category as manual_document_category,
-                    mc.chunk_index,
-                    mc.document_version,
-                    mc.token_count,
-                    mc.content,
-                    word_similarity(cast(? as text), mc.content) as score
-                from manual_chunk mc
-                join manual_document md on md.id = mc.manual_document_id
-                where md.active = true
-                  and mc.active = true
-                  and cast(? as text) <% mc.content
-                order by cast(? as text) <<-> mc.content, mc.id
-                limit ?
-                """, scoredChunkRowMapper(), cleaned, cleaned, cleaned, limit);
+        return retrievalRepository.findKeywordCandidates(cleaned, MIN_KEYWORD_SCORE, FUSION_CANDIDATE_K);
     }
 
     private void augmentVectorScores(Map<Long, FusionEntry> byId, List<Double> queryEmbedding) {
@@ -182,18 +136,7 @@ public class ManualRetrievalService {
             return;
         }
 
-        String idCsv = missingIds.stream().map(String::valueOf).collect(Collectors.joining(","));
-        String vectorLiteral = toVectorLiteral(queryEmbedding);
-
-        Map<Long, Double> scores = new HashMap<>();
-        jdbcTemplate.query("""
-                select id, (1 - (embedding <=> cast(? as vector))) as score
-                from manual_chunk
-                where id in (%s) and embedding is not null
-                """.formatted(idCsv),
-                rs -> { scores.put(rs.getLong("id"), rs.getDouble("score")); },
-                vectorLiteral);
-
+        Map<Long, Double> scores = retrievalRepository.findVectorScoresByIds(missingIds, queryEmbedding);
         for (FusionEntry entry : byId.values()) {
             Double score = scores.get(entry.chunk.id());
             if (score != null) {
@@ -208,78 +151,6 @@ public class ManualRetrievalService {
         }
         return e.keywordScore >= MIN_KEYWORD_SCORE
                 && e.vectorScore >= MIN_VECTOR_FLOOR_FOR_KEYWORD;
-    }
-
-    private boolean hasActiveEmbeddings() {
-        Boolean exists = jdbcTemplate.queryForObject("""
-                select exists (
-                    select 1
-                    from manual_chunk mc
-                    join manual_document md on md.id = mc.manual_document_id
-                    where md.active = true
-                      and mc.active = true
-                      and mc.embedding is not null
-                )
-                """, Boolean.class);
-        return Boolean.TRUE.equals(exists);
-    }
-
-    private List<RetrievedManualChunkDto> findFallback() {
-        return jdbcTemplate.query("""
-                select
-                    mc.id,
-                    mc.manual_document_id,
-                    md.title as manual_document_title,
-                    md.category as manual_document_category,
-                    mc.chunk_index,
-                    mc.document_version,
-                    mc.token_count,
-                    mc.content
-                from manual_chunk mc
-                join manual_document md on md.id = mc.manual_document_id
-                where md.active = true
-                  and mc.active = true
-                order by mc.id, mc.chunk_index
-                limit ?
-                """, fallbackRowMapper(), DEFAULT_TOP_K);
-    }
-
-    private String toVectorLiteral(List<Double> vector) {
-        return vector.stream()
-                .map(String::valueOf)
-                .collect(Collectors.joining(",", "[", "]"));
-    }
-
-    private RowMapper<Candidate> scoredChunkRowMapper() {
-        return (rs, rowNum) -> {
-            RetrievedManualChunkDto chunk = new RetrievedManualChunkDto(
-                    rs.getLong("id"),
-                    rs.getLong("manual_document_id"),
-                    rs.getString("manual_document_title"),
-                    rs.getString("manual_document_category"),
-                    rs.getInt("chunk_index"),
-                    rs.getInt("document_version"),
-                    rs.getInt("token_count"),
-                    rs.getString("content")
-            );
-            return new Candidate(chunk, rs.getDouble("score"));
-        };
-    }
-
-    private RowMapper<RetrievedManualChunkDto> fallbackRowMapper() {
-        return (rs, rowNum) -> new RetrievedManualChunkDto(
-                rs.getLong("id"),
-                rs.getLong("manual_document_id"),
-                rs.getString("manual_document_title"),
-                rs.getString("manual_document_category"),
-                rs.getInt("chunk_index"),
-                rs.getInt("document_version"),
-                rs.getInt("token_count"),
-                rs.getString("content")
-        );
-    }
-
-    private record Candidate(RetrievedManualChunkDto chunk, double score) {
     }
 
     private static final class FusionEntry {
