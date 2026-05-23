@@ -2,6 +2,10 @@
 
 > AI 기반 고객 문의 자동 분류·답변 시스템 — Spring Boot + ReAct Agent + Hybrid RAG + Langfuse 관측성
 
+🚀 **Live demo**: https://ai-cs-assistant-production-5989.up.railway.app/app
+> Railway 무료 크레딧 기반 데모. **2026-06-22까지 유효** (배포 후 30일).
+> 데모 계정 3개(김민준 / 이서연 / 박지호) 중 선택 → 문의 등록 → AI agent 분석 → 답변 확인.
+
 LLM 프레임워크(LangChain 등) 없이 **ReAct Agent 루프**와 **Hybrid RAG 파이프라인**을 직접 설계·구현한 고객 상담 자동화 MVP입니다. 검색 품질은 87 케이스 골든셋으로 회귀 테스트하고, 모든 LLM/Agent/RAG 호출은 OpenTelemetry → Langfuse로 trace를 시각화합니다.
 
 ![Langfuse Trace List](docs/screenshots/langfuse-trace-list.png)
@@ -501,12 +505,13 @@ IntelliJ 사용 시 EnvFile 플러그인 + Run Configuration에서 `.env.local` 
 
 ### 접속
 
-| 화면 | URL |
-|---|---|
-| 유저 포털 | http://localhost:8080/app |
-| 어드민 | http://localhost:8080/ui/inquiries |
-| 매뉴얼 관리 | http://localhost:8080/ui/manuals |
-| Swagger UI | http://localhost:8080/swagger-ui.html |
+| 화면 | 로컬 | Live (2026-06-22까지) |
+|---|---|---|
+| 유저 포털 | http://localhost:8080/app | [열기](https://ai-cs-assistant-production-5989.up.railway.app/app) |
+| 어드민 | http://localhost:8080/ui/inquiries | [열기](https://ai-cs-assistant-production-5989.up.railway.app/ui/inquiries) |
+| 대시보드 | http://localhost:8080/ui/dashboard | [열기](https://ai-cs-assistant-production-5989.up.railway.app/ui/dashboard) |
+| 매뉴얼 관리 | http://localhost:8080/ui/manuals | [열기](https://ai-cs-assistant-production-5989.up.railway.app/ui/manuals) |
+| Swagger UI | http://localhost:8080/swagger-ui.html | [열기](https://ai-cs-assistant-production-5989.up.railway.app/swagger-ui.html) |
 
 ---
 
