@@ -5,7 +5,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-import com.aicsassistant.analysis.application.AnalysisLogService;
 import com.aicsassistant.inquiry.application.InquiryService;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryStatus;
@@ -13,6 +12,7 @@ import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.manual.application.ManualService;
 import com.aicsassistant.ui.application.DashboardService;
+import com.aicsassistant.ui.application.InquiryDetailAssembler;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -34,7 +34,7 @@ public class CounselorViewControllerTest {
     ManualService manualService;
 
     @MockitoBean
-    AnalysisLogService analysisLogService;
+    InquiryDetailAssembler inquiryDetailAssembler;
 
     @MockitoBean
     DashboardService dashboardService;
