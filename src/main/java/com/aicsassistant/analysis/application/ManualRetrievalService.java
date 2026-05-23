@@ -3,6 +3,7 @@ package com.aicsassistant.analysis.application;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.analysis.infra.llm.EmbeddingClient;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +29,7 @@ public class ManualRetrievalService {
     private final JdbcTemplate jdbcTemplate;
     private final EmbeddingClient embeddingClient;
 
+    @Transactional(readOnly = true)
     public List<RetrievedManualChunkDto> retrieve(String inquiryContent) {
         List<Double> queryEmbedding = embeddingClient.embed(inquiryContent);
         if (queryEmbedding != null && !queryEmbedding.isEmpty()) {
@@ -59,6 +62,10 @@ public class ManualRetrievalService {
             entry.keywordRank = i + 1;
             entry.keywordScore = c.score;
         }
+
+        // P1 수정: keyword 후보가 vector top-K 밖이면 vectorScore가 기본값 0.0이라
+        // gate(vector >= 0.5)에서 자동 탈락한다. union된 id들의 실제 vector score를 보강.
+        augmentVectorScores(byId, queryEmbedding);
 
         return byId.values().stream()
                 .filter(this::passesHybridGate)
@@ -96,6 +103,10 @@ public class ManualRetrievalService {
         if (cleaned.isBlank()) {
             return List.of();
         }
+        // P2 수정: <% operator + <<-> distance를 써서 gin_trgm_ops GIN 인덱스 활용.
+        // <% operator의 임계값은 pg_trgm.word_similarity_threshold GUC로 제어.
+        // SET LOCAL은 트랜잭션 스코프에서만 유효하므로 retrieve()가 @Transactional이어야 한다.
+        jdbcTemplate.execute("set local pg_trgm.word_similarity_threshold = " + MIN_KEYWORD_SCORE);
         return jdbcTemplate.query("""
                 select
                     mc.id,
@@ -111,10 +122,39 @@ public class ManualRetrievalService {
                 join manual_document md on md.id = mc.manual_document_id
                 where md.active = true
                   and mc.active = true
-                  and word_similarity(cast(? as text), mc.content) >= ?
-                order by word_similarity(cast(? as text), mc.content) desc, mc.id
+                  and cast(? as text) <% mc.content
+                order by cast(? as text) <<-> mc.content, mc.id
                 limit ?
-                """, scoredChunkRowMapper(), cleaned, cleaned, MIN_KEYWORD_SCORE, cleaned, limit);
+                """, scoredChunkRowMapper(), cleaned, cleaned, cleaned, limit);
+    }
+
+    private void augmentVectorScores(Map<Long, FusionEntry> byId, List<Double> queryEmbedding) {
+        List<Long> missingIds = byId.values().stream()
+                .filter(e -> e.vectorRank == 0)
+                .map(e -> e.chunk.id())
+                .toList();
+        if (missingIds.isEmpty()) {
+            return;
+        }
+
+        String idCsv = missingIds.stream().map(String::valueOf).collect(Collectors.joining(","));
+        String vectorLiteral = toVectorLiteral(queryEmbedding);
+
+        Map<Long, Double> scores = new HashMap<>();
+        jdbcTemplate.query("""
+                select id, (1 - (embedding <=> cast(? as vector))) as score
+                from manual_chunk
+                where id in (%s) and embedding is not null
+                """.formatted(idCsv),
+                rs -> { scores.put(rs.getLong("id"), rs.getDouble("score")); },
+                vectorLiteral);
+
+        for (FusionEntry entry : byId.values()) {
+            Double score = scores.get(entry.chunk.id());
+            if (score != null) {
+                entry.vectorScore = score;
+            }
+        }
     }
 
     private boolean passesHybridGate(FusionEntry e) {
