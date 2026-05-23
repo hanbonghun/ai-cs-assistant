@@ -239,8 +239,12 @@
         <article class="card">
             <h2>참고 문서</h2>
             <p class="muted" style="font-size:13px;margin-bottom:12px;">AI가 답변 생성 시 참고한 정책 문서입니다.</p>
-            <div th:if="${#lists.isEmpty(detail.evidenceChunks)}" class="muted">
+            <!-- 분석 전: 안내 / 분석 완료 + 참조 없음: 빈 상태 명시 -->
+            <div th:if="${#lists.isEmpty(detail.evidenceChunks) and detail.inquiry.status.name() == 'NEW'}" class="muted">
                 AI 분석 완료 후 참고한 정책 문서가 표시됩니다.
+            </div>
+            <div th:if="${#lists.isEmpty(detail.evidenceChunks) and detail.inquiry.status.name() != 'NEW'}" class="muted">
+                참고한 정책 문서가 없습니다. (FAQ 또는 주문 조회로만 답변)
             </div>
             <div th:each="chunk : ${detail.evidenceChunks}" class="chunk">
                 <div class="chunk-meta">

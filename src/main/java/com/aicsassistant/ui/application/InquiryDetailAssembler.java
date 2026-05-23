@@ -72,10 +72,7 @@ public class InquiryDetailAssembler {
             default                   -> step.action();
         };
 
-        String obs = step.observation();
-        String summary = (obs != null && obs.length() > OBSERVATION_SUMMARY_MAX_LENGTH)
-                ? obs.substring(0, OBSERVATION_SUMMARY_MAX_LENGTH) + "..."
-                : obs;
+        String summary = truncate(humanizeObservation(step.observation()));
 
         List<DocRef> docs = step.referencedChunks() == null ? List.of() :
                 step.referencedChunks().stream()
@@ -86,5 +83,43 @@ public class InquiryDetailAssembler {
                                 m -> List.copyOf(m.values())));
 
         return new AgentStepView(label, step.thought(), summary, docs);
+    }
+
+    /**
+     * ToolResult JSON envelope에서 사람이 볼 부분만 추출한다.
+     *
+     * <pre>{ok:true, data:"...", errorCategory:null, isRetryable:false, errorMessage:null}</pre>
+     *
+     * <p>상담사는 envelope 메타필드를 볼 이유가 없다. 성공 시 {@code data} 본문만,
+     * 실패 시 카테고리와 메시지만 노출한다. 파싱이 안 되면 원문을 그대로 반환한다.
+     */
+    private String humanizeObservation(String observation) {
+        if (observation == null || observation.isBlank()) {
+            return observation;
+        }
+        try {
+            var node = objectMapper.readTree(observation);
+            if (!node.isObject()) {
+                return observation;
+            }
+            if (node.path("ok").asBoolean(false)) {
+                String data = node.path("data").asText("").trim();
+                return data.isEmpty() ? "(결과 없음)" : data;
+            }
+            String category = node.path("errorCategory").asText("");
+            String message = node.path("errorMessage").asText("");
+            String head = category.isEmpty() ? "실패" : category;
+            return message.isEmpty() ? "❌ " + head : "❌ " + head + ": " + message;
+        } catch (Exception e) {
+            // JSON이 아니거나 파싱 실패 — 그대로 노출
+            return observation;
+        }
+    }
+
+    private static String truncate(String text) {
+        if (text == null) return null;
+        return text.length() > OBSERVATION_SUMMARY_MAX_LENGTH
+                ? text.substring(0, OBSERVATION_SUMMARY_MAX_LENGTH) + "..."
+                : text;
     }
 }
