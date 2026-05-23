@@ -19,7 +19,8 @@ public class PgvectorRowMapper implements RowMapper<RetrievedManualChunkDto> {
                 rs.getInt("chunk_index"),
                 rs.getInt("document_version"),
                 rs.getInt("token_count"),
-                rs.getString("content")
+                rs.getString("content"),
+                (Double) rs.getObject("similarity_score")
         );
     }
 }
