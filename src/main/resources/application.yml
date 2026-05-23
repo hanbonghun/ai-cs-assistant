@@ -22,7 +22,8 @@ app:
     webhook-url: ${SLACK_WEBHOOK_URL:}
   langfuse:
     enabled: ${LANGFUSE_ENABLED:true}
-    host: ${LANGFUSE_HOST:https://jp.cloud.langfuse.com}
+    # LANGFUSE_HOST는 deprecated. LANGFUSE_BASE_URL 사용 권장 — 점진적 마이그레이션 위해 둘 다 인식.
+    host: ${LANGFUSE_BASE_URL:${LANGFUSE_HOST:https://jp.cloud.langfuse.com}}
     public-key: ${LANGFUSE_PUBLIC_KEY:}
     secret-key: ${LANGFUSE_SECRET_KEY:}
     service-name: ai-cs-assistant
