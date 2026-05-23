@@ -20,6 +20,12 @@ app:
     embedding-model: text-embedding-3-small
   slack:
     webhook-url: ${SLACK_WEBHOOK_URL:}
+  langfuse:
+    enabled: ${LANGFUSE_ENABLED:true}
+    host: ${LANGFUSE_HOST:https://jp.cloud.langfuse.com}
+    public-key: ${LANGFUSE_PUBLIC_KEY:}
+    secret-key: ${LANGFUSE_SECRET_KEY:}
+    service-name: ai-cs-assistant
 ---
 spring:
   config:

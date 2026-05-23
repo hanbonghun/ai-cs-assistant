@@ -2,6 +2,11 @@ package com.aicsassistant.analysis.application;
 
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.analysis.infra.llm.EmbeddingClient;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Scope;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -26,23 +31,63 @@ public class ManualRetrievalService {
     private static final double MIN_VECTOR_FLOOR_FOR_KEYWORD = 0.5;
     private static final int RRF_K = 60;
 
+    private static final AttributeKey<String> ATTR_LF_INPUT = AttributeKey.stringKey("langfuse.observation.input");
+    private static final AttributeKey<String> ATTR_LF_OUTPUT = AttributeKey.stringKey("langfuse.observation.output");
+    private static final AttributeKey<Long> ATTR_RESULT_COUNT = AttributeKey.longKey("retrieval.result_count");
+    private static final AttributeKey<String> ATTR_PATH = AttributeKey.stringKey("retrieval.path");
+
     private final JdbcTemplate jdbcTemplate;
     private final EmbeddingClient embeddingClient;
+    private final Tracer tracer;
 
     @Transactional(readOnly = true)
     public List<RetrievedManualChunkDto> retrieve(String inquiryContent) {
+        Span span = tracer.spanBuilder("rag.retrieve")
+                .setAttribute(ATTR_LF_INPUT, inquiryContent)
+                .startSpan();
+        try (Scope ignored = span.makeCurrent()) {
+            RetrievalOutcome outcome = doRetrieveWithPath(inquiryContent);
+            span.setAttribute(ATTR_PATH, outcome.path());
+            span.setAttribute(ATTR_RESULT_COUNT, (long) outcome.chunks().size());
+            span.setAttribute(ATTR_LF_OUTPUT, summarizeChunks(outcome.chunks()));
+            return outcome.chunks();
+        } catch (RuntimeException e) {
+            span.setStatus(StatusCode.ERROR, e.getMessage());
+            span.recordException(e);
+            throw e;
+        } finally {
+            span.end();
+        }
+    }
+
+    private RetrievalOutcome doRetrieveWithPath(String inquiryContent) {
         List<Double> queryEmbedding = embeddingClient.embed(inquiryContent);
         if (queryEmbedding != null && !queryEmbedding.isEmpty()) {
             try {
                 if (!hasActiveEmbeddings()) {
-                    return findFallback();
+                    return new RetrievalOutcome(findFallback(), "fallback_no_embeddings");
                 }
-                return findByHybrid(queryEmbedding, inquiryContent);
+                return new RetrievalOutcome(findByHybrid(queryEmbedding, inquiryContent), "hybrid");
             } catch (DataAccessException ignored) {
                 // Fallback path is used when vector dimensions/data are not ready.
             }
         }
-        return findFallback();
+        return new RetrievalOutcome(findFallback(), "fallback_query_error");
+    }
+
+    private record RetrievalOutcome(List<RetrievedManualChunkDto> chunks, String path) {
+    }
+
+    private String summarizeChunks(List<RetrievedManualChunkDto> chunks) {
+        if (chunks.isEmpty()) {
+            return "[]";
+        }
+        return chunks.stream()
+                .map(c -> String.format("{title=%s, vsim=%s, ksim=%s}",
+                        c.manualDocumentTitle(),
+                        c.similarityScore() == null ? "-" : String.format("%.3f", c.similarityScore()),
+                        c.keywordScore() == null ? "-" : String.format("%.3f", c.keywordScore())))
+                .collect(Collectors.joining(", ", "[", "]"));
     }
 
     private List<RetrievedManualChunkDto> findByHybrid(List<Double> queryEmbedding, String query) {

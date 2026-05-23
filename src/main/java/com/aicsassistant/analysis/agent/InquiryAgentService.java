@@ -17,6 +17,11 @@ import com.aicsassistant.order.InMemoryOrderRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Scope;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -41,6 +46,15 @@ public class InquiryAgentService {
 
     private static final int MAX_STEPS = 8;
 
+    private static final AttributeKey<String> ATTR_LF_TRACE_NAME = AttributeKey.stringKey("langfuse.trace.name");
+    private static final AttributeKey<String> ATTR_LF_INPUT = AttributeKey.stringKey("langfuse.observation.input");
+    private static final AttributeKey<String> ATTR_LF_OUTPUT = AttributeKey.stringKey("langfuse.observation.output");
+    private static final AttributeKey<Long> ATTR_INQUIRY_ID = AttributeKey.longKey("inquiry.id");
+    private static final AttributeKey<Long> ATTR_TOTAL_TOKENS = AttributeKey.longKey("agent.total_tokens");
+    private static final AttributeKey<Long> ATTR_STEP_COUNT = AttributeKey.longKey("agent.steps");
+    private static final AttributeKey<String> ATTR_AGENT_OUTCOME = AttributeKey.stringKey("agent.outcome");
+    private static final AttributeKey<String> ATTR_TOOL_NAME = AttributeKey.stringKey("agent.tool");
+
     private final LlmClient llmClient;
     private final ManualRetrievalService manualRetrievalService;
     private final PromptFactory promptFactory;
@@ -48,6 +62,7 @@ public class InquiryAgentService {
     private final InMemoryOrderRepository orderRepository;
     private final InMemoryFaqRepository faqRepository;
     private final List<ToolCallInterceptor> interceptors;
+    private final Tracer tracer;
 
     /**
      * @param inquiry         분석할 문의
@@ -58,6 +73,30 @@ public class InquiryAgentService {
         SearchManualTool searchTool = new SearchManualTool(manualRetrievalService);
         SearchFaqTool faqTool = new SearchFaqTool(faqRepository);
         List<AgentTool<?>> tools = List.of(faqTool, searchTool, orderTool);
+
+        Span agentSpan = tracer.spanBuilder("inquiry-analysis-agent")
+                .setAttribute(ATTR_LF_TRACE_NAME, "inquiry-analysis-agent")
+                .setAttribute(ATTR_INQUIRY_ID, inquiry.getId())
+                .setAttribute(ATTR_LF_INPUT, inquiry.getContent())
+                .startSpan();
+        try (Scope ignored = agentSpan.makeCurrent()) {
+            return runAgentLoop(inquiry, conversationHistory, tools, orderTool, searchTool, agentSpan);
+        } catch (RuntimeException e) {
+            agentSpan.setStatus(StatusCode.ERROR, e.getMessage());
+            agentSpan.recordException(e);
+            throw e;
+        } finally {
+            agentSpan.end();
+        }
+    }
+
+    private AgentResult runAgentLoop(
+            Inquiry inquiry,
+            List<InquiryMessage> conversationHistory,
+            List<AgentTool<?>> tools,
+            CheckOrderStatusTool orderTool,
+            SearchManualTool searchTool,
+            Span agentSpan) {
 
         List<ChatMessage> messages = new ArrayList<>();
         messages.add(ChatMessage.system(promptFactory.buildAgentSystemPrompt(tools)));
@@ -79,42 +118,61 @@ public class InquiryAgentService {
         ToolCallContext callContext = new ToolCallContext(inquiry.getId());
 
         for (int step = 0; step < MAX_STEPS; step++) {
-            LlmResponse llmResponse = llmClient.completeWithUsage(messages);
-            totalTokens += llmResponse.totalTokens();
-            String raw = llmResponse.content();
-            log.debug("[Agent inquiryId={} step={} tokens={}] raw={}", inquiry.getId(), step, llmResponse.totalTokens(), raw);
+            Span stepSpan = tracer.spanBuilder("agent-step")
+                    .setAttribute(AttributeKey.longKey("agent.step.index"), (long) step)
+                    .startSpan();
+            try (Scope ignored = stepSpan.makeCurrent()) {
+                LlmResponse llmResponse = llmClient.completeWithUsage(messages);
+                totalTokens += llmResponse.totalTokens();
+                String raw = llmResponse.content();
+                log.debug("[Agent inquiryId={} step={} tokens={}] raw={}", inquiry.getId(), step, llmResponse.totalTokens(), raw);
 
-            JsonNode node = parseJson(raw);
-            String thought = node.path("thought").asText("");
+                JsonNode node = parseJson(raw);
+                String thought = node.path("thought").asText("");
 
-            if (node.has("finalAnswer")) {
-                log.info("[Agent done] inquiryId={} steps={} totalTokens={}", inquiry.getId(), step, totalTokens);
-                return buildFinalAnswer(node, steps, searchTool.getCollectedChunks(), totalTokens);
+                if (node.has("finalAnswer")) {
+                    log.info("[Agent done] inquiryId={} steps={} totalTokens={}", inquiry.getId(), step, totalTokens);
+                    AgentResult.FinalAnswer result = buildFinalAnswer(node, steps, searchTool.getCollectedChunks(), totalTokens);
+                    agentSpan.setAttribute(ATTR_AGENT_OUTCOME, "final_answer");
+                    agentSpan.setAttribute(ATTR_LF_OUTPUT, result.answer());
+                    agentSpan.setAttribute(ATTR_TOTAL_TOKENS, totalTokens);
+                    agentSpan.setAttribute(ATTR_STEP_COUNT, (long) step + 1);
+                    return result;
+                }
+
+                if (node.has("followUpQuestion")) {
+                    String question = node.path("followUpQuestion").asText("").strip();
+                    log.info("[Agent followUp] inquiryId={} steps={} totalTokens={}", inquiry.getId(), step, totalTokens);
+                    agentSpan.setAttribute(ATTR_AGENT_OUTCOME, "follow_up");
+                    agentSpan.setAttribute(ATTR_LF_OUTPUT, question);
+                    agentSpan.setAttribute(ATTR_TOTAL_TOKENS, totalTokens);
+                    agentSpan.setAttribute(ATTR_STEP_COUNT, (long) step + 1);
+                    return new AgentResult.FollowUpQuestion(question, List.copyOf(steps), totalTokens);
+                }
+
+                String action = node.path("action").asText("");
+                JsonNode actionInput = node.path("actionInput");
+                stepSpan.setAttribute(ATTR_TOOL_NAME, action);
+
+                AgentTool<?> tool = resolveTool(tools, action);
+                ToolResult toolResult = invokeWithInterceptors(tool, action, actionInput, callContext, inquiry.getId(), step);
+
+                String observation = serializeObservation(toolResult);
+                log.info("[Agent inquiryId={} step={}] action={} ok={} category={} observation_len={}",
+                        inquiry.getId(), step, action, toolResult.ok(), toolResult.errorCategory(), observation.length());
+
+                // search_manual 스텝에는 이번 호출에서 가져온 문서 목록을 첨부
+                List<RetrievedManualChunkDto> stepChunks = (tool instanceof SearchManualTool s) ? s.getLastCallChunks() : List.of();
+                steps.add(new AgentStep(thought, action, actionInput.toString(), observation, stepChunks));
+                messages.add(ChatMessage.assistant(raw));
+                messages.add(ChatMessage.user("Observation:\n" + observation));
+            } finally {
+                stepSpan.end();
             }
-
-            if (node.has("followUpQuestion")) {
-                String question = node.path("followUpQuestion").asText("").strip();
-                log.info("[Agent followUp] inquiryId={} steps={} totalTokens={}", inquiry.getId(), step, totalTokens);
-                return new AgentResult.FollowUpQuestion(question, List.copyOf(steps), totalTokens);
-            }
-
-            String action = node.path("action").asText("");
-            JsonNode actionInput = node.path("actionInput");
-
-            AgentTool<?> tool = resolveTool(tools, action);
-            ToolResult toolResult = invokeWithInterceptors(tool, action, actionInput, callContext, inquiry.getId(), step);
-
-            String observation = serializeObservation(toolResult);
-            log.info("[Agent inquiryId={} step={}] action={} ok={} category={} observation_len={}",
-                    inquiry.getId(), step, action, toolResult.ok(), toolResult.errorCategory(), observation.length());
-
-            // search_manual 스텝에는 이번 호출에서 가져온 문서 목록을 첨부
-            List<RetrievedManualChunkDto> stepChunks = (tool instanceof SearchManualTool s) ? s.getLastCallChunks() : List.of();
-            steps.add(new AgentStep(thought, action, actionInput.toString(), observation, stepChunks));
-            messages.add(ChatMessage.assistant(raw));
-            messages.add(ChatMessage.user("Observation:\n" + observation));
         }
 
+        agentSpan.setAttribute(ATTR_AGENT_OUTCOME, "exceeded_max_steps");
+        agentSpan.setAttribute(ATTR_TOTAL_TOKENS, totalTokens);
         throw new IllegalStateException(
                 "Agent exceeded maximum steps (" + MAX_STEPS + ") for inquiryId=" + inquiry.getId());
     }
