@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 public class ManualRetrievalService {
 
     private static final int DEFAULT_TOP_K = 5;
+    private static final double MIN_SIMILARITY_SCORE = 0.75;
 
     private final JdbcTemplate jdbcTemplate;
     private final EmbeddingClient embeddingClient;
@@ -24,10 +25,10 @@ public class ManualRetrievalService {
         List<Double> queryEmbedding = embeddingClient.embed(inquiryContent);
         if (queryEmbedding != null && !queryEmbedding.isEmpty()) {
             try {
-                List<RetrievedManualChunkDto> vectorResults = findByVector(queryEmbedding);
-                if (!vectorResults.isEmpty()) {
-                    return vectorResults;
+                if (!hasActiveEmbeddings()) {
+                    return findFallback();
                 }
+                return findByVector(queryEmbedding);
             } catch (DataAccessException ignored) {
                 // Fallback path is used when vector dimensions/data are not ready.
             }
@@ -46,15 +47,31 @@ public class ManualRetrievalService {
                     mc.chunk_index,
                     mc.document_version,
                     mc.token_count,
-                    mc.content
+                    mc.content,
+                    (1 - (mc.embedding <=> cast(? as vector))) as similarity_score
                 from manual_chunk mc
                 join manual_document md on md.id = mc.manual_document_id
                 where md.active = true
                   and mc.active = true
                   and mc.embedding is not null
+                  and (1 - (mc.embedding <=> cast(? as vector))) >= ?
                 order by mc.embedding <=> cast(? as vector), mc.id
                 limit ?
-                """, pgvectorRowMapper, vectorLiteral, DEFAULT_TOP_K);
+                """, pgvectorRowMapper, vectorLiteral, vectorLiteral, MIN_SIMILARITY_SCORE, vectorLiteral, DEFAULT_TOP_K);
+    }
+
+    private boolean hasActiveEmbeddings() {
+        Boolean exists = jdbcTemplate.queryForObject("""
+                select exists (
+                    select 1
+                    from manual_chunk mc
+                    join manual_document md on md.id = mc.manual_document_id
+                    where md.active = true
+                      and mc.active = true
+                      and mc.embedding is not null
+                )
+                """, Boolean.class);
+        return Boolean.TRUE.equals(exists);
     }
 
     private List<RetrievedManualChunkDto> findFallback() {
@@ -67,7 +84,8 @@ public class ManualRetrievalService {
                     mc.chunk_index,
                     mc.document_version,
                     mc.token_count,
-                    mc.content
+                    mc.content,
+                    null::float8 as similarity_score
                 from manual_chunk mc
                 join manual_document md on md.id = mc.manual_document_id
                 where md.active = true
