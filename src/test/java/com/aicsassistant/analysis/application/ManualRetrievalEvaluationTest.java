@@ -84,7 +84,7 @@ class ManualRetrievalEvaluationTest extends PostgresVectorIntegrationTest {
         double recallAt3 = RagRetrievalMetrics.recallAt(ranks, 3);
         double mrr = RagRetrievalMetrics.meanReciprocalRank(ranks);
 
-        // baseline: easy/medium 통과(15) + hard 미통과(4) = 15/19 ≈ 0.789
+        // baseline: easy/medium 통과(58) + hard 미통과(14) = 58/72 ≈ 0.806
         assertThat(recallAt3).isGreaterThanOrEqualTo(0.75);
         assertThat(mrr).isGreaterThanOrEqualTo(0.75);
     }
