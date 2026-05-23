@@ -1,5 +1,6 @@
 package com.aicsassistant.analysis.application;
 
+import com.aicsassistant.inquiry.application.CustomerReplyEvent;
 import com.aicsassistant.inquiry.application.InquiryCreatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,17 @@ public class InquiryAnalysisEventListener {
             inquiryAnalysisService.analyze(event.inquiryId());
         } catch (Exception e) {
             log.error("[자동 분석] 실패 inquiryId={}", event.inquiryId(), e);
+        }
+    }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onCustomerReply(CustomerReplyEvent event) {
+        log.info("[재분석] 고객 답변 감지 inquiryId={}", event.inquiryId());
+        try {
+            inquiryAnalysisService.analyze(event.inquiryId());
+        } catch (Exception e) {
+            log.error("[재분석] 실패 inquiryId={}", event.inquiryId(), e);
         }
     }
 }

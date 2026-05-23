@@ -88,9 +88,11 @@ public class InquiryService {
     }
 
     /**
-     * 고객이 AI의 추가 질문에 답변을 다는 유스케이스. 상태 검증 + 메시지 저장만 책임지며,
-     * 이어지는 재분석은 호출자(컨트롤러)가 별도 트랜잭션에서 트리거한다 — LLM 호출이 길어
-     * 같은 트랜잭션에 묶으면 DB 락이 길어지기 때문.
+     * 고객이 AI의 추가 질문에 답변을 다는 유스케이스.
+     *
+     * <p>상태 검증 + 메시지 저장 후 {@link CustomerReplyEvent}를 발행한다. 이어지는 agent
+     * 재실행은 트랜잭션 커밋 후 별도 비동기 스레드에서 일어나므로, HTTP 요청은 메시지 저장 직후
+     * 즉시 반환되어 LLM 호출 시간만큼 HTTP 커넥션을 잡고 있지 않는다.
      */
     @Transactional
     public void replyAsCustomer(Long id, String content) {
@@ -103,6 +105,7 @@ public class InquiryService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "EMPTY_CONTENT", "답변 내용을 입력해 주세요.");
         }
         inquiryMessageRepository.save(InquiryMessage.of(id, InquiryMessageRole.CUSTOMER, content.strip()));
+        eventPublisher.publishEvent(new CustomerReplyEvent(id));
     }
 
     private Inquiry getInquiryEntity(Long id) {
