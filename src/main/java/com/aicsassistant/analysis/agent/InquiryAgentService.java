@@ -49,6 +49,9 @@ public class InquiryAgentService {
     private static final AttributeKey<String> ATTR_LF_TRACE_NAME = AttributeKey.stringKey("langfuse.trace.name");
     private static final AttributeKey<String> ATTR_LF_INPUT = AttributeKey.stringKey("langfuse.observation.input");
     private static final AttributeKey<String> ATTR_LF_OUTPUT = AttributeKey.stringKey("langfuse.observation.output");
+    private static final AttributeKey<String> ATTR_LF_SESSION_ID = AttributeKey.stringKey("langfuse.session.id");
+    private static final AttributeKey<String> ATTR_LF_USER_ID = AttributeKey.stringKey("langfuse.user.id");
+    private static final AttributeKey<List<String>> ATTR_LF_TAGS = AttributeKey.stringArrayKey("langfuse.trace.tags");
     private static final AttributeKey<Long> ATTR_INQUIRY_ID = AttributeKey.longKey("inquiry.id");
     private static final AttributeKey<Long> ATTR_TOTAL_TOKENS = AttributeKey.longKey("agent.total_tokens");
     private static final AttributeKey<Long> ATTR_STEP_COUNT = AttributeKey.longKey("agent.steps");
@@ -78,6 +81,9 @@ public class InquiryAgentService {
                 .setAttribute(ATTR_LF_TRACE_NAME, "inquiry-analysis-agent")
                 .setAttribute(ATTR_INQUIRY_ID, inquiry.getId())
                 .setAttribute(ATTR_LF_INPUT, inquiry.getContent())
+                .setAttribute(ATTR_LF_SESSION_ID, "inquiry-" + inquiry.getId())
+                .setAttribute(ATTR_LF_USER_ID, safeUserId(inquiry))
+                .setAttribute(ATTR_LF_TAGS, buildTags(inquiry))
                 .startSpan();
         try (Scope ignored = agentSpan.makeCurrent()) {
             return runAgentLoop(inquiry, conversationHistory, tools, orderTool, searchTool, agentSpan);
@@ -175,6 +181,22 @@ public class InquiryAgentService {
         agentSpan.setAttribute(ATTR_TOTAL_TOKENS, totalTokens);
         throw new IllegalStateException(
                 "Agent exceeded maximum steps (" + MAX_STEPS + ") for inquiryId=" + inquiry.getId());
+    }
+
+    static String safeUserId(Inquiry inquiry) {
+        String id = inquiry.getCustomerIdentifier();
+        return id == null || id.isBlank() ? "anonymous" : id;
+    }
+
+    static List<String> buildTags(Inquiry inquiry) {
+        List<String> tags = new ArrayList<>();
+        if (inquiry.getCategory() != null) {
+            tags.add("category:" + inquiry.getCategory().name());
+        }
+        if (inquiry.getUrgency() != null) {
+            tags.add("urgency:" + inquiry.getUrgency().name());
+        }
+        return tags;
     }
 
     private String buildInitialMessage(Inquiry inquiry, CheckOrderStatusTool orderTool) {
