@@ -1,23 +1,88 @@
 query,category,difficulty,expectedManualTitle,expectedChunkKeywords,answerMustInclude,negative
 환불 기간 알려줘,REFUND,easy,환불 정책,환불|7일,7일,false
 환불 신청 어떻게 해요,REFUND,easy,환불 정책,환불|신청,환불,false
+환불 정책이 어떻게 되나요,REFUND,easy,환불 정책,환불|정책,환불,false
+환불 받을 수 있는 조건,REFUND,easy,환불 정책,환불|조건,환불,false
+환불 가능한 기간이 언제까지인가요,REFUND,easy,환불 정책,환불|기간,7일,false
 돈 돌려받을 수 있나요,REFUND,medium,환불 정책,환불|7일,7일,false
 결제 취소하고 싶어요,REFUND,medium,환불 정책,환불|취소,환불,false
+구매 취소 가능한가요,REFUND,medium,환불 정책,환불|취소,환불,false
+환불 진행은 어떻게 되나요,REFUND,medium,환불 정책,환불|진행,환불,false
+결제했는데 취소되나요,REFUND,medium,환불 정책,환불|결제|취소,환불,false
 어제 산 거 마음에 안 들어요,REFUND,hard,환불 정책,단순 변심|7일,7일,false
+박스 안 뜯었는데 돌려줄게요,REFUND,hard,환불 정책,환불|포장,환불,false
+refund 가능한가요,REFUND,hard,환불 정책,환불,환불,false
 배송 지연 보상 기준,DELIVERY,easy,배송 정책,지연|보상|영업일,영업일,false
+배송 정책 안내,DELIVERY,easy,배송 정책,배송|정책,배송,false
+배송비는 얼마예요,DELIVERY,easy,배송 정책,배송비,배송,false
+배송 기간은 며칠 걸리나요,DELIVERY,easy,배송 정책,배송|기간|영업일,영업일,false
+배송 현황 어디서 봐요,DELIVERY,easy,배송 정책,배송|조회,배송,false
 택배가 너무 늦어요,DELIVERY,medium,배송 정책,지연|영업일,영업일,false
 물건이 안 와요,DELIVERY,medium,배송 정책,지연|배송,영업일,false
+도착이 너무 늦네요,DELIVERY,medium,배송 정책,지연|영업일,영업일,false
+출고는 언제 되나요,DELIVERY,medium,배송 정책,출고|배송,배송,false
+배송 안 됐어요,DELIVERY,medium,배송 정책,배송|지연,영업일,false
 도착 예정일 한참 지났는데요,DELIVERY,hard,배송 정책,지연|보상,영업일,false
+일주일째 안 와요,DELIVERY,hard,배송 정책,지연|보상,영업일,false
+배달 너무 늦엇어요,DELIVERY,hard,배송 정책,지연,영업일,false
 교환 접수 조건 안내,EXCHANGE,easy,교환 정책,교환|기간,수령,false
+교환 정책이 뭐예요,EXCHANGE,easy,교환 정책,교환|정책,수령,false
+교환 신청 방법,EXCHANGE,easy,교환 정책,교환|신청,수령,false
+교환 가능 기간 알려줘,EXCHANGE,easy,교환 정책,교환|기간,수령,false
 사이즈 다른 걸로 바꿔주세요,EXCHANGE,medium,교환 정책,교환|기간,수령,false
+색상 변경 가능한가요,EXCHANGE,medium,교환 정책,교환|색상,수령,false
+옵션 바꿔주세요,EXCHANGE,medium,교환 정책,교환|옵션,수령,false
+L 사이즈로 교환되나요,EXCHANGE,medium,교환 정책,교환|사이즈,수령,false
+교환 요청드려요,EXCHANGE,medium,교환 정책,교환|신청,수령,false
 받은 옷이 너무 작아요,EXCHANGE,hard,교환 정책,교환,수령,false
+핏이 안 맞아요,EXCHANGE,hard,교환 정책,교환,수령,false
 반품 신청 방법 알려줘,RETURN,easy,반품 정책,반품|신청|포장,포장,false
+반품 정책,RETURN,easy,반품 정책,반품|정책,포장,false
+반품 절차 안내,RETURN,easy,반품 정책,반품|절차,포장,false
+반품 가능 기간이 언제까지인가요,RETURN,easy,반품 정책,반품|기간,포장,false
 이거 다시 보낼게요,RETURN,medium,반품 정책,반품|포장,포장,false
+물건 반송할게요,RETURN,medium,반품 정책,반품|회수,포장,false
+반품 신청합니다,RETURN,medium,반품 정책,반품|신청,포장,false
+제품 회수 신청,RETURN,medium,반품 정책,반품|회수,포장,false
+안 쓰고 그대로 돌려보내요,RETURN,medium,반품 정책,반품|미사용,포장,false
 택배 도로 회수해갈 수 있나요,RETURN,hard,반품 정책,반품|회수,포장,false
+박스 그대로 있는데 어떻게 해요,RETURN,hard,반품 정책,반품|포장,포장,false
 회원 등급 산정 기준,MEMBERSHIP,easy,회원 정책,등급|구매,구매 금액,false
+회원 등급 안내,MEMBERSHIP,easy,회원 정책,등급|혜택,구매 금액,false
+포인트 적립 정책,MEMBERSHIP,easy,회원 정책,포인트|적립,구매 금액,false
+포인트 사용 방법,MEMBERSHIP,easy,회원 정책,포인트|사용,구매 금액,false
+회원 등급 종류,MEMBERSHIP,easy,회원 정책,등급|종류,구매 금액,false
 VIP 되려면 얼마 사야 해요,MEMBERSHIP,medium,회원 정책,등급|구매,구매 금액,false
+어떻게 골드 등급 되나요,MEMBERSHIP,medium,회원 정책,등급|골드,구매 금액,false
+등급 올리려면 어떻게 해야 해요,MEMBERSHIP,medium,회원 정책,등급|구매,구매 금액,false
+포인트 어떻게 쌓이나요,MEMBERSHIP,medium,회원 정책,포인트|적립,구매 금액,false
+등급별 혜택이 뭐예요,MEMBERSHIP,medium,회원 정책,등급|혜택,구매 금액,false
+자주 사는데 등급이 안 올라가요,MEMBERSHIP,hard,회원 정책,등급|구매,구매 금액,false
+1년에 얼마 써야 좋은 등급 되나요,MEMBERSHIP,hard,회원 정책,등급|구매,구매 금액,false
 결제 수단 종류 안내,PAYMENT,easy,결제 정책,결제|카드,신용카드,false
+결제 방법 안내,PAYMENT,easy,결제 정책,결제|수단,신용카드,false
+어떤 카드 쓸 수 있나요,PAYMENT,easy,결제 정책,결제|카드,신용카드,false
+무이자 할부 가능한가요,PAYMENT,easy,결제 정책,할부|결제,신용카드,false
+가상계좌 발급 안내,PAYMENT,easy,결제 정책,결제|가상계좌,신용카드,false
 현금영수증 발급되나요,PAYMENT,medium,결제 정책,결제|영수증,신용카드,false
+카카오페이 결제 됩니까,PAYMENT,medium,결제 정책,결제|카카오페이,신용카드,false
+할부 가능한가요,PAYMENT,medium,결제 정책,결제|할부,신용카드,false
+무통장 입금 되나요,PAYMENT,medium,결제 정책,결제|무통장,신용카드,false
+네이버페이로 결제 돼요,PAYMENT,medium,결제 정책,결제|네이버페이,신용카드,false
+사장님인데 세금계산서 받을 수 있나요,PAYMENT,hard,결제 정책,결제|세금계산서,신용카드,false
+결제했는데 두 번 빠졌어요,PAYMENT,hard,결제 정책,결제|이중,신용카드,false
 오늘 점심 메뉴 추천해줘,GENERAL,easy,,,,true
 주식 사도 될까요,GENERAL,easy,,,,true
 서울 날씨 어때요,GENERAL,easy,,,,true
+영화 추천해줘,GENERAL,easy,,,,true
+노래 하나 불러봐,GENERAL,easy,,,,true
+매장 영업시간이 어떻게 돼요,GENERAL,medium,,,,true
+회사 주소 어디예요,GENERAL,medium,,,,true
+직원 채용 중인가요,GENERAL,medium,,,,true
+오프라인 매장 위치,GENERAL,medium,,,,true
+본사 위치가 어디인가요,GENERAL,medium,,,,true
+사업자등록증은 어떻게 발급받아요,GENERAL,hard,,,,true
+화재 보험은 어떻게 들어요,GENERAL,hard,,,,true
+도매가 협상 가능한가요,GENERAL,hard,,,,true
+매장에서 직접 픽업 가능한가요,GENERAL,hard,,,,true
+내가 만든 상품 입점 가능한가요,GENERAL,hard,,,,true
