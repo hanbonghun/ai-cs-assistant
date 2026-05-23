@@ -46,6 +46,15 @@
             content: ''; flex: 1; height: 1px; background: #e0e0e0;
         }
 
+        /* 비동기 대기 상태 시스템 안내 (typing과 달리 정적) */
+        .system-notice {
+            margin-top: 16px; padding: 10px 14px;
+            background: #f5f7fa; border: 1px dashed #cfd8dc; border-radius: 8px;
+            font-size: 13px; color: #607d8b;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .system-notice::before { content: '⏳'; font-size: 14px; }
+
         /* AI 입력 중 (메신저 스타일 typing indicator) */
         .bubble.typing { display: inline-flex; gap: 5px; align-items: center; padding: 12px 16px; }
         .bubble.typing .dot {
@@ -53,8 +62,6 @@
             background: #1976d2; opacity: 0.4;
             animation: typing-bounce 1.4s infinite ease-in-out;
         }
-        /* 상담사 typing은 dot 색만 다르게 (counselor 톤 = 녹색) */
-        .bubble.counselor-bubble.typing .dot { background: #2e7d32; }
         .bubble.typing .dot:nth-child(2) { animation-delay: 0.15s; }
         .bubble.typing .dot:nth-child(3) { animation-delay: 0.30s; }
         @keyframes typing-bounce {
@@ -128,12 +135,9 @@
                 </div>
             </div>
 
-            <!-- 상담사 검토 중: AI_PROCESSED 상태에서 사람 검토를 명시 -->
-            <div th:if="${inquiry.status.name() == 'AI_PROCESSED'}" class="bubble-wrap ai">
-                <div class="bubble-avatar counselor-av">상담</div>
-                <div class="bubble counselor-bubble typing">
-                    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-                </div>
+            <!-- 상담사 검토 대기 (비동기 — typing 애니메이션은 실시간 응답 오해를 유발하므로 사용하지 않음) -->
+            <div th:if="${inquiry.status.name() == 'AI_PROCESSED'}" class="system-notice">
+                상담사가 확인 후 답변드릴 예정입니다.
             </div>
 
             <!-- 상담사 확정 답변 (REVIEWED / CLOSED) — 채팅 UX 일관성을 위해 버블로 표시 -->
