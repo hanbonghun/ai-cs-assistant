@@ -1,0 +1,23 @@
+query,category,difficulty,expectedManualTitle,expectedChunkKeywords,answerMustInclude,negative
+환불 기간 알려줘,REFUND,easy,환불 정책,환불|7일,7일,false
+환불 신청 어떻게 해요,REFUND,easy,환불 정책,환불|신청,환불,false
+돈 돌려받을 수 있나요,REFUND,medium,환불 정책,환불|7일,7일,false
+결제 취소하고 싶어요,REFUND,medium,환불 정책,환불|취소,환불,false
+어제 산 거 마음에 안 들어요,REFUND,hard,환불 정책,단순 변심|7일,7일,false
+배송 지연 보상 기준,DELIVERY,easy,배송 정책,지연|보상|영업일,영업일,false
+택배가 너무 늦어요,DELIVERY,medium,배송 정책,지연|영업일,영업일,false
+물건이 안 와요,DELIVERY,medium,배송 정책,지연|배송,영업일,false
+도착 예정일 한참 지났는데요,DELIVERY,hard,배송 정책,지연|보상,영업일,false
+교환 접수 조건 안내,EXCHANGE,easy,교환 정책,교환|기간,수령,false
+사이즈 다른 걸로 바꿔주세요,EXCHANGE,medium,교환 정책,교환|기간,수령,false
+받은 옷이 너무 작아요,EXCHANGE,hard,교환 정책,교환,수령,false
+반품 신청 방법 알려줘,RETURN,easy,반품 정책,반품|신청|포장,포장,false
+이거 다시 보낼게요,RETURN,medium,반품 정책,반품|포장,포장,false
+택배 도로 회수해갈 수 있나요,RETURN,hard,반품 정책,반품|회수,포장,false
+회원 등급 산정 기준,MEMBERSHIP,easy,회원 정책,등급|구매,구매 금액,false
+VIP 되려면 얼마 사야 해요,MEMBERSHIP,medium,회원 정책,등급|구매,구매 금액,false
+결제 수단 종류 안내,PAYMENT,easy,결제 정책,결제|카드,신용카드,false
+현금영수증 발급되나요,PAYMENT,medium,결제 정책,결제|영수증,신용카드,false
+오늘 점심 메뉴 추천해줘,GENERAL,easy,,,,true
+주식 사도 될까요,GENERAL,easy,,,,true
+서울 날씨 어때요,GENERAL,easy,,,,true
