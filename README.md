@@ -1,8 +1,10 @@
 # AI CS Assistant
 
-> AI 기반 고객 문의 자동 분류·답변 시스템 — Spring Boot + ReAct Agent + RAG
+> AI 기반 고객 문의 자동 분류·답변 시스템 — Spring Boot + ReAct Agent + Hybrid RAG + Langfuse 관측성
 
-LLM 프레임워크(LangChain 등) 없이 **ReAct Agent 루프**와 **RAG 파이프라인**을 직접 설계·구현한 고객 상담 자동화 MVP입니다.
+LLM 프레임워크(LangChain 등) 없이 **ReAct Agent 루프**와 **Hybrid RAG 파이프라인**을 직접 설계·구현한 고객 상담 자동화 MVP입니다. 검색 품질은 87 케이스 골든셋으로 회귀 테스트하고, 모든 LLM/Agent/RAG 호출은 OpenTelemetry → Langfuse로 trace를 시각화합니다.
+
+![Langfuse Trace List](docs/screenshots/langfuse-trace-list.png)
 
 ---
 
@@ -11,12 +13,28 @@ LLM 프레임워크(LangChain 등) 없이 **ReAct Agent 루프**와 **RAG 파이
 | 기능 | 설명 |
 |---|---|
 | **ReAct Agent** | Reasoning + Acting 루프로 툴을 선택·실행하며 다단계 추론 |
-| **RAG 기반 답변** | 정책 문서를 청크 분할 → 임베딩 → pgvector 유사도 검색 → 컨텍스트 주입 |
+| **Hybrid RAG 검색** | Vector(pgvector) + Keyword(pg_trgm) + RRF fusion + Korean preprocessing + vector floor gating |
+| **골든셋 회귀 평가** | 87 케이스(positive 72 + negative 15) × Recall@K/MRR/NoMatchAccuracy 메트릭 |
+| **Langfuse 관측성** | LLM/Agent/RAG 호출을 OpenTelemetry → OTLP로 trace 시각화 (토큰/비용/latency 자동 집계) |
 | **멀티턴 대화** | AI 추가 질문 → 고객 답변 → 재분석 반복 흐름 |
 | **자동 라우팅** | 고위험·에스컬레이션 문의는 Slack 알림 + 상담사 검토 큐로 분리 |
 | **상담사 어드민** | AI 분석 과정(thought/tool/observation) 시각화 + 최종 답변 확정 |
 | **대시보드** | 자동응답률·평균 응답시간·카테고리 분포 등 KPI 시각화 |
 | **유저 포털** | 주문 기반 문의 등록, 멀티턴 대화, 답변 확인 |
+
+## 검색 품질 (87 케이스 골든셋 기준)
+
+Vector 단독 검색 대비 Hybrid 도입 후 baseline 변화:
+
+| 지표 | Vector only | **Hybrid** | 변화 |
+|---|---|---|---|
+| positive Recall@3 | 0.806 | **0.833** | +2.7pp |
+| MRR | 0.806 | **0.833** | +2.7pp |
+| hard Recall@3 | 0.000 | **0.143** | **+14.3pp** |
+| easy+medium Recall@1 | 1.0 | **1.0** | 유지 |
+| NoMatchAccuracy | 1.0 | **1.0** | 유지 |
+
+> hard 케이스가 14% 회복되면서도 negative(검색되면 안 되는) 케이스에서 false positive 0건 유지.
 
 ---
 
@@ -51,17 +69,23 @@ flowchart TB
         OrderTool["CheckOrderStatusTool\n주문 데이터"]
     end
 
-    subgraph RAG["RAG 파이프라인"]
+    subgraph RAG["Hybrid RAG 파이프라인"]
         Chunker["ManualChunker\n문서 청크 분할"]
         EmbedClient["EmbeddingClient\nOpenAI text-embedding-3-small"]
-        VectorRepo["ManualChunkJdbcRepository\npgvector 저장 · 검색"]
+        KoreanPrep["KoreanQueryPreprocessor\n어미/공통어 제거"]
+        Retrieval["ManualRetrievalService\nvector + pg_trgm hybrid\nRRF + vector floor gate"]
     end
 
-    subgraph DB["PostgreSQL + pgvector"]
+    subgraph DB["PostgreSQL + pgvector + pg_trgm"]
         T1[("inquiry")]
         T2[("inquiry_message")]
         T3[("inquiry_analysis_log")]
-        T4[("manual_document\nmanual_chunk")]
+        T4[("manual_document\nmanual_chunk\n(vector + trgm GIN index)")]
+    end
+
+    subgraph Observe["관측성"]
+        OTel["OpenTelemetry SDK\nBatchSpanProcessor"]
+        Langfuse["☁️ Langfuse Cloud (JP)\nTrace / Session / Cost"]
     end
 
     subgraph External["외부 서비스"]
@@ -77,13 +101,19 @@ flowchart TB
     AnalysisService --> AgentLoop
     AgentLoop --> Interceptors --> FaqTool & SearchTool & OrderTool
     FaqTool --> InMemoryFaq["InMemoryFaqRepository\n(데모용 Mock)"]
-    SearchTool --> VectorRepo
+    SearchTool --> Retrieval
     OrderTool --> InMemoryOrder["InMemoryOrderRepository\n(데모용 Mock)"]
-    VectorRepo -->|코사인 유사도| T4
+    Retrieval -->|vector cos sim| T4
+    Retrieval -->|trgm word_similarity| T4
+    KoreanPrep --> Retrieval
     AgentLoop -->|Chat Completion| OpenAI
-    ManualAPI --> Chunker --> EmbedClient --> VectorRepo
+    ManualAPI --> Chunker --> EmbedClient
     EmbedClient -->|Embedding| OpenAI
     AnalysisService -->|에스컬레이션| Slack
+    AgentLoop -.->|span| OTel
+    Retrieval -.->|span| OTel
+    EmbedClient -.->|span| OTel
+    OTel -->|OTLP/HTTP gzip| Langfuse
     Core & Agent & RAG --> DB
 ```
 
@@ -144,7 +174,9 @@ sequenceDiagram
 
 ---
 
-## RAG 파이프라인
+## Hybrid RAG 파이프라인
+
+벡터 단독 검색은 paraphrase에 강하지만 **정확한 토큰 매칭(영어 혼용, 오타, 한국어 어미 변형)에 약합니다.** 두 검색의 약점이 정확히 반대라 RRF로 결합하면 둘 다 보완됩니다.
 
 ```mermaid
 flowchart LR
@@ -153,21 +185,130 @@ flowchart LR
         Upload["PDF / TXT 업로드"]
         Chunk["ManualChunker\n단락 단위 청크 분할\n(≈300 토큰)"]
         Embed["EmbeddingClient\nOpenAI Embedding API"]
-        Store["pgvector 저장\nvector(1536)"]
+        Store["pgvector(1536) +\npg_trgm GIN index"]
         Upload --> Chunk --> Embed --> Store
     end
 
-    subgraph Retrieval["검색 (Retrieval)"]
+    subgraph Retrieval["Hybrid Retrieval"]
         direction TB
         Query["Agent 검색 쿼리"]
-        QEmbed["쿼리 임베딩"]
-        Search["코사인 유사도 검색\nTop-K 청크 반환"]
-        Inject["시스템 프롬프트에\n컨텍스트 주입"]
-        Query --> QEmbed --> Search --> Inject
+        VPath["Vector 경로\nquery → embedding"]
+        KPath["Keyword 경로\nKoreanQueryPreprocessor\n→ pg_trgm word_similarity"]
+        Fuse["RRF (k=60) Fusion\n+ Vector Floor Gate\n(vsim≥0.75 OR<br/>ksim≥0.18 AND vsim≥0.5)"]
+        Inject["Top-K 청크 → 시스템 프롬프트"]
+        Query --> VPath & KPath
+        VPath --> Fuse
+        KPath --> Fuse
+        Fuse --> Inject
     end
 
-    Store -->|벡터 인덱스| Search
+    Store -->|cos sim| VPath
+    Store -->|word_similarity| KPath
 ```
+
+### 핵심 설계 결정 (`ManualRetrievalService`)
+- **Vector floor gating**: `vector ≥ 0.75 OR (keyword ≥ 0.18 AND vector ≥ 0.5)` — keyword 노이즈로 인한 false positive 차단
+- **RRF (k=60)**: rank만 사용 → 점수 정규화 불필요 (Microsoft 연구 권장값)
+- **Korean preprocessing**: `"수 있나요"`, `"어떻게"` 같은 한국어 어미를 keyword 검색 전에 제거 — pg_trgm이 한국어 형태소를 모르기 때문에 어미가 모든 문서와 trigram이 겹쳐 false-positive 점수를 부풀리는 문제 해결
+- **Index-friendly SQL**: `WHERE ? <% content` operator + `<<->` distance로 `gin_trgm_ops` 인덱스 활용 (함수 비교는 인덱스를 못 탐)
+- **Augmented gate**: keyword-only 후보가 vector top-K 밖에 있어도 별도 쿼리로 vector score를 보강해 gate 통과 가능 (대규모 데이터 정합성)
+
+---
+
+## 골든셋 회귀 평가
+
+검색 로직을 개선해도 효과를 측정할 수단이 없으면 회귀가 노이즈인지 실효인지 분간이 어렵습니다. 87 케이스 골든셋으로 코드 변경마다 메트릭이 자동 검증되도록 했습니다.
+
+### 데이터셋 (`src/test/resources/eval/rag-golden-set.csv`)
+
+| 분류 | Easy | Medium | Hard | 합 |
+|---|---|---|---|---|
+| Positive (REFUND/DELIVERY/EXCHANGE/RETURN/MEMBERSHIP/PAYMENT) | 28 | 30 | 14 | 72 |
+| Negative (날씨/주식/매장위치/사업자등록 등) | 5 | 5 | 5 | 15 |
+
+다양성 축: paraphrase, 영어 혼용(`"refund 가능한가요"`), 오타(`"배달 너무 늦엇어요"`), 매우 짧음(`"반품"`), 구어체.
+
+### 메트릭 (`RagRetrievalMetrics`)
+
+| 지표 | 의미 |
+|---|---|
+| **Recall@K** | 정답 문서가 top K 안에 들어왔는가 (놓치지 않는 능력) |
+| **MRR** | 정답이 평균 몇 위인가 (위치 가중) |
+| **NoMatchAccuracy** | negative 케이스에서 빈 결과 반환 비율 (헛검색 방지) |
+
+### Hybrid 도입 전후 비교
+
+| 지표 | Vector only | Hybrid | 변화 |
+|---|---|---|---|
+| positive Recall@3 | 0.806 | **0.833** | +2.7pp |
+| MRR | 0.806 | **0.833** | +2.7pp |
+| hard Recall@3 | 0.000 | **0.143** | **+14.3pp** |
+| easy+medium Recall@1 | 1.0 | 1.0 | 유지 |
+| NoMatchAccuracy | 1.0 | **1.0** | 유지 |
+
+회귀 안전망: 매뉴얼 6개 + distractor 25개로 **vector top-K 밖에 있는 keyword-strong 케이스**가 회복되는지도 별도 테스트로 검증.
+
+---
+
+## 관측성 — Langfuse + OpenTelemetry
+
+LLM 시스템 운영의 가장 큰 문제는 **"뭐가 어떻게 흘러가는지 안 보이는 것"** 입니다. DB에 토큰/latency를 적재하긴 했지만 분석 시마다 SQL을 짜야 했습니다. Langfuse 공식 가이드에 따라 **Java 전용 SDK 대신 OpenTelemetry 표준**으로 OTLP endpoint에 export하도록 구성 (벤더 lock-in 없음).
+
+### Trace 트리
+
+문의 1건이 만드는 span 계층:
+
+![Langfuse Trace Tree](docs/screenshots/langfuse-trace-tree.png)
+
+```
+inquiry-analysis-agent (SPAN, root)
+  └─ agent-step (SPAN, index=0..N)
+     ├─ openai.chat.completion (GENERATION, tokens/cost 자동 집계)
+     ├─ openai.embedding (GENERATION)
+     └─ rag.retrieve (SPAN, retrieval.path 표시)
+```
+
+| Trace 위치 | Type | 자동 집계 |
+|---|---|---|
+| `inquiry-analysis-agent` (root) | SPAN | `langfuse.session.id`/`user.id`/`trace.tags` |
+| `agent-step` | SPAN | `agent.step.index`, `agent.tool` |
+| `openai.chat.completion` | **GENERATION** | model, prompt/completion tokens, cost |
+| `openai.embedding` | **GENERATION** | model, total tokens, cost |
+| `rag.retrieve` | SPAN | `retrieval.path` (hybrid/fallback), `result_count` |
+
+### LLM 호출 상세
+
+GENERATION span을 클릭하면 prompt/response/token/비용/모델이 모두 펼쳐집니다. LLM 응답이 정의된 JSON 스키마(`thought`/`finalAnswer`/`category`/`urgency`/`needsHumanReview`/...)로 강제돼 Langfuse가 자동으로 path/value 트리 시각화:
+
+![Langfuse Generation Detail](docs/screenshots/langfuse-generation-detail.png)
+
+### 비용/사용량 대시보드
+
+`langfuse.user.id`로 그룹핑된 사용자별 비용, 모델별 비용, 시간대별 trace 수가 자동 집계됩니다.
+
+![Langfuse Dashboard](docs/screenshots/langfuse-dashboard.png)
+
+### 운영 안전 장치
+- 키 없으면 `OpenTelemetry.noop()` fallback → 본 동작 무영향
+- `@Bean(destroyMethod = "close")` 로 Spring 종료 시 BatchSpanProcessor flush 보장
+- `SpanLimits.maxAttributeValueLength = 8192` 자동 truncate (PII/payload bloat 방지)
+- gzip compression + tuned BatchSpanProcessor (queue 2048, schedule 2s, timeout 5s)
+
+---
+
+## 어드민 분석 시각화
+
+상담사 어드민에서 AI가 생성한 답변과 **분석 단계별 thought/action/observation**을 그대로 시각화합니다. 도구 응답은 `ToolResult` 구조로 직렬화되어 `errorCategory`/`isRetryable`까지 확인 가능:
+
+![Admin Agent Steps](docs/screenshots/admin-agent-steps.png)
+
+---
+
+## 유저 포털 — Agent 정확도 향상 UX
+
+문의 등록 시 카테고리에 따라 주문 드롭다운을 노출해 **고객이 주문번호를 직접 입력하는 실수**를 없앱니다. Agent 루프 시작 전 정확한 주문 정보가 선주입되어 `followUpQuestion` 발생률이 크게 감소합니다.
+
+<img src="docs/screenshots/user-portal.png" alt="User Portal Inquiry Form" width="400">
 
 ---
 
@@ -198,12 +339,13 @@ stateDiagram-v2
 |---|---|
 | **Language / Runtime** | Java 17, Spring Boot 3.5 |
 | **AI** | OpenAI gpt-4.1-mini (Chat), text-embedding-3-small (Embedding) |
-| **Vector DB** | PostgreSQL + pgvector |
+| **Hybrid Search** | PostgreSQL + pgvector (vector) + pg_trgm (keyword) + RRF fusion |
+| **관측성** | OpenTelemetry SDK 1.46 → Langfuse Cloud (OTLP/HTTP gzip) |
 | **ORM** | Spring Data JPA + Hibernate |
 | **Web / UI** | Spring MVC, Thymeleaf |
 | **문서 처리** | Apache PDFBox |
 | **코드 품질** | Lombok |
-| **테스트** | JUnit 5, Testcontainers, Spring MockMvc |
+| **테스트** | JUnit 5, Testcontainers (pgvector image), Spring MockMvc, AssertJ |
 | **알림** | Slack Incoming Webhook |
 | **API 문서** | springdoc-openapi (Swagger UI) |
 
@@ -278,30 +420,78 @@ public interface AgentTool<I> {
 ### 13. 다중 관심사 메시지 분해/통합 처리
 한 메시지에 여러 요청이 섞여 있을 때(예: *"ORD-XXX 배송 언제 와요? 그리고 반품 정책 알려주세요"*) Agent가 각 관심사를 첫 `thought`에서 열거하고, 필요한 도구를 모두 호출한 뒤, 관심사별 헤더(`1)`, `2)`)가 붙은 **하나의 통합된 finalAnswer**를 생성합니다. 자동 처리 가능한 부분과 상담사 액션이 필요한 부분이 섞여 있으면 답할 수 있는 부분은 즉시 답하고 나머지는 `needsHumanReview: true`로 라우팅합니다. 가드(예산 초과, 정책 가드)가 중간에 발동해 일부만 처리된 경우에도 누락 없이 "처리 완료 / 상담사 인계" 구분을 명시합니다.
 
+### 14. Hybrid 검색 도입 (Vector + Keyword + RRF)
+벡터 단독 검색은 paraphrase에 강하지만 정확한 토큰 매칭(영어 혼용/오타/한국어 어미 변형)에 약합니다. 골든셋 분석에서 hard 케이스 14개가 모두 vector threshold에 컷되는 것을 확인하고 `pg_trgm` 기반 keyword 검색을 추가했습니다.
+
+- **Fusion 방식**: RRF (Reciprocal Rank Fusion, k=60) — rank만 사용해 점수 정규화 불필요
+- **Gate 정책**: `vector ≥ 0.75 OR (keyword ≥ 0.18 AND vector ≥ 0.5)` — keyword 노이즈로 인한 false positive 차단
+- **Korean preprocessing**: pg_trgm은 한국어 형태소를 모르기 때문에 "수 있나요", "어떻게" 같은 공통 어미가 모든 문서와 trigram이 겹쳐 false-positive 점수를 부풀리는 현상 발생. `KoreanQueryPreprocessor`에서 어미/공통어를 사전 제거.
+- **Index 활용**: `WHERE ? <% content` operator + `<<-> distance` 로 `gin_trgm_ops` GIN 인덱스 사용 (함수 호출 비교 형태는 인덱스를 못 탐)
+- **Augmented gate**: 운영 규모에서 keyword-only 후보가 vector top-K 밖에 있을 수 있어, union된 id에 대해 vector score를 보강한 뒤 gate를 적용
+- **효과**: hard Recall@3 `0.0 → 0.143`, positive Recall@3 `0.806 → 0.833`, NoMatchAccuracy `1.0` 유지
+
+### 15. 골든셋 회귀 평가
+"RAG 구현했습니다"보다 **"검색 품질을 데이터로 관리합니다"** 가 훨씬 강한 신호라고 판단해 87 케이스 골든셋(positive 72 + negative 15)과 4개 메트릭(Recall@K, MRR, NoMatchAccuracy, 카테고리/난이도별 분리)을 구축했습니다.
+
+- 케이스 다양성: easy/medium/hard 분포 + paraphrase / 영어 혼용 / 오타 / 매우 짧음 / 구어체
+- Negative 케이스 3단계: 완전 무관(날씨/점심) / 인접 도메인(매장 영업시간) / 정책 도메인 인접(사업자등록/세금)
+- `FakeEmbeddingClient`를 difficulty 기반으로 설계 (easy=1.0 / medium=0.91 / hard=0.65) — 검색 로직 개선이 메트릭 차이로 드러나도록
+- distractor 25개 회귀 테스트로 hybrid의 vector floor gate가 대규모 데이터에서도 동작함을 검증
+
+### 16. Langfuse 관측성 (OpenTelemetry 표준)
+Langfuse Java SDK가 없어 OpenTelemetry SDK + OTLP endpoint로 통합 → 벤더 lock-in 없이 trace 시각화.
+
+- 표준 GenAI semantic convention (`gen_ai.system`, `gen_ai.request.model`, prompt/completion tokens) 양쪽(구/신 OTel semconv) 모두 설정해 비용 계산 호환성 확보
+- LLM 호출만 `langfuse.observation.type = "generation"`으로 마킹 → Langfuse가 LLM 전용 UI(model/tokens/cost) 자동 활성화
+- `langfuse.session.id = "inquiry-{id}"`, `langfuse.user.id`, `langfuse.trace.tags = [category:X, urgency:Y]` 로 Sessions/Users/Tags 1급 필터 활용
+- 운영 안전 장치: noop fallback, `destroyMethod = "close"` 로 종료 시 flush, `SpanLimits.maxAttributeValueLength = 8192`, gzip + tuned BatchSpanProcessor
+
+### 17. 분리 가능한 모놀리스 (Separable Monolith)
+현재는 단일 Spring Boot 앱이지만 **`analysis` 패키지를 독립 서비스로 추출 가능한 구조**입니다.
+
+- 패키지 의존성 단방향: `analysis` → 다른 도메인 (역방향 없음)
+- 이벤트 드리븐: `InquiryAnalysisEventListener`가 이미 비동기로 격리 → 외부 호출(REST/큐)로 바꾸기만 하면 분리됨
+- 외부 의존성 격리: OpenAI 클라이언트, 임베딩 클라이언트는 `analysis.infra.llm` 안에만 존재
+
+**분리 트리거 (언제 분리할 것인가)**:
+- AI 처리 평균 latency가 일반 API의 p99에 영향을 주기 시작
+- LLM 스택을 Python 생태계(LangChain, vLLM 등)로 옮기는 게 비즈니스 가치 있음
+- GPU 같은 다른 리소스 프로파일이 필요
+
+그 전까지는 모놀리스가 운영 비용이 작아 유리하다고 판단.
+
 ---
 
 ## 로컬 실행
 
 ### 사전 요구사항
 - JDK 17+
-- PostgreSQL with pgvector extension
+- Docker (PostgreSQL + pgvector + pg_trgm 컨테이너)
 
-```sql
-CREATE DATABASE aicsassistant;
-\c aicsassistant
-CREATE EXTENSION vector;
-```
-
-### 환경변수 설정
-
-`application-local.yml` 또는 환경변수로 주입:
+### DB 띄우기 (docker-compose)
 
 ```bash
-export APP_AI_API_KEY=sk-...          # OpenAI API Key
-export APP_AI_MODEL=gpt-4o
-export APP_AI_EMBEDDING_MODEL=text-embedding-3-small
-export APP_SLACK_WEBHOOK_URL=https://hooks.slack.com/...   # 선택
+docker compose up -d
 ```
+
+`pgvector/pgvector:pg16` 이미지를 사용합니다. `schema.sql`이 부팅 시 자동 실행되어 `vector`, `pg_trgm` 확장과 trigram GIN 인덱스가 함께 생성됩니다.
+
+### 환경변수 (`.env.local`)
+
+```bash
+# 필수
+OPENAI_API_KEY=sk-...                              # OpenAI API Key
+
+# 선택 — Langfuse 관측성 (없으면 trace export 비활성화)
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_BASE_URL=https://jp.cloud.langfuse.com    # JP/US/EU 중 본인 region
+
+# 선택 — Slack 에스컬레이션 알림
+SLACK_WEBHOOK_URL=https://hooks.slack.com/...
+```
+
+IntelliJ 사용 시 EnvFile 플러그인 + Run Configuration에서 `.env.local` 활성화 (Active profiles: `local`).
 
 ### 실행
 
