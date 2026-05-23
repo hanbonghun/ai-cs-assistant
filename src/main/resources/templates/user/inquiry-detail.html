@@ -53,6 +53,8 @@
             background: #1976d2; opacity: 0.4;
             animation: typing-bounce 1.4s infinite ease-in-out;
         }
+        /* 상담사 typing은 dot 색만 다르게 (counselor 톤 = 녹색) */
+        .bubble.counselor-bubble.typing .dot { background: #2e7d32; }
         .bubble.typing .dot:nth-child(2) { animation-delay: 0.15s; }
         .bubble.typing .dot:nth-child(3) { animation-delay: 0.30s; }
         @keyframes typing-bounce {
@@ -78,14 +80,12 @@
         <a class="button ghost" th:href="@{/app/home}">내 문의 목록</a>
     </header>
 
-    <!-- 상태 배너 -->
-    <!-- 채팅 UX와 중복되는 배너(PENDING_CUSTOMER / AUTO_ANSWERED / REVIEWED / CLOSED)는
-         스레드 자체로 충분히 전달되므로 제거. NEW는 typing 버블, 종료는 chat-end 라인으로 표현. -->
-    <div th:if="${inquiry.status.name() == 'AI_PROCESSED'}"
-         class="status-banner banner-reviewing">
-        <div class="spinner"></div>
-        <span>담당자가 검토 중입니다. 순서에 따라 답변 드리겠습니다.</span>
-    </div>
+    <!-- 모든 상태를 스레드 내부의 채팅 요소로 표현 (상단 배너 없음):
+         NEW         → AI typing 버블
+         AI_PROCESSED → 상담사 typing 버블
+         PENDING_CUSTOMER → AI 추가 질문 버블 + 답변 입력
+         AUTO_ANSWERED / REVIEWED / CLOSED → 결과 버블 + chat-end 라인 -->
+
 
     <!-- 문의 정보 -->
     <div class="meta-row">
@@ -120,10 +120,18 @@
                 </div>
             </div>
 
-            <!-- AI 입력 중 표시: 최초 분석(NEW) 시 서버 사이드로, 재분석 시 JS로 동적 추가 -->
+            <!-- AI 입력 중: 최초 분석(NEW) 시 서버 사이드로, 재분석 시 JS로 동적 추가 -->
             <div th:if="${inquiry.status.name() == 'NEW'}" class="bubble-wrap ai">
                 <div class="bubble-avatar ai-av">AI</div>
                 <div class="bubble ai-bubble typing">
+                    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                </div>
+            </div>
+
+            <!-- 상담사 검토 중: AI_PROCESSED 상태에서 사람 검토를 명시 -->
+            <div th:if="${inquiry.status.name() == 'AI_PROCESSED'}" class="bubble-wrap ai">
+                <div class="bubble-avatar counselor-av">상담</div>
+                <div class="bubble counselor-bubble typing">
                     <span class="dot"></span><span class="dot"></span><span class="dot"></span>
                 </div>
             </div>
@@ -162,13 +170,15 @@
     const inquiryId = /*[[${inquiry.id}]]*/ 0;
     const inquiryStatus = /*[[${inquiry.status.name()}]]*/ '';
 
-    if (inquiryStatus === 'NEW') {
+    // typing 상태(NEW: AI 분석 중 / AI_PROCESSED: 상담사 검토 중)에서 상태 변화 폴링
+    if (inquiryStatus === 'NEW' || inquiryStatus === 'AI_PROCESSED') {
+        const initialStatus = inquiryStatus;
         const poll = setInterval(async () => {
             try {
                 const res = await fetch(`/api/inquiries/${inquiryId}`);
                 if (!res.ok) return;
                 const data = await res.json();
-                if (data.status !== 'NEW') {
+                if (data.status !== initialStatus) {
                     clearInterval(poll);
                     window.location.reload();
                 }
