@@ -6,6 +6,7 @@ import com.aicsassistant.common.exception.ApiException;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryMessage;
+import com.aicsassistant.inquiry.domain.InquiryMessageRole;
 import com.aicsassistant.inquiry.domain.InquiryStatus;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.CreateInquiryRequest;
@@ -84,6 +85,24 @@ public class InquiryService {
 
     public List<InquiryMessage> getMessages(Long inquiryId) {
         return inquiryMessageRepository.findByInquiryIdOrderByCreatedAtAsc(inquiryId);
+    }
+
+    /**
+     * 고객이 AI의 추가 질문에 답변을 다는 유스케이스. 상태 검증 + 메시지 저장만 책임지며,
+     * 이어지는 재분석은 호출자(컨트롤러)가 별도 트랜잭션에서 트리거한다 — LLM 호출이 길어
+     * 같은 트랜잭션에 묶으면 DB 락이 길어지기 때문.
+     */
+    @Transactional
+    public void replyAsCustomer(Long id, String content) {
+        Inquiry inquiry = getInquiryEntity(id);
+        if (inquiry.getStatus() != InquiryStatus.PENDING_CUSTOMER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INQUIRY_STATE",
+                    "고객 답변은 PENDING_CUSTOMER 상태에서만 가능합니다.");
+        }
+        if (content == null || content.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "EMPTY_CONTENT", "답변 내용을 입력해 주세요.");
+        }
+        inquiryMessageRepository.save(InquiryMessage.of(id, InquiryMessageRole.CUSTOMER, content.strip()));
     }
 
     private Inquiry getInquiryEntity(Long id) {

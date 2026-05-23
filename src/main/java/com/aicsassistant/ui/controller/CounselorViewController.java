@@ -1,25 +1,20 @@
 package com.aicsassistant.ui.controller;
 
-import com.aicsassistant.analysis.agent.AgentStep;
-import com.aicsassistant.analysis.application.AnalysisLogService;
 import com.aicsassistant.inquiry.application.InquiryService;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
-import com.aicsassistant.ui.application.DashboardService;
-import com.aicsassistant.ui.application.DashboardService.DashboardStats;
-import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView;
-import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView.DocRef;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.aicsassistant.manual.application.ManualService;
 import com.aicsassistant.manual.dto.ManualChunkResponse;
 import com.aicsassistant.manual.dto.ManualDocumentResponse;
+import com.aicsassistant.ui.application.DashboardService;
+import com.aicsassistant.ui.application.DashboardService.DashboardStats;
+import com.aicsassistant.ui.application.InquiryDetailAssembler;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel;
-import java.util.Arrays;
+import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView;
+import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.EvidenceChunkView;
+import java.util.LinkedHashMap;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
@@ -35,9 +30,8 @@ public class CounselorViewController {
 
     private final InquiryService inquiryService;
     private final ManualService manualService;
-    private final AnalysisLogService analysisLogService;
     private final DashboardService dashboardService;
-    private final ObjectMapper objectMapper;
+    private final InquiryDetailAssembler inquiryDetailAssembler;
 
     private static final LinkedHashMap<String, String> CATEGORY_LABELS = new LinkedHashMap<>();
     private static final LinkedHashMap<String, String> URGENCY_LABELS  = new LinkedHashMap<>();
@@ -76,11 +70,11 @@ public class CounselorViewController {
     @GetMapping("/inquiries/{id}")
     public String inquiryDetail(@PathVariable Long id, Model model) {
         InquiryDetailResponse inquiry = inquiryService.getInquiry(id);
-        List<InquiryDetailViewModel.EvidenceChunkView> evidenceChunks = inquiry.analysisLogs().isEmpty()
+        List<EvidenceChunkView> evidenceChunks = inquiry.analysisLogs().isEmpty()
                 ? List.of()
-                : loadEvidenceChunks(id);
+                : inquiryDetailAssembler.loadEvidenceChunks(id);
         List<InquiryMessage> messages = inquiryService.getMessages(id);
-        List<AgentStepView> agentSteps = loadAgentSteps(id);
+        List<AgentStepView> agentSteps = inquiryDetailAssembler.loadAgentSteps(id);
         model.addAttribute("detail", InquiryDetailViewModel.from(inquiry, evidenceChunks, messages, agentSteps));
         model.addAttribute("categoryLabels", CATEGORY_LABELS);
         model.addAttribute("urgencyLabels", URGENCY_LABELS);
@@ -121,62 +115,5 @@ public class CounselorViewController {
         model.addAttribute("reasonTotal", stats.reasonTotal());
         model.addAttribute("categoryLabels", CATEGORY_LABELS);
         return "dashboard";
-    }
-
-    private List<AgentStepView> loadAgentSteps(Long inquiryId) {
-        String stepsJson = analysisLogService.getLatestAgentStepsJson(inquiryId).orElse(null);
-        if (stepsJson == null || stepsJson.isBlank()) return List.of();
-
-        try {
-            List<AgentStep> steps = objectMapper.readValue(stepsJson, new TypeReference<>() {});
-            return steps.stream().map(this::toStepView).toList();
-        } catch (Exception e) {
-            return List.of();
-        }
-    }
-
-    private AgentStepView toStepView(AgentStep step) {
-        String label = switch (step.action()) {
-            case "search_manual"      -> "정책 문서 검색";
-            case "check_order_status" -> "주문 조회";
-            default                   -> step.action();
-        };
-
-        // 툴 결과는 200자 이내로 요약
-        String obs = step.observation();
-        String summary = (obs != null && obs.length() > 200) ? obs.substring(0, 200) + "..." : obs;
-
-        // 참조 문서 링크 (search_manual 스텝만 해당)
-        List<DocRef> docs = step.referencedChunks() == null ? List.of() :
-                step.referencedChunks().stream()
-                        .map(c -> new DocRef(c.manualDocumentId(), c.manualDocumentTitle(), c.manualCategory()))
-                        .distinct()
-                        // 같은 문서가 여러 청크로 나올 수 있으므로 docId 기준 중복 제거
-                        .collect(java.util.stream.Collectors.collectingAndThen(
-                                java.util.stream.Collectors.toMap(
-                                        DocRef::docId, d -> d, (a, b) -> a,
-                                        java.util.LinkedHashMap::new),
-                                m -> List.copyOf(m.values())));
-
-        return new AgentStepView(label, step.thought(), summary, docs);
-    }
-
-    private List<InquiryDetailViewModel.EvidenceChunkView> loadEvidenceChunks(Long inquiryId) {
-        String retrievedChunkIds = analysisLogService.getLatestRetrievedChunkIds(inquiryId).orElse(null);
-        if (retrievedChunkIds == null || retrievedChunkIds.isBlank()) {
-            return List.of();
-        }
-
-        List<Long> chunkIds = Arrays.stream(retrievedChunkIds.split(","))
-                .map(String::trim)
-                .filter(value -> !value.isBlank())
-                .map(Long::valueOf)
-                .toList();
-
-        if (chunkIds.isEmpty()) {
-            return List.of();
-        }
-
-        return manualService.getEvidenceChunks(chunkIds);
     }
 }
