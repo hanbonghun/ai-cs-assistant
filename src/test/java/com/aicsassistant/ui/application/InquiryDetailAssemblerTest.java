@@ -73,6 +73,54 @@ class InquiryDetailAssemblerTest {
     }
 
     @Test
+    void loadAgentSteps_extractsDataFromToolResultSuccess() {
+        String stepsJson = """
+                [{"thought":"t","action":"search_faq","actionInput":"{}",
+                  "observation":"{\\"ok\\":true,\\"data\\":\\"Q: 회원 탈퇴는 어떻게 하나요?\\\\nA: 마이페이지에서...\\",\\"errorCategory\\":null,\\"isRetryable\\":false,\\"errorMessage\\":null}",
+                  "referencedChunks":[]}]
+                """;
+        when(analysisLogService.getLatestAgentStepsJson(1L)).thenReturn(Optional.of(stepsJson));
+
+        List<AgentStepView> steps = assembler.loadAgentSteps(1L);
+
+        assertThat(steps).hasSize(1);
+        String summary = steps.get(0).observationSummary();
+        assertThat(summary)
+                .startsWith("Q: 회원 탈퇴는 어떻게 하나요?")
+                .doesNotContain("\"ok\"")
+                .doesNotContain("errorCategory");
+    }
+
+    @Test
+    void loadAgentSteps_formatsToolResultErrorAsHumanReadable() {
+        String stepsJson = """
+                [{"thought":"t","action":"check_order_status","actionInput":"{}",
+                  "observation":"{\\"ok\\":false,\\"data\\":null,\\"errorCategory\\":\\"NOT_FOUND\\",\\"isRetryable\\":false,\\"errorMessage\\":\\"주문을 찾을 수 없습니다\\"}",
+                  "referencedChunks":[]}]
+                """;
+        when(analysisLogService.getLatestAgentStepsJson(1L)).thenReturn(Optional.of(stepsJson));
+
+        List<AgentStepView> steps = assembler.loadAgentSteps(1L);
+
+        assertThat(steps.get(0).observationSummary())
+                .isEqualTo("❌ NOT_FOUND: 주문을 찾을 수 없습니다");
+    }
+
+    @Test
+    void loadAgentSteps_keepsObservation_whenNotJson() {
+        String stepsJson = """
+                [{"thought":"t","action":"search_manual","actionInput":"{}",
+                  "observation":"그냥 평문이라 JSON 아님",
+                  "referencedChunks":[]}]
+                """;
+        when(analysisLogService.getLatestAgentStepsJson(1L)).thenReturn(Optional.of(stepsJson));
+
+        List<AgentStepView> steps = assembler.loadAgentSteps(1L);
+
+        assertThat(steps.get(0).observationSummary()).isEqualTo("그냥 평문이라 JSON 아님");
+    }
+
+    @Test
     void loadAgentSteps_dedupesReferencedChunksByDocId() {
         String stepsJson = """
                 [
