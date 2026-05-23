@@ -303,7 +303,25 @@
                 const err = await res.json().catch(() => ({}));
                 throw new Error(err.message || `전송 실패 (${res.status})`);
             }
-            window.location.reload();
+            // 백엔드가 202 Accepted로 즉시 응답하므로 상태가 PENDING_CUSTOMER에서 벗어날 때까지 폴링한다.
+            btn.textContent = '분석 중...';
+            const started = Date.now();
+            const poll = setInterval(async () => {
+                try {
+                    const r = await fetch(`/api/inquiries/${inquiryId}`);
+                    if (!r.ok) return;
+                    const data = await r.json();
+                    if (data.status !== 'PENDING_CUSTOMER') {
+                        clearInterval(poll);
+                        window.location.reload();
+                    } else if (Date.now() - started > 60_000) {
+                        clearInterval(poll);
+                        showReplyError('분석이 지연되고 있습니다. 잠시 후 새로고침해 주세요.');
+                        btn.disabled = false;
+                        btn.textContent = '답변 보내기';
+                    }
+                } catch (_) { /* 무시 */ }
+            }, 3000);
         } catch (e) {
             showReplyError(e.message);
             btn.disabled = false;
