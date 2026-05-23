@@ -141,6 +141,82 @@ class ManualRetrievalEvaluationTest extends PostgresVectorIntegrationTest {
         assertThat(retrieved.get(0).similarityScore()).isGreaterThanOrEqualTo(0.75);
     }
 
+    @Test
+    @DisplayName("[리포트] 전체 메트릭 출력 (재측정용)")
+    void reportAllMetricsDiagnostic() {
+        List<Integer> positiveRanks = positiveCases().stream().map(this::rankExpectedManualTitle).toList();
+        List<Integer> hardRanks = goldenCases.stream()
+                .filter(c -> !c.negative() && c.difficulty() == RagEvaluationCase.Difficulty.HARD)
+                .map(this::rankExpectedManualTitle).toList();
+        List<Integer> negativeCounts = goldenCases.stream()
+                .filter(RagEvaluationCase::negative)
+                .map(c -> manualRetrievalService.retrieve(c.query()).size())
+                .toList();
+
+        System.out.println("\n=== RAG Evaluation (post P1/P2 fix) ===");
+        System.out.printf("Positive Recall@3 : %.4f%n", RagRetrievalMetrics.recallAt(positiveRanks, 3));
+        System.out.printf("Positive MRR      : %.4f%n", RagRetrievalMetrics.meanReciprocalRank(positiveRanks));
+        System.out.printf("Hard Recall@3     : %.4f%n", RagRetrievalMetrics.recallAt(hardRanks, 3));
+        System.out.printf("NoMatchAccuracy   : %.4f%n", RagRetrievalMetrics.noMatchAccuracy(negativeCounts));
+        System.out.println("========================================\n");
+    }
+
+    @Test
+    @DisplayName("[P1 회귀] keyword-strong 후보가 vector top-K 밖에 있어도 회복된다")
+    void keywordOnlyCandidateOutsideVectorTopKIsRescued() {
+        // distractor 25개 추가:
+        // - vector cos ≈ 0.68 (RETURN doc의 0.65 보다 약간 위) → vector top-20을 점령해 RETURN을 21위 밖으로 밀어냄
+        // - cos 0.68 < 0.75 (strong threshold) 라 vector path 만으론 통과 못 함
+        // - content에는 "회수" 키워드 없음 → keyword 경로로도 통과 못 함 → gate에서 떨어짐
+        // - 결과적으로 distractor는 최종 결과에 안 남고, P1이 정상이라면 RETURN만 회복되어 rank 1로 잡힘
+        // P1 수정 전 (버그): vector candidates 21위 밖인 RETURN이 vectorScore=0.0 이라 gate 두 번째 조건도 실패 → empty 결과
+        for (int i = 0; i < 25; i++) {
+            int noiseAxis = 7 + i;  // 각 distractor는 서로 다른 noise axis를 사용해 orthogonal
+            seedDistractorChunk(100L + i, "관련 없는 잡담 콘텐츠 " + i, noiseAxis);
+        }
+
+        List<RetrievedManualChunkDto> retrieved =
+                manualRetrievalService.retrieve("택배 도로 회수해갈 수 있나요");
+
+        assertThat(retrieved).isNotEmpty();
+        assertThat(retrieved.get(0).manualDocumentTitle()).isEqualTo("반품 정책");
+    }
+
+    private void seedDistractorChunk(long id, String content, int noiseAxis) {
+        LocalDateTime now = LocalDateTime.now();
+        jdbcTemplate.update("""
+                insert into manual_document (id, title, category, content, version, active, created_at, updated_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?)
+                """, id, "distractor-" + id, "GENERAL", content, 1, true, now, now);
+
+        // hard query 방향(축 3, 축 6)에 약하게 정렬 + orthogonal noise → cos ≈ 0.68 (RETURN 0.65 보다 살짝 위)
+        Map<Integer, Double> axes = Map.of(
+                TITLE_TO_AXIS.get("반품 정책"), 0.6,
+                DISTRACTOR_AXIS, 0.7,
+                noiseAxis, 1.0
+        );
+        jdbcTemplate.update("""
+                insert into manual_chunk (
+                    id, manual_document_id, chunk_index, document_version, content, token_count, embedding, active, created_at
+                ) values (?, ?, ?, ?, ?, ?, cast(? as vector), ?, ?)
+                """,
+                id, id, 0, 1, content, content.split("\\s+").length,
+                sparseVectorLiteral(axes),
+                true, now
+        );
+    }
+
+    private static String sparseVectorLiteral(Map<Integer, Double> axes) {
+        StringBuilder vector = new StringBuilder("[");
+        for (int i = 0; i < EMBEDDING_DIMENSIONS; i++) {
+            if (i > 0) {
+                vector.append(',');
+            }
+            vector.append(axes.getOrDefault(i, 0.0));
+        }
+        return vector.append(']').toString();
+    }
+
     private List<RagEvaluationCase> positiveCases() {
         return goldenCases.stream().filter(c -> !c.negative()).toList();
     }
