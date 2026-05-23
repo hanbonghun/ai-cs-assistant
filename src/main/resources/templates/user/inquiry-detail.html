@@ -32,6 +32,20 @@
         .bubble.customer-bubble { background: #f5f5f5; border-radius: 12px 12px 12px 2px; }
         .bubble.ai-bubble { background: #e3f2fd; border-radius: 12px 12px 2px 12px; }
 
+        /* 상담사 확정 답변 버블 — AI 자동 답변과 시각적으로 구분 */
+        .bubble-avatar.counselor-av { background: #2e7d32; color: #fff; }
+        .bubble.counselor-bubble { background: #e8f5e9; border-radius: 12px 12px 2px 12px; }
+
+        /* 대화 종료 라인 — 메신저 "오늘", "어제" 같은 separator 톤 */
+        .chat-end {
+            margin-top: 18px; padding: 6px 0;
+            text-align: center; font-size: 12px; color: #aaa;
+            display: flex; align-items: center; gap: 12px;
+        }
+        .chat-end::before, .chat-end::after {
+            content: ''; flex: 1; height: 1px; background: #e0e0e0;
+        }
+
         /* AI 입력 중 (메신저 스타일 typing indicator) */
         .bubble.typing { display: inline-flex; gap: 5px; align-items: center; padding: 12px 16px; }
         .bubble.typing .dot {
@@ -65,23 +79,12 @@
     </header>
 
     <!-- 상태 배너 -->
-    <!-- NEW 상태는 별도 배너 없이 대화 스레드 끝의 typing 버블로 표현 -->
+    <!-- 채팅 UX와 중복되는 배너(PENDING_CUSTOMER / AUTO_ANSWERED / REVIEWED / CLOSED)는
+         스레드 자체로 충분히 전달되므로 제거. NEW는 typing 버블, 종료는 chat-end 라인으로 표현. -->
     <div th:if="${inquiry.status.name() == 'AI_PROCESSED'}"
          class="status-banner banner-reviewing">
         <div class="spinner"></div>
         <span>담당자가 검토 중입니다. 순서에 따라 답변 드리겠습니다.</span>
-    </div>
-    <div th:if="${inquiry.status.name() == 'PENDING_CUSTOMER'}"
-         class="status-banner banner-pending">
-        <span>추가 정보가 필요합니다. 아래 답변을 확인하고 내용을 입력해 주세요.</span>
-    </div>
-    <div th:if="${inquiry.status.name() == 'AUTO_ANSWERED' or inquiry.status.name() == 'REVIEWED'}"
-         class="status-banner banner-answered">
-        <span>답변이 완료되었습니다.</span>
-    </div>
-    <div th:if="${inquiry.status.name() == 'CLOSED'}"
-         class="status-banner banner-closed">
-        <span>종료된 문의입니다.</span>
     </div>
 
     <!-- 문의 정보 -->
@@ -124,12 +127,24 @@
                     <span class="dot"></span><span class="dot"></span><span class="dot"></span>
                 </div>
             </div>
-        </div>
 
-        <!-- 최종 답변: 상담사 확정(REVIEWED) 또는 종료(CLOSED) 시 finalAnswer 표시 -->
-        <div th:if="${inquiry.status.name() == 'REVIEWED' or inquiry.status.name() == 'CLOSED'}"
-             style="margin-top:12px;padding:14px;background:#e8f5e9;border-radius:8px;font-size:14px;line-height:1.6;white-space:pre-wrap;"
-             th:text="${inquiry.finalAnswer}"></div>
+            <!-- 상담사 확정 답변 (REVIEWED / CLOSED) — 채팅 UX 일관성을 위해 버블로 표시 -->
+            <div th:if="${inquiry.status.name() == 'REVIEWED' or inquiry.status.name() == 'CLOSED'}"
+                 class="bubble-wrap ai">
+                <div class="bubble-avatar counselor-av">상담</div>
+                <div class="bubble counselor-bubble" th:text="${inquiry.finalAnswer}"></div>
+            </div>
+
+            <!-- 대화 종료 라인: AI 자동 답변 또는 상담사 확정 후 -->
+            <div th:if="${inquiry.status.name() == 'AUTO_ANSWERED'
+                       or inquiry.status.name() == 'REVIEWED'
+                       or inquiry.status.name() == 'CLOSED'}"
+                 class="chat-end">
+                <span th:if="${inquiry.status.name() == 'AUTO_ANSWERED'}">대화가 종료되었습니다</span>
+                <span th:if="${inquiry.status.name() == 'REVIEWED'}">상담사 답변으로 종료되었습니다</span>
+                <span th:if="${inquiry.status.name() == 'CLOSED'}">종료된 문의입니다</span>
+            </div>
+        </div>
 
         <!-- PENDING_CUSTOMER: 고객 답변 입력 -->
         <div th:if="${inquiry.status.name() == 'PENDING_CUSTOMER'}" class="reply-box" id="reply-box">
