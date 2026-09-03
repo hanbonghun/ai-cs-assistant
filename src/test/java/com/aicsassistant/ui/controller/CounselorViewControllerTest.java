@@ -11,6 +11,7 @@ import com.aicsassistant.inquiry.domain.InquiryStatus;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.manual.application.ManualService;
+import com.aicsassistant.staging.application.StagedChangeApprovalService;
 import com.aicsassistant.ui.application.DashboardService;
 import com.aicsassistant.ui.application.InquiryDetailAssembler;
 import java.time.LocalDateTime;
@@ -38,6 +39,9 @@ public class CounselorViewControllerTest {
 
     @MockitoBean
     DashboardService dashboardService;
+
+    @MockitoBean
+    StagedChangeApprovalService stagedChangeApprovalService;
 
     @Test
     public void rendersInquiryDetailPage() throws Exception {

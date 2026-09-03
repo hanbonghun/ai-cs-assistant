@@ -69,6 +69,8 @@ public class InquiryDetailAssembler {
         String label = switch (step.action()) {
             case "search_manual"      -> "정책 문서 검색";
             case "check_order_status" -> "주문 조회";
+            case "search_faq"         -> "FAQ 검색";
+            case "stage_refund"       -> "환불 제안";
             default                   -> step.action();
         };
 

@@ -91,6 +91,59 @@
             </div>
         </article>
 
+        <!-- 승인 대기 중인 제안 -->
+        <div th:each="change : ${detail.stagedChanges}" th:if="${change.status == 'PENDING'}"
+             class="card" style="border-left:4px solid #d97706;">
+            <h3 style="margin:0 0 8px;">환불 제안 — 승인 대기</h3>
+            <p style="margin:4px 0;">
+                주문 <strong th:text="${change.orderId}">ORD-...</strong>
+            </p>
+            <p style="margin:4px 0;">
+                <label>환불 금액
+                    <input type="number" min="1" step="1000"
+                           th:attr="data-amount-for=${change.id}"
+                           th:value="${change.amount}" style="width:140px;">
+                    원
+                </label>
+                <span class="muted" style="margin-left:6px;">
+                    AI 제안: <span th:text="${#numbers.formatInteger(change.amount, 3, 'COMMA')} + '원'">0원</span>
+                    — 필요하면 고쳐서 승인하세요
+                </span>
+            </p>
+            <p style="margin:4px 0;" class="muted">근거: <span th:text="${change.reason}"></span></p>
+            <p style="margin:4px 0;" class="muted" th:if="${change.policyBasis != null}">
+                정책: <span th:text="${change.policyBasis}"></span>
+            </p>
+            <p style="margin:8px 0 4px;" class="muted">
+                아직 실행되지 않았습니다. 승인하면 주문이 환불 처리되고 고객에게 알림이 전송됩니다.
+            </p>
+            <div style="margin-top:8px;">
+                <button class="button" type="button"
+                        th:attr="data-change-id=${change.id}"
+                        onclick="decideStagedChange(this.getAttribute('data-change-id'), 'approve')">승인</button>
+                <!-- 금액은 위 입력창에서 읽는다 (data-amount-for 로 제안 id 매칭) -->
+                <button class="button secondary" type="button"
+                        th:attr="data-change-id=${change.id}"
+                        onclick="decideStagedChange(this.getAttribute('data-change-id'), 'reject')">거부</button>
+            </div>
+        </div>
+
+        <!-- 결정된 제안 이력 -->
+        <div th:each="change : ${detail.stagedChanges}" th:if="${change.status != 'PENDING'}"
+             class="card muted" style="font-size:0.9em;">
+            환불 제안
+            <span th:text="${change.orderId}"></span> ·
+            <span th:if="${change.approvedAmount == null}"
+                  th:text="${#numbers.formatInteger(change.amount, 3, 'COMMA')} + '원'"></span>
+            <span th:if="${change.approvedAmount != null}"
+                  th:text="'AI 제안 ' + ${#numbers.formatInteger(change.amount, 3, 'COMMA')} + '원 → 승인 '
+                           + ${#numbers.formatInteger(change.approvedAmount, 3, 'COMMA')} + '원'"></span> —
+            <strong th:text="${change.status == 'APPROVED' ? '승인' : '거부'}"></strong>
+            (<span th:text="${change.decidedBy}"></span>,
+            <span th:text="${#temporals.format(change.decidedAt, 'yyyy-MM-dd HH:mm')}"></span>)
+            <span th:if="${change.decisionNote != null}"> · <span th:text="${change.decisionNote}"></span></span>
+        </div>
+
         <!-- AI_PROCESSED: AI 초안, 상담사 검토 필요 -->
         <article class="card" th:if="${detail.inquiry.status.name() == 'AI_PROCESSED'}">
             <h2>답변</h2>
@@ -359,6 +412,41 @@
             window.location.reload();
         } catch (e) {
             showActionError(e.message);
+        }
+    }
+
+    async function decideStagedChange(changeId, decision) {
+        let note = null;
+        let approvedAmount = null;
+
+        if (decision === 'reject') {
+            note = prompt('거부 사유를 입력하세요 (필수)');
+            if (!note || !note.trim()) return;
+        } else {
+            const input = document.querySelector(`[data-amount-for="${changeId}"]`);
+            approvedAmount = Number(input.value);
+            if (!Number.isInteger(approvedAmount) || approvedAmount <= 0) {
+                alert('환불 금액은 0보다 큰 정수여야 합니다.');
+                return;
+            }
+            const won = approvedAmount.toLocaleString('ko-KR');
+            if (!confirm(`${won}원을 환불 처리하고 고객에게 알림을 전송합니다. 계속할까요?`)) {
+                return;
+            }
+        }
+        try {
+            const res = await fetch(`/api/inquiries/${inquiryId}/staged-changes/${changeId}/${decision}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ decidedBy: 'counselor-demo', decisionNote: note, approvedAmount })
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || `처리 실패 (${res.status})`);
+            }
+            location.reload();
+        } catch (e) {
+            alert(e.message);
         }
     }
 

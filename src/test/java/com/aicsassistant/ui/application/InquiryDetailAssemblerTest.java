@@ -143,6 +143,21 @@ class InquiryDetailAssemblerTest {
     }
 
     @Test
+    void loadAgentSteps_labelsStageRefundStep() {
+        String stepsJson = """
+                [{"thought":"환불 제안","action":"stage_refund",\
+                "actionInput":"{}","observation":"{\\"ok\\":true,\\"data\\":\\"환불 제안 #1 접수됨\\"}",\
+                "referencedChunks":[]}]
+                """;
+        when(analysisLogService.getLatestAgentStepsJson(1L)).thenReturn(Optional.of(stepsJson));
+
+        List<AgentStepView> steps = assembler.loadAgentSteps(1L);
+
+        assertThat(steps).hasSize(1);
+        assertThat(steps.get(0).actionLabel()).isEqualTo("환불 제안");
+    }
+
+    @Test
     void loadEvidenceChunks_returnsEmpty_whenCsvAbsent() {
         when(analysisLogService.getLatestRetrievedChunkIds(1L)).thenReturn(Optional.empty());
 

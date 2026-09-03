@@ -3,6 +3,7 @@ package com.aicsassistant.ui.viewmodel;
 import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.InquiryMessageRole;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
+import com.aicsassistant.staging.dto.StagedChangeResponse;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -10,18 +11,21 @@ public record InquiryDetailViewModel(
         InquiryDetailResponse inquiry,
         List<EvidenceChunkView> evidenceChunks,
         List<MessageView> messages,
-        List<AgentStepView> agentSteps
+        List<AgentStepView> agentSteps,
+        List<StagedChangeResponse> stagedChanges
 ) {
     public static InquiryDetailViewModel from(
             InquiryDetailResponse inquiry,
             List<EvidenceChunkView> evidenceChunks,
             List<InquiryMessage> messages,
-            List<AgentStepView> agentSteps
+            List<AgentStepView> agentSteps,
+            List<StagedChangeResponse> stagedChanges
     ) {
         List<MessageView> messageViews = messages.stream()
                 .map(m -> new MessageView(m.getRole(), m.getContent(), m.getCreatedAt()))
                 .toList();
-        return new InquiryDetailViewModel(inquiry, List.copyOf(evidenceChunks), messageViews, List.copyOf(agentSteps));
+        return new InquiryDetailViewModel(inquiry, List.copyOf(evidenceChunks), messageViews,
+                List.copyOf(agentSteps), List.copyOf(stagedChanges));
     }
 
     public record EvidenceChunkView(

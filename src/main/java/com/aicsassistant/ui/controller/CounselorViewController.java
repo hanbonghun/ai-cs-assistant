@@ -10,6 +10,8 @@ import com.aicsassistant.manual.dto.ManualChunkResponse;
 import com.aicsassistant.manual.dto.ManualDocumentResponse;
 import com.aicsassistant.ui.application.DashboardService;
 import com.aicsassistant.ui.application.DashboardService.DashboardStats;
+import com.aicsassistant.staging.application.StagedChangeApprovalService;
+import com.aicsassistant.staging.dto.StagedChangeResponse;
 import com.aicsassistant.ui.application.InquiryDetailAssembler;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView;
@@ -32,6 +34,7 @@ public class CounselorViewController {
     private final ManualService manualService;
     private final DashboardService dashboardService;
     private final InquiryDetailAssembler inquiryDetailAssembler;
+    private final StagedChangeApprovalService stagedChangeApprovalService;
 
     private static final LinkedHashMap<String, String> CATEGORY_LABELS = new LinkedHashMap<>();
     private static final LinkedHashMap<String, String> URGENCY_LABELS  = new LinkedHashMap<>();
@@ -75,7 +78,9 @@ public class CounselorViewController {
                 : inquiryDetailAssembler.loadEvidenceChunks(id);
         List<InquiryMessage> messages = inquiryService.getMessages(id);
         List<AgentStepView> agentSteps = inquiryDetailAssembler.loadAgentSteps(id);
-        model.addAttribute("detail", InquiryDetailViewModel.from(inquiry, evidenceChunks, messages, agentSteps));
+        List<StagedChangeResponse> stagedChanges = stagedChangeApprovalService.findByInquiry(id);
+        model.addAttribute("detail",
+                InquiryDetailViewModel.from(inquiry, evidenceChunks, messages, agentSteps, stagedChanges));
         model.addAttribute("categoryLabels", CATEGORY_LABELS);
         model.addAttribute("urgencyLabels", URGENCY_LABELS);
         return "inquiries/detail";
