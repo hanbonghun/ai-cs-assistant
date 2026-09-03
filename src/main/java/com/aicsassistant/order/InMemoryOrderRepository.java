@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Repository;
 
@@ -47,7 +48,7 @@ public class InMemoryOrderRepository {
         return TODAY.plusDays(days).format(FMT);
     }
 
-    private static final Map<String, OrderInfo> ORDERS = Map.ofEntries(
+    private static final Map<String, OrderInfo> INITIAL_ORDERS = Map.ofEntries(
 
         // 배송 지연 — 취소 요청 시나리오 (도착 예정일이 어제였는데 아직 안 옴)
         Map.entry("ORD-20260410-001", new OrderInfo(
@@ -148,6 +149,10 @@ public class InMemoryOrderRepository {
                 "제품 불량으로 반품 접수 후 처리 완료. 환불 완료"))
     );
 
+    // ponytail: static mutable — 데모 전체가 공유하고 재시작하면 초기화된다.
+    // 실제 서비스에서는 주문 도메인 API 호출로 대체된다.
+    private static final Map<String, OrderInfo> ORDERS = new ConcurrentHashMap<>(INITIAL_ORDERS);
+
     /** 주문 소유자 — 데모 사용자 데이터에서 파생하므로 두 곳에 중복 정의되지 않는다. */
     private static final Map<String, String> OWNER_BY_ORDER = DummyUserStore.getAll().stream()
             .flatMap(u -> u.orders().stream().map(o -> Map.entry(o.orderId(), u.id())))
@@ -182,6 +187,19 @@ public class InMemoryOrderRepository {
         if (o.estimatedDelivery() != null) sb.append("도착예정: ").append(o.estimatedDelivery()).append("\n");
         if (o.note() != null)              sb.append("비고: ").append(o.note()).append("\n");
         return sb.toString();
+    }
+
+    /** 환불 승인 실행 — 주문 상태만 바꾼다. 금액 이력은 남기지 않는다(mock 한계). */
+    public void markRefunded(String orderId) {
+        ORDERS.computeIfPresent(orderId, (id, o) -> new OrderInfo(
+                o.orderId(), o.productName(), "환불완료", o.amount(), o.orderedAt(),
+                o.courier(), o.trackingNumber(), o.estimatedDelivery(), o.note()));
+    }
+
+    /** ponytail: static mutable 상태를 테스트 간 격리하기 위한 복구 훅. 운영 코드에서 호출하지 않는다. */
+    public void resetForTest() {
+        ORDERS.clear();
+        ORDERS.putAll(INITIAL_ORDERS);
     }
 
 }

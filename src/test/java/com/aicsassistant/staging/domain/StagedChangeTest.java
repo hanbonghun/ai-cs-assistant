@@ -27,7 +27,7 @@ class StagedChangeTest {
     void approveRecordsDeciderAndTimestamp() {
         StagedChange change = pendingRefund();
 
-        change.approve("counselor-demo", null);
+        change.approve("counselor-demo", null, null);
 
         assertThat(change.getStatus()).isEqualTo(StagedChangeStatus.APPROVED);
         assertThat(change.getDecidedBy()).isEqualTo("counselor-demo");
@@ -56,13 +56,43 @@ class StagedChangeTest {
     @Test
     void cannotDecideTwice() {
         StagedChange change = pendingRefund();
-        change.approve("counselor-demo", null);
+        change.approve("counselor-demo", null, null);
 
-        assertThatThrownBy(() -> change.approve("other", null))
+        assertThatThrownBy(() -> change.approve("other", null, null))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("ALREADY_DECIDED");
         assertThatThrownBy(() -> change.reject("other", "사유"))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("ALREADY_DECIDED");
+    }
+
+    @Test
+    void approveWithEditedAmountKeepsProposedAmountAsHistory() {
+        StagedChange change = pendingRefund();
+
+        change.approve("counselor-demo", "일부만 인정", 32_000);
+
+        assertThat(change.getAmount()).isEqualTo(45_000);          // AI 제안은 보존
+        assertThat(change.getApprovedAmount()).isEqualTo(32_000);
+        assertThat(change.effectiveAmount()).isEqualTo(32_000);
+    }
+
+    @Test
+    void approveWithoutEditedAmountFallsBackToProposedAmount() {
+        StagedChange change = pendingRefund();
+
+        change.approve("counselor-demo", null, null);
+
+        assertThat(change.getApprovedAmount()).isNull();
+        assertThat(change.effectiveAmount()).isEqualTo(45_000);
+    }
+
+    @Test
+    void rejectsNonPositiveApprovedAmount() {
+        StagedChange change = pendingRefund();
+
+        assertThatThrownBy(() -> change.approve("counselor-demo", null, 0))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("승인 금액");
     }
 }
