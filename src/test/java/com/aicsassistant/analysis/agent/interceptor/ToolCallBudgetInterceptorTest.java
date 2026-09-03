@@ -17,7 +17,7 @@ class ToolCallBudgetInterceptorTest {
 
     @Test
     void allowsCallsBelowBudget() {
-        ToolCallContext ctx = new ToolCallContext(1L);
+        ToolCallContext ctx = new ToolCallContext(1L, "cust-001");
         for (int i = 0; i < ToolCallBudgetInterceptor.MAX_TOOL_CALLS_PER_RUN; i++) {
             assertThat(interceptor.beforeExecute("search_manual", emptyInput, ctx)).isEmpty();
             ctx.incrementToolCallCount();
@@ -26,7 +26,7 @@ class ToolCallBudgetInterceptorTest {
 
     @Test
     void blocksCallAtBudgetLimit() {
-        ToolCallContext ctx = new ToolCallContext(1L);
+        ToolCallContext ctx = new ToolCallContext(1L, "cust-001");
         for (int i = 0; i < ToolCallBudgetInterceptor.MAX_TOOL_CALLS_PER_RUN; i++) {
             ctx.incrementToolCallCount();
         }
@@ -43,7 +43,7 @@ class ToolCallBudgetInterceptorTest {
 
     @Test
     void afterExecutePassesResultThrough() {
-        ToolCallContext ctx = new ToolCallContext(1L);
+        ToolCallContext ctx = new ToolCallContext(1L, "cust-001");
         ToolResult original = ToolResult.success("ok");
 
         ToolResult result = interceptor.afterExecute("search_manual", emptyInput, original, ctx);

@@ -38,7 +38,7 @@ public class HighValueOrderInterceptor implements ToolCallInterceptor {
             return result;
         }
 
-        OrderInfo order = orderRepository.findById(orderId).orElse(null);
+        OrderInfo order = orderRepository.findById(orderId, ctx.customerIdentifier()).orElse(null);
         if (order == null || order.amount() < HIGH_VALUE_THRESHOLD_KRW) {
             return result;
         }

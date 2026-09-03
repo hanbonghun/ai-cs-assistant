@@ -72,7 +72,7 @@ public class InquiryAgentService {
      * @param conversationHistory 이전 대화 메시지 (최초 분석 시 빈 리스트)
      */
     public AgentResult run(Inquiry inquiry, List<InquiryMessage> conversationHistory) {
-        CheckOrderStatusTool orderTool = new CheckOrderStatusTool(orderRepository);
+        CheckOrderStatusTool orderTool = new CheckOrderStatusTool(orderRepository, inquiry.getCustomerIdentifier());
         SearchManualTool searchTool = new SearchManualTool(manualRetrievalService);
         SearchFaqTool faqTool = new SearchFaqTool(faqRepository);
         List<AgentTool<?>> tools = List.of(faqTool, searchTool, orderTool);
@@ -121,7 +121,7 @@ public class InquiryAgentService {
 
         List<AgentStep> steps = new ArrayList<>();
         int totalTokens = 0;
-        ToolCallContext callContext = new ToolCallContext(inquiry.getId());
+        ToolCallContext callContext = new ToolCallContext(inquiry.getId(), inquiry.getCustomerIdentifier());
 
         for (int step = 0; step < MAX_STEPS; step++) {
             Span stepSpan = tracer.spanBuilder("agent-step")

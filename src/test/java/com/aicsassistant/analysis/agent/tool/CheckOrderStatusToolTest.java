@@ -9,7 +9,9 @@ import org.junit.jupiter.api.Test;
 
 class CheckOrderStatusToolTest {
 
-    private final CheckOrderStatusTool tool = new CheckOrderStatusTool(new InMemoryOrderRepository());
+    /** ORD-20260410-001 은 cust-001 소유, ORD-20260401-004 는 cust-002 소유. */
+    private final CheckOrderStatusTool tool =
+            new CheckOrderStatusTool(new InMemoryOrderRepository(), "cust-001");
 
     @Test
     void returnsSuccessForKnownOrderId() {
@@ -45,6 +47,16 @@ class CheckOrderStatusToolTest {
         assertThat(result.ok()).isFalse();
         assertThat(result.errorCategory()).isEqualTo(ToolErrorCategory.NOT_FOUND);
         assertThat(result.isRetryable()).isFalse();
+    }
+
+    @Test
+    void returnsNotFoundForOrderOwnedByAnotherCustomer() {
+        ToolResult result = tool.execute(new CheckOrderStatusTool.Input("ORD-20260401-004"));
+
+        assertThat(result.ok()).isFalse();
+        assertThat(result.errorCategory()).isEqualTo(ToolErrorCategory.NOT_FOUND);
+        // 존재하지 않는 주문과 동일한 응답 — 주문번호 스캐닝으로 타인의 주문 존재를 알아낼 수 없다
+        assertThat(result.data()).isNull();
     }
 
     @Test

@@ -1,10 +1,13 @@
 package com.aicsassistant.order;
 
+import com.aicsassistant.user.DummyUserStore;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -145,7 +148,24 @@ public class InMemoryOrderRepository {
                 "제품 불량으로 반품 접수 후 처리 완료. 환불 완료"))
     );
 
-    public Optional<OrderInfo> findById(String orderId) {
+    /** 주문 소유자 — 데모 사용자 데이터에서 파생하므로 두 곳에 중복 정의되지 않는다. */
+    private static final Map<String, String> OWNER_BY_ORDER = DummyUserStore.getAll().stream()
+            .flatMap(u -> u.orders().stream().map(o -> Map.entry(o.orderId(), u.id())))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+    /**
+     * 주문을 조회한다. 요청자 소유가 아닌 주문은 존재하지 않는 것으로 취급한다.
+     *
+     * <p>소유자가 아닐 때 PERMISSION이 아니라 빈 결과(→ NOT_FOUND)를 주는 이유: 둘을 구분해주면
+     * 주문번호를 하나씩 넣어보며 타인의 주문 존재 여부를 알아낼 수 있다.
+     *
+     * <p>ponytail: 이 검증은 customerIdentifier 만큼만 강하다. 데모는 이 값을 클라이언트에서
+     * 그대로 받으므로(inquiry-new.html), 실제 서비스에서는 인증된 세션에서 해결해야 한다.
+     */
+    public Optional<OrderInfo> findById(String orderId, String customerIdentifier) {
+        if (!Objects.equals(OWNER_BY_ORDER.get(orderId), customerIdentifier)) {
+            return Optional.empty();
+        }
         return Optional.ofNullable(ORDERS.get(orderId));
     }
 
