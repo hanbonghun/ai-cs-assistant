@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
@@ -67,6 +68,11 @@ public class StagedChange {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    /** 동시 승인 방지 — 두 상담사가 같은 제안을 동시에 승인/거부하면 나중에 커밋하는 쪽이 낙관적 잠금 예외를 받는다. */
+    @Version
+    @Column(nullable = false)
+    private long version;
 
     protected StagedChange() {
     }
