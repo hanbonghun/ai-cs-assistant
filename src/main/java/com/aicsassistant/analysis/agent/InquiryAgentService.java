@@ -115,7 +115,7 @@ public class InquiryAgentService {
             if (msg.getRole() == InquiryMessageRole.AI) {
                 messages.add(ChatMessage.assistant(msg.getContent()));
             } else {
-                messages.add(ChatMessage.user(msg.getContent()));
+                messages.add(ChatMessage.user(promptFactory.fenceCustomerText(msg.getContent())));
             }
         }
 
@@ -199,25 +199,31 @@ public class InquiryAgentService {
         return tags;
     }
 
+    /**
+     * 최초 사용자 메시지를 조립한다.
+     *
+     * <p>주문 정보는 서버가 조회한 신뢰 데이터라 울타리 밖에 두고, 제목·본문은 고객이 쓴 것이므로
+     * 울타리 안에 넣는다. 이 구분이 프롬프트 인젝션 방어의 전부이므로 순서를 바꾸지 말 것.
+     */
     private String buildInitialMessage(Inquiry inquiry, CheckOrderStatusTool orderTool) {
         StringBuilder sb = new StringBuilder();
-        sb.append("고객 문의 제목: ").append(inquiry.getTitle()).append("\n\n");
 
         String orderId = inquiry.getRelatedOrderId();
         if (orderId != null && !orderId.isBlank()) {
             try {
                 ToolResult orderResult = orderTool.execute(new CheckOrderStatusTool.Input(orderId));
                 if (orderResult.ok()) {
-                    sb.append("[관련 주문 정보]\n").append(orderResult.data()).append("\n");
+                    sb.append("[관련 주문 정보]\n").append(orderResult.data()).append("\n\n");
                 } else {
-                    sb.append("[관련 주문 조회 실패] ").append(orderResult.errorMessage()).append("\n");
+                    sb.append("[관련 주문 조회 실패] ").append(orderResult.errorMessage()).append("\n\n");
                 }
             } catch (Exception e) {
                 log.warn("[Agent] 주문 정보 선주입 실패 orderId={}", orderId, e);
             }
         }
 
-        sb.append("[문의 내용]\n").append(inquiry.getContent());
+        sb.append(promptFactory.fenceCustomerText(
+                "고객 문의 제목: " + inquiry.getTitle() + "\n\n[문의 내용]\n" + inquiry.getContent()));
         return sb.toString();
     }
 
