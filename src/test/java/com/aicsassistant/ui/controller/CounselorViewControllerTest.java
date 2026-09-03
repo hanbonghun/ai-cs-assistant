@@ -1,7 +1,9 @@
 package com.aicsassistant.ui.controller;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
@@ -12,6 +14,7 @@ import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.manual.application.ManualService;
 import com.aicsassistant.staging.application.StagedChangeApprovalService;
+import com.aicsassistant.staging.dto.StagedChangeResponse;
 import com.aicsassistant.ui.application.DashboardService;
 import com.aicsassistant.ui.application.InquiryDetailAssembler;
 import java.time.LocalDateTime;
@@ -66,5 +69,54 @@ public class CounselorViewControllerTest {
         mvc.perform(get("/ui/inquiries/1"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("inquiries/detail"));
+    }
+
+    /**
+     * detail.html의 환불 제안 카드·이력 블록은 Thymeleaf 표현식(th:each/th:if/#numbers/#temporals)이라
+     * 컴파일이나 다른 계층 테스트로는 검증되지 않는다 — MockMvc가 실제로 뷰 리졸버를 태워 렌더링해야만
+     * 표현식 오류가 드러난다. stagedChangeApprovalService가 빈 리스트를 반환하면 두 블록 모두
+     * th:each가 스킵되어 새 표현식이 하나도 평가되지 않으므로, 여기서는 PENDING/APPROVED/REJECTED
+     * 3건을 채워 넣어 모든 분기(policyBasis 유무, approvedAmount 유무, decisionNote 유무)를 최소 1회씩
+     * 실제로 평가시킨다. 다른 뷰 컨트롤러 테스트처럼 우선순위가 낮지 않다 — 지우지 말 것.
+     */
+    @Test
+    public void rendersStagedChangeProposalsAndHistory() throws Exception {
+        given(inquiryService.getInquiry(1L)).willReturn(new InquiryDetailResponse(
+                1L,
+                "cust-1",
+                "문의 제목",
+                "문의 내용",
+                InquiryCategory.REFUND,
+                UrgencyLevel.HIGH,
+                InquiryStatus.AI_PROCESSED,
+                "AI 초안",
+                null,
+                null,
+                null,
+                null,
+                LocalDateTime.of(2026, 4, 8, 9, 0),
+                LocalDateTime.of(2026, 4, 8, 9, 0),
+                List.of()
+        ));
+        given(stagedChangeApprovalService.findByInquiry(1L)).willReturn(List.of(
+                new StagedChangeResponse(1L, "REFUND", "ORD-1", 45000, null,
+                        "고객이 미배송을 주장", "환불정책 3조", "PENDING",
+                        null, null, null, LocalDateTime.of(2026, 4, 8, 9, 0)),
+                new StagedChangeResponse(2L, "REFUND", "ORD-2", 50000, 32000,
+                        "부분 파손 확인", null, "APPROVED",
+                        "counselor-9", LocalDateTime.of(2026, 4, 8, 10, 15), "금액 확인 후 조정",
+                        LocalDateTime.of(2026, 4, 8, 10, 0)),
+                new StagedChangeResponse(3L, "REFUND", "ORD-3", 20000, null,
+                        "단순 변심", null, "REJECTED",
+                        "counselor-9", LocalDateTime.of(2026, 4, 8, 11, 0), "환불 요건 미충족",
+                        LocalDateTime.of(2026, 4, 8, 10, 30))
+        ));
+
+        mvc.perform(get("/ui/inquiries/1"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("inquiries/detail"))
+                .andExpect(content().string(containsString("ORD-1")))
+                .andExpect(content().string(containsString("45,000원")))
+                .andExpect(content().string(containsString("AI 제안 50,000원 → 승인 32,000원")));
     }
 }
