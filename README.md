@@ -23,6 +23,7 @@ LLM 프레임워크(LangChain 등) 없이 **ReAct Agent 루프**와 **Hybrid RAG
 | **멀티턴 대화** | AI 추가 질문 → 고객 답변 → 재분석 반복 흐름 |
 | **자동 라우팅** | 고위험·에스컬레이션 문의는 Slack 알림 + 상담사 검토 큐로 분리 |
 | **상담사 어드민** | AI 분석 과정(thought/tool/observation) 시각화 + 최종 답변 확정 |
+| **승인 게이트** | AI가 환불을 제안(staging)하고 상담사 승인 후에만 실행 — 가드레일 4종을 코드로 검사 |
 | **대시보드** | 자동응답률·평균 응답시간·카테고리 분포 등 KPI 시각화 |
 | **유저 포털** | 주문 기반 문의 등록, 멀티턴 대화, 답변 확인 |
 
@@ -67,10 +68,16 @@ flowchart TB
 
     subgraph Agent["ReAct Agent"]
         AgentLoop["InquiryAgentService\nMAX 8 스텝 루프\nJsonNode → typed Input 역직렬화"]
-        Interceptors["ToolCallInterceptor 체인\n(예산·고액 주문 가드)"]
+        Interceptors["ToolCallInterceptor 체인\n(예산·고액 주문·provenance·환불 가드레일)"]
         FaqTool["SearchFaqTool\n큐레이션 단답"]
         SearchTool["SearchManualTool\n정책 원문 RAG"]
         OrderTool["CheckOrderStatusTool\n주문 데이터"]
+        RefundTool["StageRefundTool\n환불 제안 (실행 아님)"]
+    end
+
+    subgraph Staging["승인 게이트"]
+        StagedChange[("staged_change\nPENDING → APPROVED/REJECTED")]
+        Approval["StagedChangeApprovalService\n재검사 → 실행 → 고객 알림"]
     end
 
     subgraph RAG["Hybrid RAG 파이프라인"]
@@ -103,7 +110,11 @@ flowchart TB
     InquiryService -->|InquiryCreatedEvent| EventListener
     EventListener --> AnalysisService
     AnalysisService --> AgentLoop
-    AgentLoop --> Interceptors --> FaqTool & SearchTool & OrderTool
+    AgentLoop --> Interceptors --> FaqTool & SearchTool & OrderTool & RefundTool
+    RefundTool --> StagedChange
+    AdminUI -->|승인/거부| Approval
+    Approval --> StagedChange
+    Approval --> InMemoryOrder
     FaqTool --> InMemoryFaq["InMemoryFaqRepository\n(데모용 Mock)"]
     SearchTool --> Retrieval
     OrderTool --> InMemoryOrder["InMemoryOrderRepository\n(데모용 Mock)"]

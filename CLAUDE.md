@@ -77,7 +77,9 @@ com.aicsassistant
 
 ### 툴 설계 원칙
 - 조회 툴은 에이전트가 자유롭게 호출 가능
-- 상태 변경 툴(환불 실행 등)은 에이전트 툴셋에 포함하지 않고 상담사 승인 후 실행
+- 쓰기 툴은 **staging만** 한다 — 에이전트는 제안을 올릴 수 있고, 실행은 상담사 승인 표면(`StagedChangeApprovalService`)에서만 일어난다
+- 쓰기 툴의 가드레일은 프롬프트가 아니라 `ToolCallInterceptor`에서 코드로 검사한다 (provenance·금액·상태·중복)
+- 툴 결과 문구에 "아직 실행되지 않았음"을 명시해 에이전트가 staging을 실행 완료로 오인하지 않게 한다
 
 ---
 
@@ -92,6 +94,13 @@ com.aicsassistant
 | `AUTO_ANSWERED` | AI가 직접 최종 답변 전송 완료 |
 | `REVIEWED` | 상담사 검토 완료 |
 | `CLOSED` | 종료 |
+
+### StagedChangeStatus
+| 상태 | 설명 |
+|------|------|
+| `PENDING` | 에이전트가 제안, 상담사 승인 대기 |
+| `APPROVED` | 상담사 승인 → 실행 완료 |
+| `REJECTED` | 상담사 거부 (사유 필수) |
 
 ---
 
