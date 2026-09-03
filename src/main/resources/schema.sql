@@ -96,3 +96,6 @@ create table if not exists staged_change (
 
 create index if not exists idx_staged_change_order_pending
     on staged_change(order_id) where status = 'PENDING';
+
+-- 상담사가 제안 금액을 수정해 승인한 경우의 최종 금액. null 이면 제안 금액을 그대로 승인한 것이다.
+alter table staged_change add column if not exists approved_amount integer;

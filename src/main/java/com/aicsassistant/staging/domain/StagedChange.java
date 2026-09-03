@@ -62,6 +62,9 @@ public class StagedChange {
     @Column(name = "decision_note", columnDefinition = "text")
     private String decisionNote;
 
+    @Column(name = "approved_amount")
+    private Integer approvedAmount;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -82,12 +85,27 @@ public class StagedChange {
         return change;
     }
 
-    public void approve(String decidedBy, String decisionNote) {
+    /**
+     * 승인한다. {@code approvedAmount} 가 null 이면 제안 금액을 그대로 승인한 것이다.
+     *
+     * <p>제안 금액은 덮어쓰지 않는다 — AI 가 얼마를 제안했고 사람이 얼마로 고쳤는지가 이력으로 남아야 한다.
+     */
+    public void approve(String decidedBy, String decisionNote, Integer approvedAmount) {
         requirePending();
+        if (approvedAmount != null && approvedAmount <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_APPROVED_AMOUNT",
+                    "승인 금액은 0보다 커야 합니다.");
+        }
         this.status = StagedChangeStatus.APPROVED;
         this.decidedBy = decidedBy;
         this.decisionNote = decisionNote;
+        this.approvedAmount = approvedAmount;
         this.decidedAt = LocalDateTime.now();
+    }
+
+    /** 실행·알림·재검사의 기준이 되는 최종 금액. */
+    public int effectiveAmount() {
+        return approvedAmount != null ? approvedAmount : amount;
     }
 
     public void reject(String decidedBy, String decisionNote) {
