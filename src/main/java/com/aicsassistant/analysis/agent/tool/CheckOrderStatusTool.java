@@ -15,9 +15,12 @@ public class CheckOrderStatusTool implements AgentTool<CheckOrderStatusTool.Inpu
     public record Input(String orderId) {}
 
     private final InMemoryOrderRepository orderRepository;
+    /** 조회 범위를 이 고객의 주문으로 제한한다. 모델 인수가 아니라 문의에서 가져온다. */
+    private final String customerIdentifier;
 
-    public CheckOrderStatusTool(InMemoryOrderRepository orderRepository) {
+    public CheckOrderStatusTool(InMemoryOrderRepository orderRepository, String customerIdentifier) {
         this.orderRepository = orderRepository;
+        this.customerIdentifier = customerIdentifier;
     }
 
     @Override
@@ -75,7 +78,7 @@ public class CheckOrderStatusTool implements AgentTool<CheckOrderStatusTool.Inpu
                     false,
                     "'orderId' field is required.");
         }
-        return orderRepository.findById(orderId)
+        return orderRepository.findById(orderId, customerIdentifier)
                 .map(o -> ToolResult.success(orderRepository.formatText(o)))
                 .orElseGet(() -> ToolResult.error(
                         ToolErrorCategory.NOT_FOUND,

@@ -8,14 +8,20 @@ package com.aicsassistant.analysis.agent;
 public final class ToolCallContext {
 
     private final Long inquiryId;
+    private final String customerIdentifier;
     private int toolCallCount;
 
-    public ToolCallContext(Long inquiryId) {
+    public ToolCallContext(Long inquiryId, String customerIdentifier) {
         this.inquiryId = inquiryId;
+        this.customerIdentifier = customerIdentifier;
     }
 
     public Long inquiryId() {
         return inquiryId;
+    }
+
+    public String customerIdentifier() {
+        return customerIdentifier;
     }
 
     public int toolCallCount() {
