@@ -65,7 +65,7 @@ com.aicsassistant
 
 ### ReAct 루프
 - 최대 스텝: `MAX_STEPS = 8`
-- 툴: `search_manual` (RAG 검색), `check_order_status` (주문 조회)
+- 툴: `search_faq` (큐레이션 단답), `search_manual` (RAG 검색), `check_order_status` (주문 조회), `stage_refund` (환불 제안 접수 — 실행 아님)
 - 에이전트 스텝은 `InquiryAnalysisLog.agentSteps`에 JSON 직렬화하여 저장
 
 ### 에스컬레이션 규칙 (`PromptFactory`)

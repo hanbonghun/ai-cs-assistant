@@ -569,8 +569,8 @@ src/main/java/com/aicsassistant/
 │   └── infra/
 ├── analysis/               # AI 분석 도메인
 │   ├── agent/              # ReAct Agent 루프, AgentTool, ToolResult, ToolCallInterceptor
-│   │   ├── interceptor/    # ToolCallBudgetInterceptor, HighValueOrderInterceptor
-│   │   └── tool/           # SearchFaqTool, SearchManualTool, CheckOrderStatusTool
+│   │   ├── interceptor/    # ToolCallBudgetInterceptor, HighValueOrderInterceptor, OrderProvenanceInterceptor, RefundGuardrailInterceptor
+│   │   └── tool/           # SearchFaqTool, SearchManualTool, CheckOrderStatusTool, StageRefundTool
 │   ├── application/        # InquiryAnalysisService, AnalysisLogService
 │   ├── api/
 │   ├── domain/             # InquiryAnalysisLog
@@ -581,6 +581,12 @@ src/main/java/com/aicsassistant/
 │   ├── application/        # ManualService, ManualChunker
 │   ├── api/
 │   └── infra/              # ManualChunkJdbcRepository (pgvector)
+├── staging/                # 환불 승인 게이트 도메인
+│   ├── domain/             # StagedChange, StagedChangeStatus, ChangeType, RefundGuardrails
+│   ├── application/        # StagedChangeApprovalService
+│   ├── api/                # StagedChangeController
+│   ├── dto/
+│   └── infra/              # StagedChangeRepository
 ├── faq/                    # 자주 묻는 질문 (InMemoryFaqRepository — 데모 Mock)
 ├── order/                  # 주문 조회 (InMemoryOrderRepository — 데모 Mock)
 ├── user/                   # 더미 유저 스토어 (데모용)
