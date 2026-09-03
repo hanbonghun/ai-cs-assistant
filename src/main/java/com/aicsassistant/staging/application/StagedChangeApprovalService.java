@@ -64,13 +64,12 @@ public class StagedChangeApprovalService {
         reCheckGuardrails(change, inquiry, finalAmount);
 
         change.approve(request.decidedBy(), request.decisionNote(), request.approvedAmount());
-        // ponytail: DB 쓰기(제안 상태·알림 메시지)는 이 트랜잭션 안이지만 mock 주문 변경은 밖이다.
-        // 실행을 마지막에 두어 실무상 어긋날 확률을 없앴을 뿐, 실제 결제 시스템이면 아웃박스가 필요하다.
+        // 동시성 경합의 패자를 markRefunded·알림 저장 전에 먼저 걸러낸다 (이유는 아래 메서드 참고)
+        flushOrRejectAsAlreadyDecided(change);
         orderRepository.markRefunded(change.getOrderId());
         messageRepository.save(InquiryMessage.of(inquiryId, InquiryMessageRole.AI,
                 "요청하신 환불이 승인되어 처리되었습니다. 주문 %s · 환불 금액 %,d원입니다. 카드 취소는 2~3 영업일이 소요될 수 있습니다."
                         .formatted(change.getOrderId(), change.effectiveAmount())));
-        flushOrRejectAsAlreadyDecided(change);
 
         log.info("[StagedChange approved] changeId={} inquiryId={} orderId={} proposed={} final={} by={}",
                 changeId, inquiryId, change.getOrderId(), change.getAmount(),
@@ -94,10 +93,10 @@ public class StagedChangeApprovalService {
      * 동시 승인 방지. 두 상담사가 같은 PENDING 제안을 동시에 열어 각자 결정하면 둘 다 이 시점까지는
      * 통과하지만, 여기서 강제로 flush 해 {@code @Version} 충돌을 즉시 드러낸다.
      *
-     * <p>먼저 커밋한 쪽이 이긴다. 진 쪽은 이 트랜잭션 전체가 롤백되므로 방금 저장한 알림 메시지도
-     * 함께 사라진다 — {@code markRefunded}(mock 주문 상태 변경)만 이 트랜잭션 밖이라 롤백되지
-     * 않지만, 상태를 "환불완료"로 다시 세팅할 뿐인 멱등 연산이라 문제 없다. 결과적으로 고객에게는
-     * 승자의 알림 1건만 남는다.
+     * <p>{@code approve()} 에서는 이 호출을 {@code markRefunded}·알림 저장보다 앞에 둔다 —
+     * 진 쪽은 여기서 바로 걸러지므로 주문 실행이나 알림 저장까지 가지 않는다. mock
+     * {@code markRefunded} 는 멱등이라 순서가 바뀌어도 무해했겠지만, 실제 결제 게이트웨이로
+     * 바뀌면 멱등하지 않으므로 패자가 게이트웨이를 호출하기 전에 걸러내는 이 순서가 중요해진다.
      */
     private void flushOrRejectAsAlreadyDecided(StagedChange change) {
         try {

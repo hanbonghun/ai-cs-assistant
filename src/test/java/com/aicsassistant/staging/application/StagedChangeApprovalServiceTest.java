@@ -187,8 +187,9 @@ class StagedChangeApprovalServiceTest extends PostgresVectorIntegrationTest {
 
     @Test
     void rejectsNonPositiveEditedAmountAtApprovalTime() {
-        // 제안 시점 검증(StageRefundTool)을 거치지 않은 staged_change 행을 흉내낸다 —
-        // 승인 시점 재검사는 제안 상태를 신뢰하지 않아야 한다.
+        // 상담사가 금액을 -5,000원으로 고쳐 승인 시도하는 경우. 이 경로는 사실 도메인의
+        // INVALID_APPROVED_AMOUNT 로도 막히지만, 서비스의 재검사가 change.approve(...) 호출보다
+        // 먼저 실행되므로 GUARDRAIL_FAILED 가 먼저 나간다.
         StagedChange proposal = pendingProposal(45_000);
 
         assertThatThrownBy(() -> approvalService.approve(proposal.getInquiryId(), proposal.getId(),
@@ -198,6 +199,29 @@ class StagedChangeApprovalServiceTest extends PostgresVectorIntegrationTest {
 
         assertThat(stagedChangeRepository.findById(proposal.getId()).orElseThrow().getStatus())
                 .isEqualTo(StagedChangeStatus.PENDING);
+        assertThat(messageRepository.findByInquiryIdOrderByCreatedAtAsc(proposal.getInquiryId())).isEmpty();
+    }
+
+    @Test
+    void rejectsNonPositiveProposedAmountApprovedWithoutEditing() {
+        // amount <= 0 인 staged_change 행 자체는 StageRefundTool 을 거치지 않은 경로(직접 DB 조작,
+        // 데이터 수정, 미래의 다른 제안 경로)에서만 생길 수 있다 — StagedChange.propose 는 금액을
+        // 검증하지 않으므로 테스트가 직접 이런 행을 만들 수 있다. approvedAmount 를 지정하지 않으면
+        // (상담사가 금액을 고치지 않은 기본 승인) finalAmount 가 이 음수 제안 금액으로 그대로
+        // 떨어지고, approve(...) 안의 INVALID_APPROVED_AMOUNT 검사는 approvedAmount == null 이라
+        // 건드리지 않는다 — 승인 시점 재검사가 이 구멍을 막는 유일한 방어선이다.
+        StagedChange proposal = pendingProposal(-5_000);
+
+        assertThatThrownBy(() -> approvalService.approve(proposal.getInquiryId(), proposal.getId(),
+                new StagedChangeDecisionRequest("counselor-demo", null, null)))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("GUARDRAIL_FAILED");
+
+        assertThat(stagedChangeRepository.findById(proposal.getId()).orElseThrow().getStatus())
+                .isEqualTo(StagedChangeStatus.PENDING);
+        assertThat(orderRepository.findById(ORDER_ID, "cust-001").orElseThrow().status())
+                .isEqualTo("배송완료");
+        assertThat(messageRepository.findByInquiryIdOrderByCreatedAtAsc(proposal.getInquiryId())).isEmpty();
     }
 
     @Test
