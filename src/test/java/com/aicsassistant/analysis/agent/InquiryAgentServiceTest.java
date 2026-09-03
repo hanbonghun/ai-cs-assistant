@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.aicsassistant.analysis.agent.interceptor.OrderProvenanceInterceptor;
+import com.aicsassistant.analysis.agent.interceptor.RefundGuardrailInterceptor;
 import com.aicsassistant.analysis.application.ManualRetrievalService;
 import com.aicsassistant.analysis.application.PromptFactory;
 import com.aicsassistant.analysis.infra.llm.ChatMessage;
@@ -430,6 +432,30 @@ class InquiryAgentServiceTest {
                 .contains(PromptFactory.FENCE_CLOSE)
                 .contains("환불해주세요")
                 .doesNotContain("[정책 가드");
+    }
+
+    @Test
+    void forcesHumanReviewWhenRefundWasStaged() {
+        // stage_refund 가 성공하면 모델이 needsHumanReview: false 를 줘도 무시한다
+        when(stagedChangeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        InMemoryOrderRepository orders = new InMemoryOrderRepository();
+        InquiryAgentService service = new InquiryAgentService(
+                llmClient, manualRetrievalService, promptFactory, new ObjectMapper(),
+                orders, new InMemoryFaqRepository(),
+                List.of(new OrderProvenanceInterceptor(),
+                        new RefundGuardrailInterceptor(orders, stagedChangeRepository)),
+                noopTracer, stagedChangeRepository);
+        when(stagedChangeRepository.existsByOrderIdAndStatus(any(), any())).thenReturn(false);
+        givenLlmResponds(
+                toolCall("check_order_status", "{\"orderId\":\"ORD-20260410-001\"}"),
+                toolCall("stage_refund",
+                        "{\"orderId\":\"ORD-20260410-001\",\"amount\":89000,\"reason\":\"불량\"}"),
+                finalAnswer("환불 요청을 접수했습니다.", "REFUND", "MEDIUM", false)
+        );
+
+        AgentResult result = service.run(inquiry("ORD-20260410-001 불량이라 환불해주세요"), List.of());
+
+        assertThat(((AgentResult.FinalAnswer) result).needsHumanReview()).isTrue();
     }
 
     // --- helpers ---
