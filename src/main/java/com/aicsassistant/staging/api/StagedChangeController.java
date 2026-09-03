@@ -4,9 +4,7 @@ import com.aicsassistant.staging.application.StagedChangeApprovalService;
 import com.aicsassistant.staging.dto.StagedChangeDecisionRequest;
 import com.aicsassistant.staging.dto.StagedChangeResponse;
 import jakarta.validation.Valid;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,11 +17,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class StagedChangeController {
 
     private final StagedChangeApprovalService approvalService;
-
-    @GetMapping
-    public List<StagedChangeResponse> list(@PathVariable Long inquiryId) {
-        return approvalService.findByInquiry(inquiryId);
-    }
 
     @PostMapping("/{changeId}/approve")
     public StagedChangeResponse approve(

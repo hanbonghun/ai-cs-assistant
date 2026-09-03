@@ -109,6 +109,19 @@ class RefundGuardrailInterceptorTest {
     }
 
     @Test
+    void blocksAlreadyRefundedOrder() {
+        // ALREADY_REFUNDED_STATUS(환불완료)가 REFUND_BLOCKING_STATUSES 에도 있어야 한다 — 제안
+        // 시점에 이 상태를 놓치면, 승인 시점에만 걸리는 죽은 카드(거부로만 해소되는)가 생긴다.
+        givenObservedOrder("환불완료", 45_000);
+
+        Optional<ToolResult> blocked = interceptor.beforeExecute("stage_refund", input("ORD-A", 45_000), ctx);
+
+        assertThat(blocked).isPresent();
+        assertThat(blocked.get().errorCategory()).isEqualTo(ToolErrorCategory.PERMISSION);
+        assertThat(blocked.get().errorMessage()).contains("환불완료");
+    }
+
+    @Test
     void allowsPartiallyRefundedOrder() {
         givenObservedOrder("부분환불완료", 215_000);
         when(stagedChangeRepository.existsByOrderIdAndStatus("ORD-A", StagedChangeStatus.PENDING))

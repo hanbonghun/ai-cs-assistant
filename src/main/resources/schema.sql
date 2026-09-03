@@ -102,3 +102,10 @@ alter table staged_change add column if not exists approved_amount integer;
 
 -- 동시 승인 방지용 낙관적 잠금 버전. 두 상담사가 같은 제안을 동시에 승인/거부하는 것을 막는다.
 alter table staged_change add column if not exists version bigint not null default 0;
+
+-- 한 주문에 대해 PENDING 제안이 두 건 만들어져 각각 다른 트랜잭션에서 승인되는 경합을 막는다.
+-- @Version 은 같은 행에 대한 동시 결정만 막을 뿐, 서로 다른 행(제안) 두 개가 같은 주문을
+-- 동시에 환불하는 것은 막지 못한다. APPROVED 상태에만 유니크를 걸어야 한다 — PENDING 에
+-- 걸면 StageRefundTool.save 시점에 위반이 발생해 analyze() 트랜잭션 전체가 rollback-only 가 된다.
+create unique index if not exists uq_staged_change_order_approved
+    on staged_change(order_id) where status = 'APPROVED';

@@ -22,16 +22,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 /**
- * 동시 승인 방지({@code @Version}) 가드가 실제로 {@code ALREADY_DECIDED} 로 변환되는지 검증한다.
+ * 동시 승인 방지 가드가 실제로 {@code ALREADY_DECIDED} 로 변환되는지 검증한다.
+ * {@code @Version}(같은 행의 동시 결정)과 {@code uq_staged_change_order_approved}
+ * (같은 주문의 서로 다른 PENDING 행이 동시에 승인되는 경우) 두 경합을 모두 다룬다.
  *
- * <p>두 트랜잭션이 동시에 같은 버전을 읽는 진짜 경합은 스레드 없이는 결정적으로 재현할 수 없다.
- * 대신 {@code stagedChangeRepository.saveAndFlush(...)} 가 낙관적 잠금 예외를 던지는 상황을
+ * <p>두 트랜잭션이 동시에 경합하는 진짜 상황은 스레드 없이는 결정적으로 재현할 수 없다.
+ * 대신 {@code stagedChangeRepository.saveAndFlush(...)} 가 해당 예외를 던지는 상황을
  * 직접 흉내낸다 — 이 테스트의 대상은 서비스가 그 예외를 실제로 캐치해 재해석하는지이지,
- * JPA 의 버전 충돌 감지 자체(그건 엔티티 매핑·스키마의 몫이고 통합 테스트가 부팅 시점에
- * 이미 검증한다)가 아니다.
+ * JPA 의 버전 충돌 감지나 DB 유니크 인덱스 자체(그건 엔티티 매핑·스키마의 몫이고 통합
+ * 테스트가 부팅 시점에 이미 검증한다)가 아니다.
  */
 @ExtendWith(MockitoExtension.class)
 class StagedChangeApprovalServiceOptimisticLockTest {
@@ -68,6 +71,27 @@ class StagedChangeApprovalServiceOptimisticLockTest {
                 new OrderInfo(ORDER_ID, "상품", "배송완료", 45_000, "2026-01-01", null, null, null, null)));
         when(stagedChangeRepository.saveAndFlush(change))
                 .thenThrow(new ObjectOptimisticLockingFailureException(StagedChange.class, CHANGE_ID));
+
+        assertThatThrownBy(() -> approvalService.approve(INQUIRY_ID, CHANGE_ID,
+                new StagedChangeDecisionRequest("counselor-demo", null, null)))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("ALREADY_DECIDED");
+
+        // flush 를 markRefunded·알림 저장보다 앞에 뒀으므로, 패자는 둘 다 건드리지 않고 끝나야 한다
+        verify(orderRepository, never()).markRefunded(any());
+        verify(messageRepository, never()).save(any());
+    }
+
+    @Test
+    void approveTranslatesUniqueIndexViolationIntoAlreadyDecided() {
+        StagedChange change = pendingChange();
+        when(stagedChangeRepository.findById(CHANGE_ID)).thenReturn(Optional.of(change));
+        when(inquiryRepository.findById(INQUIRY_ID))
+                .thenReturn(Optional.of(Inquiry.create(CUSTOMER_ID, "문의", "환불 요청", null, null, ORDER_ID)));
+        when(orderRepository.findById(ORDER_ID, CUSTOMER_ID)).thenReturn(Optional.of(
+                new OrderInfo(ORDER_ID, "상품", "배송완료", 45_000, "2026-01-01", null, null, null, null)));
+        when(stagedChangeRepository.saveAndFlush(change))
+                .thenThrow(new DataIntegrityViolationException("uq_staged_change_order_approved"));
 
         assertThatThrownBy(() -> approvalService.approve(INQUIRY_ID, CHANGE_ID,
                 new StagedChangeDecisionRequest("counselor-demo", null, null)))
