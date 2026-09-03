@@ -1,6 +1,7 @@
 package com.aicsassistant.staging.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.infra.InquiryRepository;
@@ -12,6 +13,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @SpringBootTest
 class StagedChangeRepositoryTest extends PostgresVectorIntegrationTest {
@@ -68,5 +70,24 @@ class StagedChangeRepositoryTest extends PostgresVectorIntegrationTest {
 
         assertThat(found).hasSize(2);
         assertThat(found).extracting(StagedChange::getOrderId).containsExactlyInAnyOrder("ORD-A", "ORD-B");
+    }
+
+    @Test
+    void secondApprovalOnSameOrderViolatesUniqueIndexImmediatelyAtFlush() {
+        // uq_staged_change_order_approved (schema.sql) 가 실제로 걸려 있고, 커밋까지 기다리지 않고
+        // saveAndFlush 호출 자체 안에서 즉시 위반이 드러나는지 검증한다 — 별도 트랜잭션 커밋이나
+        // 스레드 없이도 이 메서드 호출 시점에 예외가 나오면 deferrable 이 아니라는 뜻이다.
+        Long inquiryId = newInquiryId();
+        StagedChange first = stagedChangeRepository.save(StagedChange.propose(
+                inquiryId, ChangeType.REFUND, "ORD-RACE", 10_000, "첫 제안", null));
+        StagedChange second = stagedChangeRepository.save(StagedChange.propose(
+                inquiryId, ChangeType.REFUND, "ORD-RACE", 10_000, "두 번째 제안", null));
+
+        first.approve("counselor-1", null, null);
+        stagedChangeRepository.saveAndFlush(first);
+
+        second.approve("counselor-2", null, null);
+        assertThatThrownBy(() -> stagedChangeRepository.saveAndFlush(second))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

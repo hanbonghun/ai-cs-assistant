@@ -19,6 +19,7 @@ import com.aicsassistant.staging.infra.StagedChangeRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,12 @@ import org.springframework.transaction.annotation.Transactional;
  * 상담사의 승인 표면. 에이전트가 올린 제안은 여기를 통해서만 실행된다.
  *
  * <p>가드레일을 승인 시점에 다시 검사한다 — 제안 시점과 승인 시점 사이에 주문 상태가 바뀔 수 있다.
+ *
+ * <p>ponytail: 이 승인은 {@code decidedBy} 만큼만 신뢰할 수 있다. 이 프로젝트에는
+ * {@code SecurityFilterChain} 이 없고, {@code decidedBy} 는 클라이언트가 보낸 고정 문자열
+ * {@code 'counselor-demo'} (inquiries/detail.html) 를 그대로 받으므로, 오늘 시점엔 이 엔드포인트에
+ * 닿을 수 있는 누구나 돈을 움직일 수 있고 "누가 결정했는가" 감사 컬럼은 상수다. 실제 서비스에서는
+ * 인증된 세션에서 {@code decidedBy} 를 해결해야 한다.
  */
 @Slf4j
 @Service
@@ -97,6 +104,12 @@ public class StagedChangeApprovalService {
      * 진 쪽은 여기서 바로 걸러지므로 주문 실행이나 알림 저장까지 가지 않는다. mock
      * {@code markRefunded} 는 멱등이라 순서가 바뀌어도 무해했겠지만, 실제 결제 게이트웨이로
      * 바뀌면 멱등하지 않으므로 패자가 게이트웨이를 호출하기 전에 걸러내는 이 순서가 중요해진다.
+     *
+     * <p>같은 주문에 PENDING 행이 두 개 있으면 {@code @Version} 은 서로 다른 행이라 무력하다 —
+     * 그 경합은 {@code uq_staged_change_order_approved} (schema.sql) 가 막는다. 이 유니크 인덱스는
+     * deferrable 이 아니므로 Postgres 는 UPDATE 문 실행 시점에 즉시 검사한다 — 즉 커밋을
+     * 기다리지 않고 바로 아래 {@code saveAndFlush} 호출 안에서 위반이 드러나므로 낙관적 잠금과
+     * 같은 방식으로 여기서 잡을 수 있다.
      */
     private void flushOrRejectAsAlreadyDecided(StagedChange change) {
         try {
@@ -104,6 +117,9 @@ public class StagedChangeApprovalService {
         } catch (ObjectOptimisticLockingFailureException e) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "ALREADY_DECIDED",
                     "다른 상담사가 먼저 처리했습니다. (ALREADY_DECIDED)");
+        } catch (DataIntegrityViolationException e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "ALREADY_DECIDED",
+                    "이 주문에 대한 다른 환불 승인이 이미 처리되었습니다. (ALREADY_DECIDED)");
         }
     }
 
@@ -119,13 +135,15 @@ public class StagedChangeApprovalService {
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "GUARDRAIL_FAILED",
                         "주문 정보를 확인할 수 없어 승인할 수 없습니다. (GUARDRAIL_FAILED)"));
 
-        if (REFUND_BLOCKING_STATUSES.contains(order.status())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "GUARDRAIL_FAILED",
-                    "주문 상태가 [" + order.status() + "]로 바뀌어 승인할 수 없습니다. (GUARDRAIL_FAILED)");
-        }
+        // ALREADY_REFUNDED_STATUS 는 REFUND_BLOCKING_STATUSES 에도 포함되므로, 더 구체적인
+        // 메시지("이미 환불된 주문입니다")를 보존하려면 일반 차단 목록 검사보다 먼저 봐야 한다.
         if (order.status().equals(ALREADY_REFUNDED_STATUS)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "GUARDRAIL_FAILED",
                     "이미 환불된 주문입니다. (GUARDRAIL_FAILED)");
+        }
+        if (REFUND_BLOCKING_STATUSES.contains(order.status())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "GUARDRAIL_FAILED",
+                    "주문 상태가 [" + order.status() + "]로 바뀌어 승인할 수 없습니다. (GUARDRAIL_FAILED)");
         }
         // finalAmount <= 0 도 여기서 막는다 — 제안 시점 검증(StageRefundTool)을 거치지 않은
         // staged_change 행(직접 DB 조작, 데이터 수정, 미래의 다른 제안 경로)이 있을 수 있으므로

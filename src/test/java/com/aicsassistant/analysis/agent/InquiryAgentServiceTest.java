@@ -458,6 +458,36 @@ class InquiryAgentServiceTest {
         assertThat(((AgentResult.FinalAnswer) result).needsHumanReview()).isTrue();
     }
 
+    @Test
+    void stagesRefundFromPreInjectedOrderWithoutCheckOrderStatusStep() {
+        // relatedOrderId 로 선주입된 주문 정보는 인터셉터 체인을 거치지 않고 buildInitialMessage
+        // 에서 직접 ctx.recordObservedOrder(orderId) 를 호출해야 provenance 를 통과한다. 이 줄이
+        // 없으면 check_order_status 를 부르지 않고 곧바로 stage_refund 하는(포털 문의의 흔한 경로)
+        // 이 케이스가 RefundGuardrailInterceptor 의 PERMISSION 차단에 걸린다.
+        when(stagedChangeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        InMemoryOrderRepository orders = new InMemoryOrderRepository();
+        InquiryAgentService service = new InquiryAgentService(
+                llmClient, manualRetrievalService, promptFactory, new ObjectMapper(),
+                orders, new InMemoryFaqRepository(),
+                List.of(new OrderProvenanceInterceptor(),
+                        new RefundGuardrailInterceptor(orders, stagedChangeRepository)),
+                noopTracer, stagedChangeRepository);
+        when(stagedChangeRepository.existsByOrderIdAndStatus(any(), any())).thenReturn(false);
+        givenLlmResponds(
+                toolCall("stage_refund",
+                        "{\"orderId\":\"ORD-20260410-001\",\"amount\":89000,\"reason\":\"불량\"}"),
+                finalAnswer("환불 요청을 접수했습니다.", "REFUND", "MEDIUM", false)
+        );
+
+        Inquiry inquiryWithRelatedOrder = Inquiry.create(
+                "cust-001", "환불 요청", "불량이라 환불해주세요", null, null, "ORD-20260410-001");
+
+        AgentResult result = service.run(inquiryWithRelatedOrder, List.of());
+
+        verify(stagedChangeRepository).save(any());
+        assertThat(((AgentResult.FinalAnswer) result).needsHumanReview()).isTrue();
+    }
+
     // --- helpers ---
 
     private void givenLlmResponds(String... responses) {

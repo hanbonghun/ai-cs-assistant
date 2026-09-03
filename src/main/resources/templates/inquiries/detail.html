@@ -101,7 +101,7 @@
             <p style="margin:4px 0;">
                 <label>환불 금액
                     <input type="number" min="1" step="1000"
-                           th:attr="data-amount-for=${change.id}"
+                           th:attr="data-amount-for=${change.id},data-proposed-amount=${change.amount}"
                            th:value="${change.amount}" style="width:140px;">
                     원
                 </label>
@@ -430,6 +430,11 @@
                 return;
             }
             const won = approvedAmount.toLocaleString('ko-KR');
+            // 제안 금액 그대로 승인하면 null 로 보낸다 — 상담사가 실제로 금액을 고쳤는지가
+            // 이력에 사실로 남아야 한다 (data-proposed-amount 는 원본 제안 금액).
+            if (approvedAmount === Number(input.dataset.proposedAmount)) {
+                approvedAmount = null;
+            }
             if (!confirm(`${won}원을 환불 처리하고 고객에게 알림을 전송합니다. 계속할까요?`)) {
                 return;
             }
