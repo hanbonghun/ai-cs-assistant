@@ -69,6 +69,7 @@
 - Create: `src/main/java/com/aicsassistant/staging/domain/StagedChange.java`
 - Create: `src/main/java/com/aicsassistant/staging/domain/ChangeType.java`
 - Create: `src/main/java/com/aicsassistant/staging/domain/StagedChangeStatus.java`
+- Create: `src/main/java/com/aicsassistant/staging/domain/RefundGuardrails.java`
 - Create: `src/main/java/com/aicsassistant/staging/infra/StagedChangeRepository.java`
 - Modify: `src/main/resources/schema.sql` (파일 맨 끝에 추가)
 - Modify: `src/test/java/com/aicsassistant/support/PostgresVectorIntegrationTest.java` (truncate 목록)
@@ -84,6 +85,8 @@
   - getter: `getId()`, `getInquiryId()`, `getChangeType()`, `getOrderId()`, `getAmount()`, `getReason()`, `getPolicyBasis()`, `getStatus()`, `getDecidedBy()`, `getDecidedAt()`, `getDecisionNote()`, `getCreatedAt()`
   - `StagedChangeRepository#existsByOrderIdAndStatus(String orderId, StagedChangeStatus status)` → `boolean`
   - `StagedChangeRepository#findByInquiryIdOrderByCreatedAtDesc(Long inquiryId)` → `List<StagedChange>`
+  - `RefundGuardrails.REFUND_BLOCKING_STATUSES` → `Set<String>` (`"취소완료"`, `"취소처리중"`, `"반품완료"`)
+  - `RefundGuardrails.ALREADY_REFUNDED_STATUS` → `String` (`"환불완료"`)
 
 - [ ] **Step 1: enum 2개와 스키마를 먼저 만든다**
 
@@ -106,6 +109,36 @@ public enum StagedChangeStatus {
     PENDING,
     APPROVED,
     REJECTED
+}
+```
+
+`RefundGuardrails.java` — 환불을 막아야 하는 주문 상태. 제안 시점(`RefundGuardrailInterceptor`, Task 4)과
+승인 시점(`StagedChangeApprovalService`, Task 6) 두 곳이 같은 목록을 봐야 하므로 도메인에 둔다.
+두 패키지 모두 `staging`을 참조하는 방향이라 패키지 순환이 생기지 않는다:
+
+```java
+package com.aicsassistant.staging.domain;
+
+import java.util.Set;
+
+/** 환불 제안·승인의 공통 판정 기준. 제안 시점과 승인 시점이 같은 목록을 봐야 한다. */
+public final class RefundGuardrails {
+
+    /**
+     * 이미 환불이 끝났거나 진행 중인 주문 상태 — 환불을 제안·승인할 수 없다.
+     *
+     * <p>ponytail: 부분환불완료는 남은 금액 환불이 정당할 수 있어 제외한다. 대신 금액 상한이
+     * 결제금액 전액이라 이미 환불된 몫을 차감하지 못한다 — mock 데이터가 부분환불 금액을
+     * {@code note} 텍스트에만 갖고 있기 때문이다. 남은 판단은 승인 화면의 상담사에게 있다.
+     * 주문 도메인이 환불 이력을 구조적으로 제공하면 상한을 (결제금액 - 기환불액)으로 좁힌다.
+     */
+    public static final Set<String> REFUND_BLOCKING_STATUSES = Set.of("취소완료", "취소처리중", "반품완료");
+
+    /** 환불이 이미 실행된 주문 상태. 승인 시점 재검사에서 쓴다. */
+    public static final String ALREADY_REFUNDED_STATUS = "환불완료";
+
+    private RefundGuardrails() {
+    }
 }
 ```
 
@@ -1023,7 +1056,7 @@ git commit -m "stage_refund 툴 추가 — 제안만 하고 실행하지 않는�
 - Test: `src/test/java/com/aicsassistant/analysis/agent/interceptor/RefundGuardrailInterceptorTest.java`
 
 **Interfaces:**
-- Consumes: `ToolCallContext#hasObservedOrder`, `#markStagedChange`, `#customerIdentifier` (Task 2), `StagedChangeRepository#existsByOrderIdAndStatus` (Task 1), `InMemoryOrderRepository#findById(String, String)`
+- Consumes: `ToolCallContext#hasObservedOrder`, `#markStagedChange`, `#customerIdentifier` (Task 2), `StagedChangeRepository#existsByOrderIdAndStatus` 및 `RefundGuardrails.REFUND_BLOCKING_STATUSES` (Task 1), `InMemoryOrderRepository#findById(String, String)`
 - Produces: 없음 (스프링 빈으로 인터셉터 체인에 자동 편입)
 
 - [ ] **Step 1: 실패하는 테스트를 쓴다**
@@ -1195,11 +1228,12 @@ import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolResult;
 import com.aicsassistant.order.InMemoryOrderRepository;
 import com.aicsassistant.order.InMemoryOrderRepository.OrderInfo;
+import static com.aicsassistant.staging.domain.RefundGuardrails.REFUND_BLOCKING_STATUSES;
+
 import com.aicsassistant.staging.domain.StagedChangeStatus;
 import com.aicsassistant.staging.infra.StagedChangeRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Optional;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -1217,16 +1251,6 @@ import org.springframework.stereotype.Component;
 public class RefundGuardrailInterceptor implements ToolCallInterceptor {
 
     private static final String TARGET_TOOL = "stage_refund";
-
-    /**
-     * 이미 환불이 끝났거나 진행 중인 상태.
-     *
-     * <p>ponytail: 부분환불완료는 남은 금액 환불이 정당할 수 있어 제외한다. 대신 금액 상한이
-     * 결제금액 전액이라 이미 환불된 몫을 차감하지 못한다 — mock 데이터가 부분환불 금액을
-     * {@code note} 텍스트에만 갖고 있기 때문이다. 남은 판단은 승인 화면의 상담사에게 있다.
-     * 주문 도메인이 환불 이력을 구조적으로 제공하면 상한을 (결제금액 - 기환불액)으로 좁힌다.
-     */
-    static final Set<String> REFUND_BLOCKING_STATUSES = Set.of("취소완료", "취소처리중", "반품완료");
 
     private final InMemoryOrderRepository orderRepository;
     private final StagedChangeRepository stagedChangeRepository;
@@ -1549,7 +1573,8 @@ package com.aicsassistant.staging.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import static com.aicsassistant.analysis.agent.interceptor.RefundGuardrailInterceptor.REFUND_BLOCKING_STATUSES;
+import static com.aicsassistant.staging.domain.RefundGuardrails.ALREADY_REFUNDED_STATUS;
+import static com.aicsassistant.staging.domain.RefundGuardrails.REFUND_BLOCKING_STATUSES;
 
 import com.aicsassistant.common.exception.ApiException;
 import com.aicsassistant.inquiry.domain.Inquiry;
@@ -1803,7 +1828,7 @@ public class StagedChangeApprovalService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "GUARDRAIL_FAILED",
                     "주문 상태가 [" + order.status() + "]로 바뀌어 승인할 수 없습니다. (GUARDRAIL_FAILED)");
         }
-        if (order.status().equals("환불완료")) {
+        if (order.status().equals(ALREADY_REFUNDED_STATUS)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "GUARDRAIL_FAILED",
                     "이미 환불된 주문입니다. (GUARDRAIL_FAILED)");
         }
@@ -1833,7 +1858,7 @@ public class StagedChangeApprovalService {
 }
 ```
 
-> 거부 상태 목록은 `RefundGuardrailInterceptor`의 상수를 static import 해서 재사용한다. `staging`이 `analysis`의 상수를 참조하는 방향이 되지만, 같은 규칙을 두 곳에 정의하는 것보다 낫다. 이 상수는 그래서 `package-private`이 아니라 `static final`로 열어 둔 것이다.
+> 거부 상태 목록은 Task 1의 `RefundGuardrails` 상수를 static import 해서 쓴다. 제안 시점(인터셉터)과 승인 시점(이 서비스)이 같은 목록을 보게 하려는 것이며, 두 패키지 모두 `staging.domain`을 참조하는 방향이라 패키지 순환이 없다.
 
 - [ ] **Step 6: 테스트가 통과하는지 확인한다**
 
