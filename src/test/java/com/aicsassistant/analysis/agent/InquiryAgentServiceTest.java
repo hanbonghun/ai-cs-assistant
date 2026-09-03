@@ -17,6 +17,7 @@ import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.order.InMemoryOrderRepository;
+import com.aicsassistant.staging.infra.StagedChangeRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Tracer;
@@ -34,6 +35,7 @@ class InquiryAgentServiceTest {
     @Mock LlmClient llmClient;
     @Mock ManualRetrievalService manualRetrievalService;
     @Mock PromptFactory promptFactory;
+    @Mock StagedChangeRepository stagedChangeRepository;
 
     InquiryAgentService agentService;
     Tracer noopTracer = OpenTelemetry.noop().getTracer("test");
@@ -49,7 +51,8 @@ class InquiryAgentServiceTest {
                 new InMemoryOrderRepository(),
                 new InMemoryFaqRepository(),
                 List.of(),
-                noopTracer
+                noopTracer,
+                stagedChangeRepository
         );
     }
 
@@ -171,7 +174,8 @@ class InquiryAgentServiceTest {
                                 "blocked-by-test"));
                     }
                 }),
-                noopTracer);
+                noopTracer,
+                stagedChangeRepository);
         givenLlmResponds(
                 toolCall("search_manual", "{\"query\":\"환불\"}"),
                 finalAnswer("권한 부족으로 상담사에게 라우팅합니다.", "REFUND", "MEDIUM", true)
@@ -201,7 +205,8 @@ class InquiryAgentServiceTest {
                                 (result.data() == null ? "" : result.data()) + "\n[GUARD]");
                     }
                 }),
-                noopTracer);
+                noopTracer,
+                stagedChangeRepository);
         givenLlmResponds(
                 toolCall("search_manual", "{\"query\":\"환불\"}"),
                 finalAnswer("ok", "GENERAL", "LOW", false)
@@ -369,7 +374,8 @@ class InquiryAgentServiceTest {
                                 "Tool call budget exhausted"));
                     }
                 }),
-                noopTracer);
+                noopTracer,
+                stagedChangeRepository);
         givenLlmResponds(
                 toolCall("search_manual", "{\"query\":\"반품 정책\"}"),
                 finalAnswer(

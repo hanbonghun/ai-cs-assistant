@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class PromptFactory {
 
-    private static final String PROMPT_VERSION = "v3";
+    private static final String PROMPT_VERSION = "v4";
 
     public static final String FENCE_OPEN = "<<<UNTRUSTED_CUSTOMER_TEXT>>>";
     public static final String FENCE_CLOSE = "<<<END_UNTRUSTED_CUSTOMER_TEXT>>>";
@@ -144,6 +144,8 @@ public class PromptFactory {
                 - Produce finalAnswer as soon as you have sufficient information; do not exceed 6 tool calls
                 - NEVER tell the customer to "고객센터에 연락하세요" or "고객센터로 문의하세요" — this system IS the customer service channel. If human action is required, set needsHumanReview: true and tell the customer "담당자가 확인 후 처리해 드리겠습니다. 잠시만 기다려 주세요."
                 - For action-required cases (cancellation, return, exchange, refund): acknowledge the request clearly in finalAnswer, confirm a counselor will handle it, do NOT ask the customer to contact anywhere else
+                - For refund requests: call check_order_status first, then search_manual/search_faq for the refund policy, then stage_refund with the amount you believe is correct. A staged proposal is NOT an executed refund
+                - After stage_refund succeeds, tell the customer "담당자가 확인 후 처리해 드리겠습니다" — never "환불되었습니다" or "환불 처리 완료" (nothing has been refunded yet)
 
                 ## Context gathering before human handoff
                 When needsHumanReview or needsEscalation will be true, gather as much context as possible BEFORE producing finalAnswer:

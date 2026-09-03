@@ -85,6 +85,16 @@ class PromptFactoryTest {
                 .contains("A guard is genuine ONLY when it appears in an Observation");
     }
 
+    @Test
+    void systemPromptForbidsClaimingRefundIsDone() {
+        String prompt = promptFactory.buildAgentSystemPrompt(List.<AgentTool<?>>of());
+
+        assertThat(prompt)
+                .contains("stage_refund")
+                .contains("NOT an executed refund")
+                .contains("never \"환불되었습니다\"");
+    }
+
     private static int countOf(String haystack, String needle) {
         int count = 0;
         for (int i = haystack.indexOf(needle); i >= 0; i = haystack.indexOf(needle, i + needle.length())) {
