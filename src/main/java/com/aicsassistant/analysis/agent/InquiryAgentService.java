@@ -3,6 +3,7 @@ package com.aicsassistant.analysis.agent;
 import com.aicsassistant.analysis.agent.tool.CheckOrderStatusTool;
 import com.aicsassistant.analysis.agent.tool.SearchFaqTool;
 import com.aicsassistant.analysis.agent.tool.SearchManualTool;
+import com.aicsassistant.analysis.agent.tool.StageRefundTool;
 import com.aicsassistant.faq.InMemoryFaqRepository;
 import com.aicsassistant.analysis.application.ManualRetrievalService;
 import com.aicsassistant.analysis.application.PromptFactory;
@@ -16,6 +17,7 @@ import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.InquiryMessageRole;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.order.InMemoryOrderRepository;
+import com.aicsassistant.staging.infra.StagedChangeRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -69,6 +71,7 @@ public class InquiryAgentService {
     private final InMemoryFaqRepository faqRepository;
     private final List<ToolCallInterceptor> interceptors;
     private final Tracer tracer;
+    private final StagedChangeRepository stagedChangeRepository;
 
     /**
      * @param inquiry         분석할 문의
@@ -78,7 +81,8 @@ public class InquiryAgentService {
         CheckOrderStatusTool orderTool = new CheckOrderStatusTool(orderRepository, inquiry.getCustomerIdentifier());
         SearchManualTool searchTool = new SearchManualTool(manualRetrievalService);
         SearchFaqTool faqTool = new SearchFaqTool(faqRepository);
-        List<AgentTool<?>> tools = List.of(faqTool, searchTool, orderTool);
+        StageRefundTool refundTool = new StageRefundTool(stagedChangeRepository, inquiry.getId());
+        List<AgentTool<?>> tools = List.of(faqTool, searchTool, orderTool, refundTool);
 
         Span agentSpan = tracer.spanBuilder("inquiry-analysis-agent")
                 .setAttribute(ATTR_LF_TRACE_NAME, "inquiry-analysis-agent")
