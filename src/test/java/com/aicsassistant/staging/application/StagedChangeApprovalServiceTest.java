@@ -45,6 +45,13 @@ class StagedChangeApprovalServiceTest extends PostgresVectorIntegrationTest {
                 inquiryId, ChangeType.REFUND, ORDER_ID, amount, "배송완료 4일 경과", "반품 정책 3조"));
     }
 
+    private StagedChange pendingProposal(String customerIdentifier, String orderId, int amount) {
+        Long inquiryId = inquiryRepository
+                .save(Inquiry.create(customerIdentifier, "문의", "환불 요청", null, null, orderId)).getId();
+        return stagedChangeRepository.save(StagedChange.propose(
+                inquiryId, ChangeType.REFUND, orderId, amount, "배송완료 4일 경과", "반품 정책 3조"));
+    }
+
     @Test
     void approveExecutesRefundAndNotifiesCustomer() {
         StagedChange proposal = pendingProposal(45_000);
@@ -122,6 +129,23 @@ class StagedChangeApprovalServiceTest extends PostgresVectorIntegrationTest {
 
         assertThat(stagedChangeRepository.findById(proposal.getId()).orElseThrow().getStatus())
                 .isEqualTo(StagedChangeStatus.PENDING);
+        assertThat(messageRepository.findByInquiryIdOrderByCreatedAtAsc(proposal.getInquiryId())).isEmpty();
+    }
+
+    @Test
+    void reChecksGuardrailsForBlockingOrderStatusAtApprovalTime() {
+        // ORD-20260401-004 는 cust-002 소유이며 시드 데이터부터 이미 "취소처리중" — 별도 setter 없이
+        // 차단 상태 재검사(REFUND_BLOCKING_STATUSES)를 검증할 수 있는 유일한 시드 주문이다.
+        StagedChange proposal = pendingProposal("cust-002", "ORD-20260401-004", 128_000);
+
+        assertThatThrownBy(() -> approvalService.approve(proposal.getInquiryId(), proposal.getId(),
+                new StagedChangeDecisionRequest("counselor-demo", null, null)))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("GUARDRAIL_FAILED");
+
+        assertThat(stagedChangeRepository.findById(proposal.getId()).orElseThrow().getStatus())
+                .isEqualTo(StagedChangeStatus.PENDING);
+        assertThat(messageRepository.findByInquiryIdOrderByCreatedAtAsc(proposal.getInquiryId())).isEmpty();
     }
 
     @Test
@@ -134,6 +158,10 @@ class StagedChangeApprovalServiceTest extends PostgresVectorIntegrationTest {
 
         assertThat(response.amount()).isEqualTo(45_000);           // AI 제안은 이력으로 남는다
         assertThat(response.approvedAmount()).isEqualTo(32_000);
+
+        // approved_amount 컬럼 round-trip 확인 — DTO 응답값이 아니라 DB 재조회값으로 검증한다
+        StagedChange reloaded = stagedChangeRepository.findById(proposal.getId()).orElseThrow();
+        assertThat(reloaded.getApprovedAmount()).isEqualTo(32_000);
 
         List<InquiryMessage> messages =
                 messageRepository.findByInquiryIdOrderByCreatedAtAsc(proposal.getInquiryId());
@@ -154,6 +182,22 @@ class StagedChangeApprovalServiceTest extends PostgresVectorIntegrationTest {
                 .isEqualTo(StagedChangeStatus.PENDING);
         assertThat(orderRepository.findById(ORDER_ID, "cust-001").orElseThrow().status())
                 .isEqualTo("배송완료");
+        assertThat(messageRepository.findByInquiryIdOrderByCreatedAtAsc(proposal.getInquiryId())).isEmpty();
+    }
+
+    @Test
+    void rejectsNonPositiveEditedAmountAtApprovalTime() {
+        // 제안 시점 검증(StageRefundTool)을 거치지 않은 staged_change 행을 흉내낸다 —
+        // 승인 시점 재검사는 제안 상태를 신뢰하지 않아야 한다.
+        StagedChange proposal = pendingProposal(45_000);
+
+        assertThatThrownBy(() -> approvalService.approve(proposal.getInquiryId(), proposal.getId(),
+                new StagedChangeDecisionRequest("counselor-demo", null, -5_000)))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("GUARDRAIL_FAILED");
+
+        assertThat(stagedChangeRepository.findById(proposal.getId()).orElseThrow().getStatus())
+                .isEqualTo(StagedChangeStatus.PENDING);
     }
 
     @Test

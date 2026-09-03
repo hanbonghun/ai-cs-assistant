@@ -20,6 +20,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,6 +70,7 @@ public class StagedChangeApprovalService {
         messageRepository.save(InquiryMessage.of(inquiryId, InquiryMessageRole.AI,
                 "요청하신 환불이 승인되어 처리되었습니다. 주문 %s · 환불 금액 %,d원입니다. 카드 취소는 2~3 영업일이 소요될 수 있습니다."
                         .formatted(change.getOrderId(), change.effectiveAmount())));
+        flushOrRejectAsAlreadyDecided(change);
 
         log.info("[StagedChange approved] changeId={} inquiryId={} orderId={} proposed={} final={} by={}",
                 changeId, inquiryId, change.getOrderId(), change.getAmount(),
@@ -81,10 +83,29 @@ public class StagedChangeApprovalService {
         StagedChange change = loadForInquiry(inquiryId, changeId);
 
         change.reject(request.decidedBy(), request.decisionNote());
+        flushOrRejectAsAlreadyDecided(change);
 
         log.info("[StagedChange rejected] changeId={} inquiryId={} by={} note={}",
                 changeId, inquiryId, request.decidedBy(), request.decisionNote());
         return StagedChangeResponse.from(change);
+    }
+
+    /**
+     * 동시 승인 방지. 두 상담사가 같은 PENDING 제안을 동시에 열어 각자 결정하면 둘 다 이 시점까지는
+     * 통과하지만, 여기서 강제로 flush 해 {@code @Version} 충돌을 즉시 드러낸다.
+     *
+     * <p>먼저 커밋한 쪽이 이긴다. 진 쪽은 이 트랜잭션 전체가 롤백되므로 방금 저장한 알림 메시지도
+     * 함께 사라진다 — {@code markRefunded}(mock 주문 상태 변경)만 이 트랜잭션 밖이라 롤백되지
+     * 않지만, 상태를 "환불완료"로 다시 세팅할 뿐인 멱등 연산이라 문제 없다. 결과적으로 고객에게는
+     * 승자의 알림 1건만 남는다.
+     */
+    private void flushOrRejectAsAlreadyDecided(StagedChange change) {
+        try {
+            stagedChangeRepository.saveAndFlush(change);
+        } catch (ObjectOptimisticLockingFailureException e) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "ALREADY_DECIDED",
+                    "다른 상담사가 먼저 처리했습니다. (ALREADY_DECIDED)");
+        }
     }
 
     /**
@@ -107,9 +128,12 @@ public class StagedChangeApprovalService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "GUARDRAIL_FAILED",
                     "이미 환불된 주문입니다. (GUARDRAIL_FAILED)");
         }
-        if (finalAmount > order.amount()) {
+        // finalAmount <= 0 도 여기서 막는다 — 제안 시점 검증(StageRefundTool)을 거치지 않은
+        // staged_change 행(직접 DB 조작, 데이터 수정, 미래의 다른 제안 경로)이 있을 수 있으므로
+        // 승인 시점은 제안 상태를 신뢰하지 않는다.
+        if (finalAmount <= 0 || finalAmount > order.amount()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "GUARDRAIL_FAILED",
-                    "승인 금액 %,d원이 결제금액 %,d원을 초과해 승인할 수 없습니다. (GUARDRAIL_FAILED)"
+                    "승인 금액 %,d원이 유효하지 않습니다 (결제금액 %,d원). (GUARDRAIL_FAILED)"
                             .formatted(finalAmount, order.amount()));
         }
     }

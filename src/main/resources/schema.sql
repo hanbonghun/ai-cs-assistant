@@ -99,3 +99,6 @@ create index if not exists idx_staged_change_order_pending
 
 -- 상담사가 제안 금액을 수정해 승인한 경우의 최종 금액. null 이면 제안 금액을 그대로 승인한 것이다.
 alter table staged_change add column if not exists approved_amount integer;
+
+-- 동시 승인 방지용 낙관적 잠금 버전. 두 상담사가 같은 제안을 동시에 승인/거부하는 것을 막는다.
+alter table staged_change add column if not exists version bigint not null default 0;
