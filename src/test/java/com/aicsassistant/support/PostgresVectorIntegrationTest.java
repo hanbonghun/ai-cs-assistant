@@ -35,6 +35,6 @@ public abstract class PostgresVectorIntegrationTest {
 
     @BeforeEach
     void clearDatabase() {
-        jdbcTemplate.execute("truncate table inquiry_analysis_log, manual_chunk, inquiry, manual_document restart identity cascade");
+        jdbcTemplate.execute("truncate table staged_change, inquiry_analysis_log, manual_chunk, inquiry, manual_document restart identity cascade");
     }
 }
