@@ -78,3 +78,21 @@ create index if not exists idx_manual_chunk_manual_document_id on manual_chunk(m
 create index if not exists idx_manual_chunk_content_trgm on manual_chunk using gin (content gin_trgm_ops);
 create index if not exists idx_inquiry_analysis_log_inquiry_id on inquiry_analysis_log(inquiry_id);
 create index if not exists idx_inquiry_message_inquiry_id on inquiry_message(inquiry_id);
+
+create table if not exists staged_change (
+    id bigserial primary key,
+    inquiry_id bigint not null references inquiry(id),
+    change_type varchar(20) not null,
+    order_id varchar(50) not null,
+    amount integer not null,
+    reason text not null,
+    policy_basis text,
+    status varchar(20) not null,
+    decided_by varchar(100),
+    decided_at timestamp,
+    decision_note text,
+    created_at timestamp not null
+);
+
+create index if not exists idx_staged_change_order_pending
+    on staged_change(order_id) where status = 'PENDING';
