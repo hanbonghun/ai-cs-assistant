@@ -24,6 +24,7 @@
 | 2 | 승인 시 **mock 주문 상태 변경 + 고객 알림** | 데모에서 상태 변화가 눈에 보여야 승인 게이트가 실감난다. staged change 레코드가 그대로 감사 이력이 되므로 별도 감사 테이블은 두지 않는다 |
 | 3 | 에이전트는 **`stage_refund` 툴**로 제안 | 기존 `ToolCallInterceptor` 체인이 가드레일 자리로 정확히 들어맞고, 제안 이유가 `agentSteps`에 남아 Langfuse에서 보인다. 쓰기 툴이지만 실행이 아니라 staging 이다 |
 | 4 | 가드레일 **핵심 4종** (provenance / 금액 / 주문상태 / 중복) | 전부 데이터로 판정 가능해 정책 문서와 이중 정의가 생기지 않는다. 반환 기간(7일) 검사는 제외 — 7일이 정책 문서와 코드 두 곳에 정의되면 정책 변경 시 어긋난다 |
+| 5b | **금액 최종 결정권은 상담사** — 승인 화면에서 제안 금액을 수정할 수 있다 | AI 금액은 초안이다. 승인/거부만 가능하면 "사람이 금액을 판단"하는 게 아니라 "AI 금액을 거부"하는 것만 가능해진다. 금액이 조금 다를 때 거부 후 시스템 밖에서 처리하게 되면 승인 게이트를 우회하는 경로가 생긴다 |
 | 5 | **전용 승인 엔드포인트**, `InquiryStatus`는 불변 | staged change 가 자기 생애주기를 갖고, 문의 상태 머신은 건드리지 않는다. 답변 확정과 환불 승인이 독립이라 상담사가 환불만 승인하고 답변은 더 고칠 수 있다 |
 
 ## 도메인 & 스키마
@@ -45,6 +46,10 @@ create table if not exists staged_change (
     decision_note text,
     created_at timestamp not null
 );
+
+-- 상담사가 제안 금액을 수정해 승인한 경우의 최종 금액. null 이면 제안 금액을 그대로 승인한 것이다.
+-- 제안 금액(amount)은 AI 의 판단 이력으로 보존하므로 덮어쓰지 않는다.
+alter table staged_change add column if not exists approved_amount integer;
 create index if not exists idx_staged_change_order_pending
     on staged_change(order_id) where status = 'PENDING';
 ```
@@ -115,15 +120,19 @@ staging 이 일어나면 `needsHumanReview`를 코드로 강제한다 — `ctx.s
 ## 승인·거부 API와 실행
 
 ```
-POST /api/inquiries/{inquiryId}/staged-changes/{changeId}/approve   {decidedBy, decisionNote?}
+POST /api/inquiries/{inquiryId}/staged-changes/{changeId}/approve   {decidedBy, decisionNote?, approvedAmount?}
 POST /api/inquiries/{inquiryId}/staged-changes/{changeId}/reject    {decidedBy, decisionNote}
 ```
+
+`approvedAmount`를 생략하면 제안 금액을 그대로 승인한다. 값을 주면 그 금액이 최종 금액이 되고,
+제안 금액은 `amount`에 그대로 남아 AI 판단과 사람 판단의 차이가 이력에 보인다.
+실행·알림·재검사는 모두 **최종 금액**(`approvedAmount ?? amount`)을 기준으로 한다.
 
 `StagedChangeApprovalService.approve()`:
 
 1. 조회 후 `inquiryId` 일치 확인 — 경로 위조로 남의 문의 제안을 승인하는 것을 막는다
 2. `status == PENDING` 확인 — 아니면 `ALREADY_DECIDED` 400 (멱등성)
-3. 가드레일 **재검사** (금액·주문상태 2종) — 제안 시점과 승인 시점 사이에 주문 상태가 바뀔 수 있다.
+3. 가드레일 **재검사** — 주문상태, 그리고 **최종 금액**이 결제금액 이하인지 — 제안 시점과 승인 시점 사이에 주문 상태가 바뀔 수 있다.
    블루프린트도 스테이징 시와 적용 시 두 번 검사한다.
    나머지 2종은 승인 시점에 재검사하지 않는다: provenance 는 에이전트 실행 세션 개념이라 승인
    시점에 대응물이 없고, 중복 검사는 이 제안 자신이 유일한 `PENDING` 이므로 무의미하다
@@ -151,7 +160,8 @@ POST /api/inquiries/{inquiryId}/staged-changes/{changeId}/reject    {decidedBy, 
 ## UI
 
 상담사 상세 화면(`inquiries/detail.html`)의 기존 AI_PROCESSED 검토 블록 위에 제안 카드를 얹는다 —
-주문번호 · 금액 · 근거 · 정책 조항 + `[승인]` `[거부]` 버튼, 거부는 사유 입력. 결정된 제안은 아래에
+주문번호 · 금액 · 근거 · 정책 조항 + `[승인]` `[거부]` 버튼. 금액은 제안값이 채워진 입력창으로 두어
+상담사가 그대로 승인하거나 고쳐서 승인할 수 있게 한다. 거부는 사유 입력. 결정된 제안은 아래에
 이력으로(승인/거부, 결정자, 시각, 사유) 쌓인다. `InquiryDetailAssembler`와
 `InquiryDetailViewModel`에 리스트 하나를 추가한다. 집계가 없어 SpEL 람다 금지 규칙에 걸리지 않는다.
 
