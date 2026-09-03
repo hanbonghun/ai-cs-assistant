@@ -1,5 +1,8 @@
 package com.aicsassistant.analysis.agent;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * 한 번의 에이전트 실행({@link InquiryAgentService#run}) 동안 인터셉터들이 공유하는 가변 컨텍스트.
  *
@@ -10,6 +13,8 @@ public final class ToolCallContext {
     private final Long inquiryId;
     private final String customerIdentifier;
     private int toolCallCount;
+    private final Set<String> observedOrderIds = new HashSet<>();
+    private boolean stagedChange;
 
     public ToolCallContext(Long inquiryId, String customerIdentifier) {
         this.inquiryId = inquiryId;
@@ -30,5 +35,23 @@ public final class ToolCallContext {
 
     public void incrementToolCallCount() {
         toolCallCount++;
+    }
+
+    /** 이번 실행에서 조회에 성공한 주문. 환불 제안의 provenance 근거가 된다. */
+    public void recordObservedOrder(String orderId) {
+        observedOrderIds.add(orderId);
+    }
+
+    public boolean hasObservedOrder(String orderId) {
+        return observedOrderIds.contains(orderId);
+    }
+
+    /** 이번 실행에서 제안이 접수되었음을 표시한다. finalAnswer의 상담사 검토를 강제하는 데 쓴다. */
+    public void markStagedChange() {
+        stagedChange = true;
+    }
+
+    public boolean stagedChange() {
+        return stagedChange;
     }
 }

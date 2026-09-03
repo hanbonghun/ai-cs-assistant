@@ -110,8 +110,10 @@ public class InquiryAgentService {
         List<ChatMessage> messages = new ArrayList<>();
         messages.add(ChatMessage.system(promptFactory.buildAgentSystemPrompt(tools)));
 
+        ToolCallContext callContext = new ToolCallContext(inquiry.getId(), inquiry.getCustomerIdentifier());
+
         // 최초 문의 내용 (주문번호가 있으면 주문 정보 선주입)
-        messages.add(ChatMessage.user(buildInitialMessage(inquiry, orderTool)));
+        messages.add(ChatMessage.user(buildInitialMessage(inquiry, orderTool, callContext)));
 
         // 이전 대화 히스토리 주입 (CUSTOMER → user, AI → assistant)
         for (InquiryMessage msg : conversationHistory) {
@@ -124,7 +126,6 @@ public class InquiryAgentService {
 
         List<AgentStep> steps = new ArrayList<>();
         int totalTokens = 0;
-        ToolCallContext callContext = new ToolCallContext(inquiry.getId(), inquiry.getCustomerIdentifier());
 
         for (int step = 0; step < MAX_STEPS; step++) {
             Span stepSpan = tracer.spanBuilder("agent-step")
@@ -279,7 +280,7 @@ public class InquiryAgentService {
      * <p>주문 정보는 서버가 조회한 신뢰 데이터라 울타리 밖에 두고, 제목·본문은 고객이 쓴 것이므로
      * 울타리 안에 넣는다. 이 구분이 프롬프트 인젝션 방어의 전부이므로 순서를 바꾸지 말 것.
      */
-    private String buildInitialMessage(Inquiry inquiry, CheckOrderStatusTool orderTool) {
+    private String buildInitialMessage(Inquiry inquiry, CheckOrderStatusTool orderTool, ToolCallContext ctx) {
         StringBuilder sb = new StringBuilder();
 
         String orderId = inquiry.getRelatedOrderId();
@@ -287,6 +288,9 @@ public class InquiryAgentService {
             try {
                 ToolResult orderResult = orderTool.execute(new CheckOrderStatusTool.Input(orderId));
                 if (orderResult.ok()) {
+                    // 인터셉터를 지나가지 않는 경로라 여기서 직접 기록한다.
+                    // 문의의 relatedOrderId 이고 소유자 검증을 통과한 고객 자기 주문이라 정당하다.
+                    ctx.recordObservedOrder(orderId);
                     sb.append("[관련 주문 정보]\n").append(orderResult.data()).append("\n\n");
                 } else {
                     sb.append("[관련 주문 조회 실패] ").append(orderResult.errorMessage()).append("\n\n");
