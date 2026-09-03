@@ -21,7 +21,14 @@ public sealed interface AgentResult {
             List<AgentStep> steps,
             List<RetrievedManualChunkDto> retrievedChunks,
             int totalTokens
-    ) implements AgentResult {}
+    ) implements AgentResult {
+
+        /** 상담사 검토를 강제한 사본 — 스텝 소진 후 강제 종료 경로에서 사용한다. */
+        public FinalAnswer withHumanReview() {
+            return new FinalAnswer(answer, category, urgency, true, needsEscalation, fraudRiskFlag,
+                    reason, steps, retrievedChunks, totalTokens);
+        }
+    }
 
     record FollowUpQuestion(
             String question,

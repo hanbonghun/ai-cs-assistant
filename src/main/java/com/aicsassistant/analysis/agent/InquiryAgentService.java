@@ -11,8 +11,10 @@ import com.aicsassistant.analysis.infra.llm.ChatMessage;
 import com.aicsassistant.analysis.infra.llm.LlmClient;
 import com.aicsassistant.analysis.infra.llm.LlmResponse;
 import com.aicsassistant.inquiry.domain.Inquiry;
+import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.InquiryMessageRole;
+import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.order.InMemoryOrderRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -25,6 +27,7 @@ import io.opentelemetry.context.Scope;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -177,10 +180,81 @@ public class InquiryAgentService {
             }
         }
 
-        agentSpan.setAttribute(ATTR_AGENT_OUTCOME, "exceeded_max_steps");
-        agentSpan.setAttribute(ATTR_TOTAL_TOKENS, totalTokens);
-        throw new IllegalStateException(
-                "Agent exceeded maximum steps (" + MAX_STEPS + ") for inquiryId=" + inquiry.getId());
+        // 스텝 소진 — 여기까지 온 문의가 가장 복잡한 건이므로 실패시키지 않고 답을 뽑아낸다
+        return forceFinalAnswerWithoutTools(inquiry, messages, steps, searchTool, totalTokens, agentSpan);
+    }
+
+    /**
+     * 툴을 뺀 마지막 한 라운드를 돌려 finalAnswer를 강제한다.
+     *
+     * <p>스텝을 소진한 문의는 가장 복잡해서 사람이 봐야 하는 건이다. 예외로 끝내면 답변도 상담사
+     * 브리핑도 남지 않으므로, 툴이 없다고 알린 뒤 지금까지 모은 정보로 요약을 받는다.
+     * 그마저 형식을 못 맞추면 코드로 브리핑을 합성한다 — 어느 경로든 문의가 유실되지 않는다.
+     */
+    private AgentResult.FinalAnswer forceFinalAnswerWithoutTools(
+            Inquiry inquiry,
+            List<ChatMessage> messages,
+            List<AgentStep> steps,
+            SearchManualTool searchTool,
+            int totalTokens,
+            Span agentSpan) {
+
+        messages.add(ChatMessage.user(
+                "Step budget for this inquiry is exhausted — no further tool calls are possible and any "
+                + "\"action\" you return now will be discarded.\n"
+                + "Respond with the finalAnswer form ONLY. Summarize what you gathered as a briefing for "
+                + "the counselor and set needsHumanReview: true."));
+
+        int tokens = totalTokens;
+        AgentResult.FinalAnswer answer = null;
+        try {
+            LlmResponse response = llmClient.completeWithUsage(messages);
+            tokens += response.totalTokens();
+            JsonNode node = parseJson(response.content());
+            if (node.has("finalAnswer")) {
+                answer = buildFinalAnswer(node, steps, searchTool.getCollectedChunks(), tokens)
+                        .withHumanReview();
+            }
+        } catch (RuntimeException e) {
+            log.warn("[Agent] 강제 finalAnswer 라운드 실패 inquiryId={}", inquiry.getId(), e);
+        }
+
+        boolean synthetic = answer == null;
+        if (synthetic) {
+            answer = syntheticBriefing(inquiry, steps, searchTool.getCollectedChunks(), tokens);
+        }
+
+        log.info("[Agent forced final] inquiryId={} steps={} totalTokens={} synthetic={}",
+                inquiry.getId(), steps.size(), tokens, synthetic);
+        agentSpan.setAttribute(ATTR_AGENT_OUTCOME, synthetic ? "forced_final_synthetic" : "forced_final_answer");
+        agentSpan.setAttribute(ATTR_LF_OUTPUT, answer.answer());
+        agentSpan.setAttribute(ATTR_TOTAL_TOKENS, tokens);
+        agentSpan.setAttribute(ATTR_STEP_COUNT, (long) steps.size());
+        return answer;
+    }
+
+    /** LLM이 마지막 라운드에서도 형식을 못 맞춘 경우의 결정론적 대체 결과. */
+    private AgentResult.FinalAnswer syntheticBriefing(
+            Inquiry inquiry, List<AgentStep> steps, List<RetrievedManualChunkDto> chunks, int totalTokens) {
+
+        String toolsUsed = steps.stream()
+                .map(AgentStep::action)
+                .distinct()
+                .collect(Collectors.joining(", "));
+        String briefing = "AI가 %d스텝 안에 분석을 마치지 못했습니다. 호출한 도구: %s. 상세 내역은 분석 로그를 확인해 주세요."
+                .formatted(MAX_STEPS, toolsUsed.isBlank() ? "없음" : toolsUsed);
+
+        return new AgentResult.FinalAnswer(
+                briefing,
+                inquiry.getCategory() != null ? inquiry.getCategory().name() : InquiryCategory.GENERAL.name(),
+                inquiry.getUrgency() != null ? inquiry.getUrgency().name() : UrgencyLevel.MEDIUM.name(),
+                true,
+                false,
+                false,
+                "[자동 합성] 최대 스텝(" + MAX_STEPS + ") 소진 후에도 LLM이 finalAnswer 형식을 반환하지 않아 상담사에게 라우팅합니다.",
+                List.copyOf(steps),
+                chunks,
+                totalTokens);
     }
 
     static String safeUserId(Inquiry inquiry) {
@@ -293,8 +367,8 @@ public class InquiryAgentService {
             JsonNode node, List<AgentStep> steps, List<RetrievedManualChunkDto> chunks, int totalTokens) {
         return new AgentResult.FinalAnswer(
                 requiredText(node, "finalAnswer"),
-                requiredText(node, "category"),
-                requiredText(node, "urgency"),
+                validCategory(requiredText(node, "category")),
+                validUrgency(requiredText(node, "urgency")),
                 node.path("needsHumanReview").asBoolean(true),
                 node.path("needsEscalation").asBoolean(false),
                 node.path("fraudRiskFlag").asBoolean(false),
@@ -323,6 +397,28 @@ public class InquiryAgentService {
             }
         }
         return trimmed;
+    }
+
+    /**
+     * enum에 없는 값이면 GENERAL로 낮춘다. 하위 레이어의 {@code valueOf}가 던지면 분석 전체가
+     * 실패하는데, 분류를 하나 틀리는 것보다 문의를 잃는 게 나쁘다.
+     */
+    private String validCategory(String raw) {
+        try {
+            return InquiryCategory.valueOf(raw).name();
+        } catch (IllegalArgumentException e) {
+            log.warn("[Agent] 알 수 없는 category={} → GENERAL로 대체", raw);
+            return InquiryCategory.GENERAL.name();
+        }
+    }
+
+    private String validUrgency(String raw) {
+        try {
+            return UrgencyLevel.valueOf(raw).name();
+        } catch (IllegalArgumentException e) {
+            log.warn("[Agent] 알 수 없는 urgency={} → MEDIUM으로 대체", raw);
+            return UrgencyLevel.MEDIUM.name();
+        }
     }
 
     private String requiredText(JsonNode node, String fieldName) {

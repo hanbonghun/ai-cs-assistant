@@ -1,7 +1,6 @@
 package com.aicsassistant.analysis.agent;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -15,6 +14,8 @@ import com.aicsassistant.analysis.infra.llm.LlmClient;
 import com.aicsassistant.analysis.infra.llm.LlmResponse;
 import com.aicsassistant.faq.InMemoryFaqRepository;
 import com.aicsassistant.inquiry.domain.Inquiry;
+import com.aicsassistant.inquiry.domain.InquiryCategory;
+import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.order.InMemoryOrderRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.opentelemetry.api.OpenTelemetry;
@@ -103,16 +104,54 @@ class InquiryAgentServiceTest {
     }
 
     @Test
-    void throwsWhenMaxStepsExceeded() {
-        // 툴 호출만 계속 반복해서 MAX_STEPS 초과
+    void forcesFinalAnswerWhenMaxStepsExceeded() {
+        // 툴 호출만 반복해 스텝을 소진한 뒤, 툴 없는 마지막 라운드에서 LLM이 요약을 반환
+        String infiniteToolCall = toolCall("search_manual", "{\"query\":\"반복\"}");
+        var stub = when(llmClient.completeWithUsage(anyList()));
+        for (int i = 0; i < 8; i++) {
+            stub = stub.thenReturn(new LlmResponse(infiniteToolCall, 10, 20));
+        }
+        stub.thenReturn(new LlmResponse(
+                finalAnswer("주문 상태까지만 확인했습니다. 상담사 확인이 필요합니다.", "DELIVERY", "HIGH", false), 10, 20));
+        when(manualRetrievalService.retrieve(any())).thenReturn(List.of());
+
+        AgentResult result = agentService.run(inquiry("무한 루프 문의"), List.of());
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
+        assertThat(answer.answer()).contains("상담사 확인이 필요합니다");
+        // 모델이 false를 줬어도 강제 종료 경로는 항상 상담사 검토로 올린다
+        assertThat(answer.needsHumanReview()).isTrue();
+        assertThat(answer.steps()).hasSize(8);
+    }
+
+    @Test
+    void synthesizesBriefingWhenForcedRoundAlsoFailsToProduceFinalAnswer() {
+        // 마지막 라운드에서도 형식을 못 맞추는 최악의 경우 — 문의가 유실되지 않아야 한다
         String infiniteToolCall = toolCall("search_manual", "{\"query\":\"반복\"}");
         when(llmClient.completeWithUsage(anyList()))
                 .thenReturn(new LlmResponse(infiniteToolCall, 10, 20));
         when(manualRetrievalService.retrieve(any())).thenReturn(List.of());
 
-        assertThatThrownBy(() -> agentService.run(inquiry("무한 루프 문의"), List.of()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("maximum steps");
+        AgentResult result = agentService.run(inquiry("무한 루프 문의"), List.of());
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
+        assertThat(answer.needsHumanReview()).isTrue();
+        assertThat(answer.answer()).contains("분석을 마치지 못했습니다").contains("search_manual");
+        assertThat(answer.reason()).startsWith("[자동 합성]");
+        // 하위 레이어의 InquiryCategory.valueOf 가 던지지 않도록 유효한 enum 이름이어야 한다
+        assertThat(InquiryCategory.valueOf(answer.category())).isNotNull();
+        assertThat(UrgencyLevel.valueOf(answer.urgency())).isNotNull();
+    }
+
+    @Test
+    void coercesUnknownCategoryAndUrgencyToSafeDefaults() {
+        givenLlmResponds(finalAnswer("확인했습니다.", "SHIPPING_DELAY", "CRITICAL", true));
+
+        AgentResult result = agentService.run(inquiry("배송 문의"), List.of());
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
+        assertThat(answer.category()).isEqualTo("GENERAL");
+        assertThat(answer.urgency()).isEqualTo("MEDIUM");
     }
 
     @Test
