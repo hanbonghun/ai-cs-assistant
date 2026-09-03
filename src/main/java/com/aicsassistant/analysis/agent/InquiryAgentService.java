@@ -146,7 +146,8 @@ public class InquiryAgentService {
 
                 if (node.has("finalAnswer")) {
                     log.info("[Agent done] inquiryId={} steps={} totalTokens={}", inquiry.getId(), step, totalTokens);
-                    AgentResult.FinalAnswer result = buildFinalAnswer(node, steps, searchTool.getCollectedChunks(), totalTokens);
+                    AgentResult.FinalAnswer result = buildFinalAnswer(
+                            node, steps, searchTool.getCollectedChunks(), totalTokens, callContext);
                     agentSpan.setAttribute(ATTR_AGENT_OUTCOME, "final_answer");
                     agentSpan.setAttribute(ATTR_LF_OUTPUT, result.answer());
                     agentSpan.setAttribute(ATTR_TOTAL_TOKENS, totalTokens);
@@ -186,7 +187,7 @@ public class InquiryAgentService {
         }
 
         // 스텝 소진 — 여기까지 온 문의가 가장 복잡한 건이므로 실패시키지 않고 답을 뽑아낸다
-        return forceFinalAnswerWithoutTools(inquiry, messages, steps, searchTool, totalTokens, agentSpan);
+        return forceFinalAnswerWithoutTools(inquiry, messages, steps, searchTool, totalTokens, agentSpan, callContext);
     }
 
     /**
@@ -202,7 +203,8 @@ public class InquiryAgentService {
             List<AgentStep> steps,
             SearchManualTool searchTool,
             int totalTokens,
-            Span agentSpan) {
+            Span agentSpan,
+            ToolCallContext ctx) {
 
         messages.add(ChatMessage.user(
                 "Step budget for this inquiry is exhausted — no further tool calls are possible and any "
@@ -217,7 +219,7 @@ public class InquiryAgentService {
             tokens += response.totalTokens();
             JsonNode node = parseJson(response.content());
             if (node.has("finalAnswer")) {
-                answer = buildFinalAnswer(node, steps, searchTool.getCollectedChunks(), tokens)
+                answer = buildFinalAnswer(node, steps, searchTool.getCollectedChunks(), tokens, ctx)
                         .withHumanReview();
             }
         } catch (RuntimeException e) {
@@ -372,8 +374,9 @@ public class InquiryAgentService {
     }
 
     private AgentResult.FinalAnswer buildFinalAnswer(
-            JsonNode node, List<AgentStep> steps, List<RetrievedManualChunkDto> chunks, int totalTokens) {
-        return new AgentResult.FinalAnswer(
+            JsonNode node, List<AgentStep> steps, List<RetrievedManualChunkDto> chunks,
+            int totalTokens, ToolCallContext ctx) {
+        AgentResult.FinalAnswer answer = new AgentResult.FinalAnswer(
                 requiredText(node, "finalAnswer"),
                 validCategory(requiredText(node, "category")),
                 validUrgency(requiredText(node, "urgency")),
@@ -385,6 +388,8 @@ public class InquiryAgentService {
                 chunks,
                 totalTokens
         );
+        // 제안이 접수된 실행은 무조건 상담사가 본다 — 프롬프트 지시에 맡기지 않는다
+        return ctx.stagedChange() ? answer.withHumanReview() : answer;
     }
 
     private JsonNode parseJson(String response) {
