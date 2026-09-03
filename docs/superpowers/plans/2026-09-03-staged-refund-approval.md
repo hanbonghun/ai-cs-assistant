@@ -1473,16 +1473,108 @@ git commit -m "환불 제안이 접수된 실행은 상담사 검토를 코드�
 - Create: `src/main/java/com/aicsassistant/staging/application/StagedChangeApprovalService.java`
 - Create: `src/main/java/com/aicsassistant/staging/api/StagedChangeController.java`
 - Modify: `src/main/java/com/aicsassistant/order/InMemoryOrderRepository.java`
+- Modify: `src/main/java/com/aicsassistant/staging/domain/StagedChange.java` (금액 수정 승인)
+- Modify: `src/main/resources/schema.sql` (`approved_amount` 컬럼 추가)
+- Modify: `src/test/java/com/aicsassistant/staging/domain/StagedChangeTest.java` (`approve` 3-arg 반영)
 - Test: `src/test/java/com/aicsassistant/staging/application/StagedChangeApprovalServiceTest.java`
 
 **Interfaces:**
 - Consumes: Task 1 전부, `InquiryRepository`, `InquiryMessageRepository`
 - Produces:
+  - `StagedChange#approve(String decidedBy, String decisionNote, Integer approvedAmount)` → `void` (Task 1 의 2-arg 를 대체)
+  - `StagedChange#effectiveAmount()` → `int` (`approvedAmount != null ? approvedAmount : amount`)
   - `StagedChangeApprovalService#approve(Long inquiryId, Long changeId, StagedChangeDecisionRequest req)` → `StagedChangeResponse`
   - `StagedChangeApprovalService#reject(Long inquiryId, Long changeId, StagedChangeDecisionRequest req)` → `StagedChangeResponse`
   - `StagedChangeApprovalService#findByInquiry(Long inquiryId)` → `List<StagedChangeResponse>`
   - `InMemoryOrderRepository#markRefunded(String orderId)` → `void`
   - `StagedChangeResponse(Long id, String changeType, String orderId, int amount, String reason, String policyBasis, String status, String decidedBy, LocalDateTime decidedAt, String decisionNote, LocalDateTime createdAt)`
+
+- [ ] **Step 0: 상담사가 금액을 고쳐 승인할 수 있게 도메인·스키마를 확장한다**
+
+AI 금액은 초안이고 최종 금액은 사람이 정한다. 제안 금액(`amount`)은 AI 판단 이력이므로 덮어쓰지 않고,
+수정된 금액을 별도 컬럼에 남긴다. Task 1 이 이미 커밋되어 있으므로 컬럼은 `alter` 로 덧붙인다
+(이 프로젝트의 기존 스키마 진화 방식이다).
+
+`schema.sql` **맨 끝**에 추가:
+
+```sql
+
+-- 상담사가 제안 금액을 수정해 승인한 경우의 최종 금액. null 이면 제안 금액을 그대로 승인한 것이다.
+alter table staged_change add column if not exists approved_amount integer;
+```
+
+`StagedChange` 에 필드와 접근자를 추가한다 (`decisionNote` 필드 아래):
+
+```java
+    @Column(name = "approved_amount")
+    private Integer approvedAmount;
+```
+
+`approve` 를 3-arg 로 바꾼다. **Task 1 의 2-arg 버전을 대체하는 것이며 오버로드를 남기지 않는다** —
+금액 없는 승인은 `null` 을 넘긴다:
+
+```java
+    /**
+     * 승인한다. {@code approvedAmount} 가 null 이면 제안 금액을 그대로 승인한 것이다.
+     *
+     * <p>제안 금액은 덮어쓰지 않는다 — AI 가 얼마를 제안했고 사람이 얼마로 고쳤는지가 이력으로 남아야 한다.
+     */
+    public void approve(String decidedBy, String decisionNote, Integer approvedAmount) {
+        requirePending();
+        if (approvedAmount != null && approvedAmount <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_APPROVED_AMOUNT",
+                    "승인 금액은 0보다 커야 합니다.");
+        }
+        this.status = StagedChangeStatus.APPROVED;
+        this.decidedBy = decidedBy;
+        this.decisionNote = decisionNote;
+        this.approvedAmount = approvedAmount;
+        this.decidedAt = LocalDateTime.now();
+    }
+
+    /** 실행·알림·재검사의 기준이 되는 최종 금액. */
+    public int effectiveAmount() {
+        return approvedAmount != null ? approvedAmount : amount;
+    }
+```
+
+`StagedChangeTest` 의 기존 `approve(...)` 호출 2곳(`approveRecordsDeciderAndTimestamp`,
+`cannotDecideTwice`)에 세 번째 인자 `null` 을 넣고, 케이스 2개를 추가한다:
+
+```java
+    @Test
+    void approveWithEditedAmountKeepsProposedAmountAsHistory() {
+        StagedChange change = pendingRefund();
+
+        change.approve("counselor-demo", "일부만 인정", 32_000);
+
+        assertThat(change.getAmount()).isEqualTo(45_000);          // AI 제안은 보존
+        assertThat(change.getApprovedAmount()).isEqualTo(32_000);
+        assertThat(change.effectiveAmount()).isEqualTo(32_000);
+    }
+
+    @Test
+    void approveWithoutEditedAmountFallsBackToProposedAmount() {
+        StagedChange change = pendingRefund();
+
+        change.approve("counselor-demo", null, null);
+
+        assertThat(change.getApprovedAmount()).isNull();
+        assertThat(change.effectiveAmount()).isEqualTo(45_000);
+    }
+
+    @Test
+    void rejectsNonPositiveApprovedAmount() {
+        StagedChange change = pendingRefund();
+
+        assertThatThrownBy(() -> change.approve("counselor-demo", null, 0))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("승인 금액");
+    }
+```
+
+Run: `./gradlew test --tests "com.aicsassistant.staging.domain.StagedChangeTest"`
+Expected: PASS (기존 5건 + 신규 3건 = 8건)
 
 - [ ] **Step 1: 주문 저장소를 가변으로 바꾸고 `markRefunded`를 추가한다**
 
@@ -1518,10 +1610,16 @@ package com.aicsassistant.staging.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
-/** 거부 시 {@code decisionNote}는 필수 — 도메인에서 검증한다. */
+/**
+ * 승인·거부 요청.
+ *
+ * <p>{@code decisionNote}는 거부에서 필수(도메인에서 검증), 승인에서 선택이다.
+ * {@code approvedAmount}는 승인에서만 의미가 있고, 생략하면 제안 금액을 그대로 승인한 것이다.
+ */
 public record StagedChangeDecisionRequest(
         @NotBlank String decidedBy,
-        String decisionNote
+        String decisionNote,
+        Integer approvedAmount
 ) {}
 ```
 
@@ -1538,6 +1636,7 @@ public record StagedChangeResponse(
         String changeType,
         String orderId,
         int amount,
+        Integer approvedAmount,
         String reason,
         String policyBasis,
         String status,
@@ -1552,6 +1651,7 @@ public record StagedChangeResponse(
                 change.getChangeType().name(),
                 change.getOrderId(),
                 change.getAmount(),
+                change.getApprovedAmount(),
                 change.getReason(),
                 change.getPolicyBasis(),
                 change.getStatus().name(),
@@ -1619,10 +1719,11 @@ class StagedChangeApprovalServiceTest extends PostgresVectorIntegrationTest {
 
         StagedChangeResponse response = approvalService.approve(
                 proposal.getInquiryId(), proposal.getId(),
-                new StagedChangeDecisionRequest("counselor-demo", null));
+                new StagedChangeDecisionRequest("counselor-demo", null, null));
 
         assertThat(response.status()).isEqualTo("APPROVED");
         assertThat(response.decidedBy()).isEqualTo("counselor-demo");
+        assertThat(response.approvedAmount()).isNull();   // 금액을 고치지 않은 승인
 
         StagedChange reloaded = stagedChangeRepository.findById(proposal.getId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(StagedChangeStatus.APPROVED);
@@ -1644,7 +1745,7 @@ class StagedChangeApprovalServiceTest extends PostgresVectorIntegrationTest {
 
         StagedChangeResponse response = approvalService.reject(
                 proposal.getInquiryId(), proposal.getId(),
-                new StagedChangeDecisionRequest("counselor-demo", "배송 기록과 불일치"));
+                new StagedChangeDecisionRequest("counselor-demo", "배송 기록과 불일치", null));
 
         assertThat(response.status()).isEqualTo("REJECTED");
         assertThat(response.decisionNote()).isEqualTo("배송 기록과 불일치");
@@ -1657,10 +1758,10 @@ class StagedChangeApprovalServiceTest extends PostgresVectorIntegrationTest {
     void secondDecisionIsRejected() {
         StagedChange proposal = pendingProposal(45_000);
         approvalService.approve(proposal.getInquiryId(), proposal.getId(),
-                new StagedChangeDecisionRequest("counselor-demo", null));
+                new StagedChangeDecisionRequest("counselor-demo", null, null));
 
         assertThatThrownBy(() -> approvalService.approve(proposal.getInquiryId(), proposal.getId(),
-                new StagedChangeDecisionRequest("other", null)))
+                new StagedChangeDecisionRequest("other", null, null)))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("ALREADY_DECIDED");
     }
@@ -1671,7 +1772,7 @@ class StagedChangeApprovalServiceTest extends PostgresVectorIntegrationTest {
         Long otherInquiryId = inquiryRepository.save(Inquiry.create("cust-002", "다른 문의", "내용")).getId();
 
         assertThatThrownBy(() -> approvalService.approve(otherInquiryId, proposal.getId(),
-                new StagedChangeDecisionRequest("counselor-demo", null)))
+                new StagedChangeDecisionRequest("counselor-demo", null, null)))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("STAGED_CHANGE_NOT_FOUND");
     }
@@ -1683,12 +1784,44 @@ class StagedChangeApprovalServiceTest extends PostgresVectorIntegrationTest {
         orderRepository.markRefunded(ORDER_ID);
 
         assertThatThrownBy(() -> approvalService.approve(proposal.getInquiryId(), proposal.getId(),
-                new StagedChangeDecisionRequest("counselor-demo", null)))
+                new StagedChangeDecisionRequest("counselor-demo", null, null)))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("GUARDRAIL_FAILED");
 
         assertThat(stagedChangeRepository.findById(proposal.getId()).orElseThrow().getStatus())
                 .isEqualTo(StagedChangeStatus.PENDING);
+    }
+
+    @Test
+    void approveWithEditedAmountRefundsTheEditedAmount() {
+        StagedChange proposal = pendingProposal(45_000);
+
+        StagedChangeResponse response = approvalService.approve(
+                proposal.getInquiryId(), proposal.getId(),
+                new StagedChangeDecisionRequest("counselor-demo", "포장 훼손분만 인정", 32_000));
+
+        assertThat(response.amount()).isEqualTo(45_000);           // AI 제안은 이력으로 남는다
+        assertThat(response.approvedAmount()).isEqualTo(32_000);
+
+        List<InquiryMessage> messages =
+                messageRepository.findByInquiryIdOrderByCreatedAtAsc(proposal.getInquiryId());
+        assertThat(messages).hasSize(1);
+        assertThat(messages.get(0).getContent()).contains("32,000").doesNotContain("45,000");
+    }
+
+    @Test
+    void rejectsEditedAmountAboveOrderTotal() {
+        StagedChange proposal = pendingProposal(45_000);
+
+        assertThatThrownBy(() -> approvalService.approve(proposal.getInquiryId(), proposal.getId(),
+                new StagedChangeDecisionRequest("counselor-demo", null, 999_000)))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("GUARDRAIL_FAILED");
+
+        assertThat(stagedChangeRepository.findById(proposal.getId()).orElseThrow().getStatus())
+                .isEqualTo(StagedChangeStatus.PENDING);
+        assertThat(orderRepository.findById(ORDER_ID, "cust-001").orElseThrow().status())
+                .isEqualTo("배송완료");
     }
 
     @Test
@@ -1788,18 +1921,21 @@ public class StagedChangeApprovalService {
         StagedChange change = loadForInquiry(inquiryId, changeId);
         Inquiry inquiry = loadInquiry(inquiryId);
 
-        reCheckGuardrails(change, inquiry);
+        // 상담사가 금액을 고쳤다면 그 금액으로 검사한다 — 제안 금액이 아니라 실제로 나갈 금액이 기준이다
+        int finalAmount = request.approvedAmount() != null ? request.approvedAmount() : change.getAmount();
+        reCheckGuardrails(change, inquiry, finalAmount);
 
-        change.approve(request.decidedBy(), request.decisionNote());
+        change.approve(request.decidedBy(), request.decisionNote(), request.approvedAmount());
         // ponytail: DB 쓰기(제안 상태·알림 메시지)는 이 트랜잭션 안이지만 mock 주문 변경은 밖이다.
         // 실행을 마지막에 두어 실무상 어긋날 확률을 없앴을 뿐, 실제 결제 시스템이면 아웃박스가 필요하다.
         orderRepository.markRefunded(change.getOrderId());
         messageRepository.save(InquiryMessage.of(inquiryId, InquiryMessageRole.AI,
                 "요청하신 환불이 승인되어 처리되었습니다. 주문 %s · 환불 금액 %,d원입니다. 카드 취소는 2~3 영업일이 소요될 수 있습니다."
-                        .formatted(change.getOrderId(), change.getAmount())));
+                        .formatted(change.getOrderId(), change.effectiveAmount())));
 
-        log.info("[StagedChange approved] changeId={} inquiryId={} orderId={} amount={} by={}",
-                changeId, inquiryId, change.getOrderId(), change.getAmount(), request.decidedBy());
+        log.info("[StagedChange approved] changeId={} inquiryId={} orderId={} proposed={} final={} by={}",
+                changeId, inquiryId, change.getOrderId(), change.getAmount(),
+                change.effectiveAmount(), request.decidedBy());
         return StagedChangeResponse.from(change);
     }
 
@@ -1817,8 +1953,10 @@ public class StagedChangeApprovalService {
     /**
      * 승인 시점 재검사. provenance 는 에이전트 실행 세션 개념이라 대응물이 없고, 중복 검사는 이 제안
      * 자신이 유일한 PENDING 이라 무의미하므로 금액·주문상태 2종만 본다.
+     *
+     * <p>금액은 제안값이 아니라 상담사가 확정한 최종 금액({@code finalAmount})으로 검사한다.
      */
-    private void reCheckGuardrails(StagedChange change, Inquiry inquiry) {
+    private void reCheckGuardrails(StagedChange change, Inquiry inquiry, int finalAmount) {
         OrderInfo order = orderRepository
                 .findById(change.getOrderId(), inquiry.getCustomerIdentifier())
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "GUARDRAIL_FAILED",
@@ -1832,9 +1970,10 @@ public class StagedChangeApprovalService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "GUARDRAIL_FAILED",
                     "이미 환불된 주문입니다. (GUARDRAIL_FAILED)");
         }
-        if (change.getAmount() > order.amount()) {
+        if (finalAmount > order.amount()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "GUARDRAIL_FAILED",
-                    "제안 금액이 결제금액을 초과해 승인할 수 없습니다. (GUARDRAIL_FAILED)");
+                    "승인 금액 %,d원이 결제금액 %,d원을 초과해 승인할 수 없습니다. (GUARDRAIL_FAILED)"
+                            .formatted(finalAmount, order.amount()));
         }
     }
 
@@ -1863,7 +2002,7 @@ public class StagedChangeApprovalService {
 - [ ] **Step 6: 테스트가 통과하는지 확인한다**
 
 Run: `./gradlew test --tests "com.aicsassistant.staging.application.StagedChangeApprovalServiceTest"`
-Expected: PASS (6건)
+Expected: PASS (8건)
 
 - [ ] **Step 7: 컨트롤러를 만든다**
 
@@ -2046,8 +2185,19 @@ import 추가: `com.aicsassistant.staging.dto.StagedChangeResponse`.
      class="card" style="border-left:4px solid #d97706;">
     <h3 style="margin:0 0 8px;">환불 제안 — 승인 대기</h3>
     <p style="margin:4px 0;">
-        주문 <strong th:text="${change.orderId}">ORD-...</strong> ·
-        <strong th:text="${#numbers.formatInteger(change.amount, 3, 'COMMA')} + '원'">0원</strong>
+        주문 <strong th:text="${change.orderId}">ORD-...</strong>
+    </p>
+    <p style="margin:4px 0;">
+        <label>환불 금액
+            <input type="number" min="1" step="1000"
+                   th:attr="data-amount-for=${change.id}"
+                   th:value="${change.amount}" style="width:140px;">
+            원
+        </label>
+        <span class="muted" style="margin-left:6px;">
+            AI 제안: <span th:text="${#numbers.formatInteger(change.amount, 3, 'COMMA')} + '원'">0원</span>
+            — 필요하면 고쳐서 승인하세요
+        </span>
     </p>
     <p style="margin:4px 0;" class="muted">근거: <span th:text="${change.reason}"></span></p>
     <p style="margin:4px 0;" class="muted" th:if="${change.policyBasis != null}">
@@ -2060,6 +2210,7 @@ import 추가: `com.aicsassistant.staging.dto.StagedChangeResponse`.
         <button class="button" type="button"
                 th:attr="data-change-id=${change.id}"
                 onclick="decideStagedChange(this.getAttribute('data-change-id'), 'approve')">승인</button>
+        <!-- 금액은 위 입력창에서 읽는다 (data-amount-for 로 제안 id 매칭) -->
         <button class="button secondary" type="button"
                 th:attr="data-change-id=${change.id}"
                 onclick="decideStagedChange(this.getAttribute('data-change-id'), 'reject')">거부</button>
@@ -2071,7 +2222,11 @@ import 추가: `com.aicsassistant.staging.dto.StagedChangeResponse`.
      class="card muted" style="font-size:0.9em;">
     환불 제안
     <span th:text="${change.orderId}"></span> ·
-    <span th:text="${#numbers.formatInteger(change.amount, 3, 'COMMA')} + '원'"></span> —
+    <span th:if="${change.approvedAmount == null}"
+          th:text="${#numbers.formatInteger(change.amount, 3, 'COMMA')} + '원'"></span>
+    <span th:if="${change.approvedAmount != null}"
+          th:text="'AI 제안 ' + ${#numbers.formatInteger(change.amount, 3, 'COMMA')} + '원 → 승인 '
+                   + ${#numbers.formatInteger(change.approvedAmount, 3, 'COMMA')} + '원'"></span> —
     <strong th:text="${change.status == 'APPROVED' ? '승인' : '거부'}"></strong>
     (<span th:text="${change.decidedBy}"></span>,
     <span th:text="${#temporals.format(change.decidedAt, 'yyyy-MM-dd HH:mm')}"></span>)
@@ -2084,18 +2239,28 @@ import 추가: `com.aicsassistant.staging.dto.StagedChangeResponse`.
 ```javascript
         async function decideStagedChange(changeId, decision) {
             let note = null;
+            let approvedAmount = null;
+
             if (decision === 'reject') {
                 note = prompt('거부 사유를 입력하세요 (필수)');
                 if (!note || !note.trim()) return;
-            }
-            if (decision === 'approve' && !confirm('환불을 승인하면 즉시 처리되고 고객에게 알림이 전송됩니다. 계속할까요?')) {
-                return;
+            } else {
+                const input = document.querySelector(`[data-amount-for="${changeId}"]`);
+                approvedAmount = Number(input.value);
+                if (!Number.isInteger(approvedAmount) || approvedAmount <= 0) {
+                    alert('환불 금액은 0보다 큰 정수여야 합니다.');
+                    return;
+                }
+                const won = approvedAmount.toLocaleString('ko-KR');
+                if (!confirm(`${won}원을 환불 처리하고 고객에게 알림을 전송합니다. 계속할까요?`)) {
+                    return;
+                }
             }
             try {
                 const res = await fetch(`/api/inquiries/${inquiryId}/staged-changes/${changeId}/${decision}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ decidedBy: 'counselor-demo', decisionNote: note })
+                    body: JSON.stringify({ decidedBy: 'counselor-demo', decisionNote: note, approvedAmount })
                 });
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
@@ -2114,7 +2279,9 @@ import 추가: `com.aicsassistant.staging.dto.StagedChangeResponse`.
 
 Run: `./gradlew bootRun --args='--spring.profiles.active=local'`
 그다음 `/ui/inquiries/{id}`를 열어 대기 카드 → 승인 → 이력 전환과 고객 포털(`/app`)의 알림 메시지를 눈으로 확인한다.
-Expected: 승인 후 주문 조회에 `환불완료`가 보이고, 고객 대화에 알림 메시지가 나타난다
+금액 입력창을 제안값보다 작게 고쳐서 승인해, 고객 알림과 이력에 **고친 금액**이 나오는지도 확인한다.
+Expected: 승인 후 주문 조회에 `환불완료`가 보이고, 고객 대화에 알림 메시지가 나타나며,
+금액을 고쳐 승인한 경우 이력에 `AI 제안 45,000원 → 승인 32,000원` 형태로 보인다
 
 - [ ] **Step 8: 전체 테스트를 돌린다**
 
@@ -2233,3 +2400,5 @@ git commit -m "docs: 승인 게이트 도입에 맞춰 툴 설계 원칙과 아�
 - [ ] 승인 후 `check_order_status`가 `환불완료`를 반환한다
 - [ ] 같은 주문에 두 번째 제안이 차단된다 (가드레일 4)
 - [ ] 조회하지 않은 주문에 대한 제안이 차단된다 (가드레일 1)
+- [ ] 상담사가 금액을 고쳐 승인하면 고친 금액으로 환불되고, AI 제안 금액은 이력에 남는다
+- [ ] 고친 금액이 결제금액을 넘으면 승인이 거절되고 제안은 PENDING 으로 남는다
