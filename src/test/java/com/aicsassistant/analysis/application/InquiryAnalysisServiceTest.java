@@ -28,7 +28,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @SpringBootTest
 @Import(InquiryAnalysisServiceTest.FakeAiConfig.class)
@@ -59,7 +59,6 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
     }
 
     @Test
-    @Transactional
     void analyzeUpdatesInquiryAndWritesLog() {
         Inquiry savedInquiry = inquiryRepository.save(Inquiry.create("cust-001", "문의", "멤버십 환불이 가능한가요?"));
         seedManualChunk("환불은 영업일 기준 3일 내 처리됩니다.");
@@ -117,6 +116,46 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
 
         assertThatThrownBy(() -> inquiryAnalysisService.analyze(saved.getId()))
                 .isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void agentRunsOutsideTransaction() {
+        Inquiry saved = inquiryRepository.save(Inquiry.create("cust-tx", "문의", "환불 문의"));
+        seedManualChunk("환불은 영업일 기준 3일 내 처리됩니다.");
+        fakeLlmClient.enqueue("""
+                {"thought":"바로 답변합니다.","finalAnswer":"안녕하세요. 환불 규정에 따라 ...","category":"REFUND","urgency":"LOW","needsHumanReview":true,"needsEscalation":false,"fraudRiskFlag":false,"reason":"환불 문의"}
+                """);
+
+        inquiryAnalysisService.analyze(saved.getId());
+
+        assertThat(fakeLlmClient.transactionActiveDuringCall)
+                .as("에이전트가 LLM 을 호출하는 동안 DB 커넥션을 잡고 있으면 안 된다 — 2026-09-04 사고의 원인")
+                .isFalse();
+    }
+
+    @Test
+    void rejectsPersistWhenInquiryClosedDuringAgentRun() {
+        Inquiry saved = inquiryRepository.save(Inquiry.create("cust-race", "문의", "환불 문의"));
+        seedManualChunk("환불은 영업일 기준 3일 내 처리됩니다.");
+        fakeLlmClient.enqueue("""
+                {"thought":"바로 답변합니다.","finalAnswer":"안녕하세요. 환불 규정에 따라 ...","category":"REFUND","urgency":"MEDIUM","needsHumanReview":true,"needsEscalation":false,"fraudRiskFlag":false,"reason":"환불 문의"}
+                """);
+        // 에이전트가 응답을 돌려주기 직전에 상담사가 문의를 종료한다.
+        // 트랜잭션을 나눈 뒤 새로 생긴 창이다 — 단일 트랜잭션은 이 보호를 공짜로 주고 있었다.
+        fakeLlmClient.beforeResponse = () -> {
+            Inquiry concurrent = inquiryRepository.findById(saved.getId()).orElseThrow();
+            concurrent.confirmReview("상담사가 먼저 답변했습니다", null, "mimi");
+            concurrent.close();
+            inquiryRepository.save(concurrent);
+        };
+
+        assertThatThrownBy(() -> inquiryAnalysisService.analyze(saved.getId()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("분석 중 문의 상태가 변경");
+
+        assertThat(inquiryRepository.findById(saved.getId()).orElseThrow().getStatus())
+                .as("종료된 문의를 뒤늦은 분석 결과로 덮어쓰지 않는다")
+                .isEqualTo(InquiryStatus.CLOSED);
     }
 
     private void seedManualChunk(String content) {
@@ -187,6 +226,12 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
         private final Queue<String> responses = new ArrayDeque<>();
         private RuntimeException failure;
 
+        /** 에이전트가 LLM 을 호출한 시점에 DB 트랜잭션이 열려 있었는지. 미호출이면 null. */
+        volatile Boolean transactionActiveDuringCall;
+
+        /** LLM 응답을 돌려주기 직전에 실행할 훅. 에이전트 실행 중 DB 상태가 바뀌는 상황을 만든다. */
+        volatile Runnable beforeResponse;
+
         void enqueue(String response) {
             responses.add(response);
         }
@@ -198,6 +243,8 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
         void reset() {
             responses.clear();
             failure = null;
+            transactionActiveDuringCall = null;
+            beforeResponse = null;
         }
 
         @Override
@@ -207,6 +254,10 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
 
         @Override
         public String complete(List<ChatMessage> messages) {
+            transactionActiveDuringCall = TransactionSynchronizationManager.isActualTransactionActive();
+            if (beforeResponse != null) {
+                beforeResponse.run();
+            }
             if (failure != null) {
                 throw failure;
             }

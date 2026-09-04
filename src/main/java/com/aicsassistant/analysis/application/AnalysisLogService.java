@@ -16,7 +16,6 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
@@ -65,7 +64,12 @@ public class AnalysisLogService {
         }
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    /**
+     * 실패 로그. 예전에는 {@code REQUIRES_NEW} 였다 — 바깥 트랜잭션이 롤백돼도 로그를 남기려는
+     * 의도였는데, 그 때문에 바깥 커넥션을 쥔 채 두 번째 커넥션을 요구해 풀 데드락 소지가 있었다
+     * (prod pool 5 / async pool 8). 경계를 나눈 뒤에는 호출 시점에 열린 트랜잭션이 없다.
+     */
+    @Transactional
     public void logFailure(
             Inquiry inquiry,
             RuntimeException exception,
