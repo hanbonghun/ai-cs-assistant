@@ -51,9 +51,20 @@ spring:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      # 512MB 컨테이너에서 커넥션 10개는 과하다. 데모 트래픽은 사실상 단일 사용자다.
+      maximum-pool-size: 5
+      minimum-idle: 1
   sql:
     init:
       mode: always
   jpa:
     hibernate:
       ddl-auto: none
+server:
+  tomcat:
+    threads:
+      # 기본 200개는 동시 요청 200개를 받는 서버를 가정한 값이다. 스레드당 스택이 붙으므로
+      # 512MB 에서는 상한 자체를 낮춘다.
+      max: 20
+      min-spare: 2
