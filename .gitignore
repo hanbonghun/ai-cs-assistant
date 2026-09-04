@@ -11,3 +11,5 @@ out/
 
 # SDD 작업 산출물 (git 추적 대상 아님)
 .superpowers/
+# 스펙·계획은 실행이 끝나면 src/ 와 중복되고 낡는다. 결정 기록은 docs/adr/ 로 남긴다 (efb711d)
+docs/superpowers/
