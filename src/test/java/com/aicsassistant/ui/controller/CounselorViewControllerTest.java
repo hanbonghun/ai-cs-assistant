@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
+import com.aicsassistant.common.exception.ApiException;
+import com.aicsassistant.common.exception.ViewExceptionHandler;
 import com.aicsassistant.inquiry.application.InquiryService;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryStatus;
@@ -22,11 +24,14 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(CounselorViewController.class)
+@Import(ViewExceptionHandler.class)
 public class CounselorViewControllerTest {
 
     @Autowired
@@ -139,5 +144,17 @@ public class CounselorViewControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("분석 완료 문의")))
                 .andExpect(content().string(containsString("분석 전 문의")));
+    }
+
+    @Test
+    public void missingInquiryRendersErrorPageWithNotFoundStatus() throws Exception {
+        // GlobalExceptionHandler 를 REST 전용으로 좁힌 뒤 뷰의 ApiException 을 아무도 번역하지
+        // 않아 상태가 전부 500 이 됐다. 없는 문의를 여는 것은 404 다 — 화면과 상태 코드가 함께 맞아야 한다.
+        given(inquiryService.getInquiry(999_999L))
+                .willThrow(new ApiException(HttpStatus.NOT_FOUND, "INQUIRY_NOT_FOUND", "Inquiry not found"));
+
+        mvc.perform(get("/ui/inquiries/999999"))
+                .andExpect(status().isNotFound())
+                .andExpect(view().name("error"));
     }
 }

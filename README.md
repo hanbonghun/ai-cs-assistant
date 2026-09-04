@@ -3,8 +3,9 @@
 > AI 기반 고객 문의 자동 분류·답변 시스템 — Spring Boot + ReAct Agent + Hybrid RAG + Langfuse 관측성
 
 🚀 **Live demo**: https://ai-cs-assistant-production.up.railway.app/app
-> Railway 무료 크레딧 기반 데모. **2026-08-23까지 유효** (배포 후 30일).
+> Railway 무료 플랜(512MB) 기반 데모라 예고 없이 중단될 수 있습니다. 안 열리면 이슈로 알려주세요.
 > 데모 계정 3개(김민준 / 이서연 / 박지호) 중 선택 → 문의 등록 → AI agent 분석 → 답변 확인.
+> 주문 날짜는 조회 시점 기준으로 계산되므로 언제 보셔도 최근 주문으로 보입니다.
 
 LLM 프레임워크(LangChain 등) 없이 **ReAct Agent 루프**와 **Hybrid RAG 파이프라인**을 직접 설계·구현한 고객 상담 자동화 MVP입니다. 검색 품질은 87 케이스 골든셋으로 회귀 테스트하고, 모든 LLM/Agent/RAG 호출은 OpenTelemetry → Langfuse로 trace를 시각화합니다.
 
