@@ -223,6 +223,53 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
                 .isEqualTo(InquiryStatus.NEW);
     }
 
+    @Test
+    void rejectsWhenAnalysisAlreadyRunning() {
+        Inquiry saved = inquiryRepository.save(Inquiry.create("cust-dup", "문의", "환불 문의"));
+        insertRunningLog(saved.getId(), LocalDateTime.now());
+
+        assertThatThrownBy(() -> inquiryAnalysisService.analyze(saved.getId()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("이미 분석이 진행 중입니다");
+    }
+
+    @Test
+    void closesStaleRunningLogBeforeStartingNewAttempt() {
+        Inquiry saved = inquiryRepository.save(Inquiry.create("cust-stale", "문의", "환불 문의"));
+        seedManualChunk("환불은 영업일 기준 3일 내 처리됩니다.");
+        insertRunningLog(saved.getId(), LocalDateTime.now().minusHours(1));
+        fakeLlmClient.enqueue("""
+                {"thought":"바로 답변합니다.","finalAnswer":"안녕하세요. 환불 규정에 따라 ...","category":"REFUND","urgency":"MEDIUM","needsHumanReview":true,"needsEscalation":false,"fraudRiskFlag":false,"reason":"환불 문의"}
+                """);
+
+        inquiryAnalysisService.analyze(saved.getId());
+
+        List<InquiryAnalysisLog> logs =
+                inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(saved.getId());
+        assertThat(logs).hasSize(2);
+        assertThat(logs)
+                .as("stale RUNNING 은 FAILURE 로 마감돼야 한다 — 그래야 재시도 상한이 버려진 시도를 센다")
+                .extracting(InquiryAnalysisLog::getAnalysisStatus)
+                .containsExactlyInAnyOrder(AnalysisStatus.SUCCESS, AnalysisStatus.FAILURE);
+        assertThat(logs)
+                .noneMatch(entry -> entry.getAnalysisStatus() == AnalysisStatus.RUNNING);
+    }
+
+    private void insertRunningLog(Long inquiryId, LocalDateTime createdAt) {
+        jdbcTemplate.update("""
+                insert into inquiry_analysis_log (
+                    inquiry_id, request_snapshot, model_name, prompt_version, analysis_status, created_at
+                ) values (?, ?, ?, ?, ?, ?)
+                """,
+                inquiryId,
+                "문의 본문 스냅샷",
+                "fake-model",
+                "test",
+                "RUNNING",
+                createdAt
+        );
+    }
+
     private void seedManualChunk(String content) {
         jdbcTemplate.update("""
                 insert into manual_document (id, title, category, content, version, active, created_at, updated_at)
