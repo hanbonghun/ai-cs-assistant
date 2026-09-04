@@ -10,6 +10,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @Slf4j
 @RestControllerAdvice
@@ -39,6 +40,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleMessageNotReadable(HttpMessageNotReadableException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiErrorResponse("MALFORMED_REQUEST", "요청 본문을 읽을 수 없습니다.", LocalDateTime.now()));
+    }
+
+    /**
+     * 존재하지 않는 정적 리소스 요청 — 404 로 조용히 끝낸다.
+     *
+     * <p>브라우저는 페이지마다 {@code favicon.ico} 를 자동 요청한다. 이것이 아래 범용 핸들러까지
+     * 올라가면 요청마다 ERROR 와 스택트레이스가 찍혀 로그가 폭주한다 — 실제로 Railway 의
+     * 초당 500줄 한도를 쳐서 정작 필요한 로그가 드롭됐다. 없는 리소스는 사고가 아니다.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNoResource(NoResourceFoundException ex) {
+        log.debug("No static resource: {}", ex.getResourcePath());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiErrorResponse("NOT_FOUND", "요청한 리소스를 찾을 수 없습니다.", LocalDateTime.now()));
     }
 
     /** 예상치 못한 예외 — 내부 에러 메시지를 그대로 노출하지 않고 일반화한 응답으로 변환. */

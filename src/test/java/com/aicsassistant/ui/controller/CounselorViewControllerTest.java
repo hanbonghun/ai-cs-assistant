@@ -12,6 +12,7 @@ import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryStatus;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
+import com.aicsassistant.inquiry.dto.InquiryListResponse;
 import com.aicsassistant.manual.application.ManualService;
 import com.aicsassistant.staging.application.StagedChangeApprovalService;
 import com.aicsassistant.staging.dto.StagedChangeResponse;
@@ -118,5 +119,25 @@ public class CounselorViewControllerTest {
                 .andExpect(content().string(containsString("ORD-1")))
                 .andExpect(content().string(containsString("45,000원")))
                 .andExpect(content().string(containsString("AI 제안 50,000원 → 승인 32,000원")));
+    }
+
+    @Test
+    public void rendersInquiryListWhenCategoryOrUrgencyIsNull() throws Exception {
+        // 이 케이스가 프로덕션에서 500 을 냈다. AI 분석 전이거나 분석이 실패한 문의는
+        // category/urgency 가 null 인데, 템플릿이 .name() 을 무가드로 부르면 그 문의 하나가
+        // 목록 전체를 죽인다. 렌더 테스트만 잡을 수 있는 종류라 여기 고정한다.
+        given(inquiryService.getInquiries(null, null, null)).willReturn(List.of(
+                new InquiryListResponse(1L, "cust-001", "분석 완료 문의",
+                        InquiryCategory.REFUND, UrgencyLevel.HIGH, InquiryStatus.AI_PROCESSED,
+                        LocalDateTime.of(2026, 4, 8, 9, 0), LocalDateTime.of(2026, 4, 8, 9, 0)),
+                new InquiryListResponse(2L, "cust-002", "분석 전 문의",
+                        null, null, InquiryStatus.NEW,
+                        LocalDateTime.of(2026, 4, 8, 9, 0), LocalDateTime.of(2026, 4, 8, 9, 0))
+        ));
+
+        mvc.perform(get("/ui/inquiries"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("분석 완료 문의")))
+                .andExpect(content().string(containsString("분석 전 문의")));
     }
 }
