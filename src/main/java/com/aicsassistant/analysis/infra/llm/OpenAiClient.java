@@ -32,6 +32,8 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
     private static final AttributeKey<Long> ATTR_GENAI_INPUT_TOKENS = AttributeKey.longKey("gen_ai.usage.input_tokens");
     private static final AttributeKey<Long> ATTR_GENAI_OUTPUT_TOKENS = AttributeKey.longKey("gen_ai.usage.output_tokens");
     private static final AttributeKey<Long> ATTR_GENAI_TOTAL_TOKENS = AttributeKey.longKey("gen_ai.usage.total_tokens");
+    private static final AttributeKey<Long> ATTR_GENAI_CACHE_READ_TOKENS =
+            AttributeKey.longKey("gen_ai.usage.cache_read_input_tokens");
 
     private final WebClient webClient;
     private final AiProperties aiProperties;
@@ -82,6 +84,16 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
             }
             int promptTokens = response.path("usage").path("prompt_tokens").asInt(0);
             int completionTokens = response.path("usage").path("completion_tokens").asInt(0);
+            // promptTokens 중 캐시에서 재사용된 몫. OpenAI 는 접두부가 일정 길이를 넘으면 자동으로
+            // 캐시한다 — 0 이 계속 나오면 캐시가 안 걸리는 것이고, 원인은 대개 프롬프트 접두부가
+            // 요청마다 달라지는 것이거나 접두부가 최소 길이에 못 미치는 것이다.
+            //
+            // 경로를 두 개 보는 이유: Chat Completions 는 usage 를 prompt_tokens 계열로 부르고
+            // (prompt_tokens_details), 신형 Responses API 문서는 input_tokens 계열을 쓴다
+            // (input_tokens_details). 어느 쪽이 오든 읽히게 두면 필드명을 추측하지 않아도 된다.
+            JsonNode usage = response.path("usage");
+            int cacheReadTokens = usage.path("prompt_tokens_details").path("cached_tokens")
+                    .asInt(usage.path("input_tokens_details").path("cached_tokens").asInt(0));
             String contentText = content.asText();
 
             span.setAttribute(ATTR_LF_OUTPUT, contentText);
@@ -90,7 +102,8 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
             span.setAttribute(ATTR_GENAI_COMPLETION_TOKENS, completionTokens);
             span.setAttribute(ATTR_GENAI_OUTPUT_TOKENS, completionTokens);
             span.setAttribute(ATTR_GENAI_TOTAL_TOKENS, promptTokens + completionTokens);
-            return new LlmResponse(contentText, promptTokens, completionTokens);
+            span.setAttribute(ATTR_GENAI_CACHE_READ_TOKENS, cacheReadTokens);
+            return new LlmResponse(contentText, promptTokens, completionTokens, cacheReadTokens);
         } catch (RuntimeException e) {
             span.setStatus(StatusCode.ERROR, e.getMessage());
             span.recordException(e);
