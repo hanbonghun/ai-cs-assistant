@@ -1,6 +1,7 @@
 package com.aicsassistant.analysis.application;
 
 import com.aicsassistant.analysis.domain.AnalysisStatus;
+import com.aicsassistant.analysis.domain.InquiryAnalysisLog;
 import com.aicsassistant.analysis.infra.InquiryAnalysisLogRepository;
 import com.aicsassistant.inquiry.domain.InquiryStatus;
 import java.time.LocalDateTime;
@@ -59,7 +60,7 @@ public class AnalysisRetryScheduler {
             long failures = logRepository.countByInquiryIdAndAnalysisStatus(
                     inquiryId, AnalysisStatus.FAILURE);
             if (failures >= MAX_RETRY_ATTEMPTS) {
-                // Task 5 에서 에스컬레이션으로 채운다
+                escalate(inquiryId, failures);
                 continue;
             }
             try {
@@ -68,6 +69,17 @@ public class AnalysisRetryScheduler {
             } catch (Exception e) {
                 log.warn("[분석 재시도] 실패 inquiryId={}", inquiryId, e);
             }
+        }
+    }
+
+    private void escalate(Long inquiryId, long failures) {
+        String lastError = logRepository.findFirstByInquiryIdOrderByIdDesc(inquiryId)
+                .map(InquiryAnalysisLog::getErrorMessage)
+                .orElse("(원인 불명)");
+        try {
+            analysisService.escalateAfterRetriesExhausted(inquiryId, failures, lastError);
+        } catch (Exception e) {
+            log.warn("[분석 포기] 에스컬레이션 실패 inquiryId={}", inquiryId, e);
         }
     }
 }
