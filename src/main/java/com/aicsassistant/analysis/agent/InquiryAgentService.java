@@ -17,6 +17,7 @@ import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.InquiryMessageRole;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.order.InMemoryOrderRepository;
+import java.time.LocalDate;
 import com.aicsassistant.staging.infra.StagedChangeRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -288,6 +289,12 @@ public class InquiryAgentService {
      */
     private String buildInitialMessage(Inquiry inquiry, CheckOrderStatusTool orderTool, ToolCallContext ctx) {
         StringBuilder sb = new StringBuilder();
+
+        // 모델에게는 시간 감각이 없다. 오늘을 알려주지 않으면 "도착예정: 2026-09-03" 이 과거인지
+        // 미래인지 판단할 수 없어, 이미 지난 예정일을 "9월 3일에 배송될 예정입니다" 라고
+        // 미래형으로 답하는 일이 실제로 있었다. 주문 mock 이 KST 기준이므로 같은 기준을 쓴다.
+        // 시스템 프롬프트가 아니라 이 사용자 메시지에 넣는다 — 캐시되는 접두부를 날짜로 깨지 않기 위해서다.
+        sb.append("[오늘] ").append(LocalDate.now(InMemoryOrderRepository.KST)).append("\n\n");
 
         String orderId = inquiry.getRelatedOrderId();
         if (orderId != null && !orderId.isBlank()) {

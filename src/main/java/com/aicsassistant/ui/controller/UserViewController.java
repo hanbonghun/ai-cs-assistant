@@ -6,6 +6,8 @@ import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.inquiry.dto.InquiryListResponse;
 import com.aicsassistant.user.DummyUserStore;
+import com.aicsassistant.order.InMemoryOrderRepository;
+import com.aicsassistant.ui.viewmodel.UserView;
 import com.aicsassistant.user.DummyUserStore.DummyUser;
 import jakarta.servlet.http.HttpSession;
 import java.util.LinkedHashMap;
@@ -53,11 +55,12 @@ public class UserViewController {
     );
 
     private final InquiryService inquiryService;
+    private final InMemoryOrderRepository orderRepository;
 
     /** 사용자 선택 화면 */
     @GetMapping
     public String selectUser(Model model) {
-        model.addAttribute("users", DummyUserStore.getAll());
+        model.addAttribute("users", DummyUserStore.getAll().stream().map(this::toView).toList());
         return "user/select";
     }
 
@@ -86,7 +89,7 @@ public class UserViewController {
     public String home(HttpSession session, Model model) {
         DummyUser user = resolveUser(session);
         List<InquiryListResponse> myInquiries = inquiryService.getInquiriesByCustomer(user.id());
-        model.addAttribute("user", user);
+        model.addAttribute("user", toView(user));
         model.addAttribute("myInquiries", myInquiries);
         model.addAttribute("categoryLabels", CATEGORY_LABELS);
         return "user/home";
@@ -96,7 +99,7 @@ public class UserViewController {
     @GetMapping("/inquiries/new")
     public String inquiryNew(HttpSession session, Model model) {
         DummyUser user = resolveUser(session);
-        model.addAttribute("user", user);
+        model.addAttribute("user", toView(user));
         model.addAttribute("categoryLabels", CATEGORY_LABELS);
         model.addAttribute("orderRequiredCategories", ORDER_REQUIRED.stream().map(Enum::name).toList());
         return "user/inquiry-new";
@@ -108,11 +111,16 @@ public class UserViewController {
         DummyUser user = resolveUser(session);
         InquiryDetailResponse inquiry = inquiryService.getInquiry(id);
         List<InquiryMessage> messages = inquiryService.getMessages(id);
-        model.addAttribute("user", user);
+        model.addAttribute("user", toView(user));
         model.addAttribute("inquiry", inquiry);
         model.addAttribute("messages", messages);
         model.addAttribute("categoryLabels", CATEGORY_LABELS);
         return "user/inquiry-detail";
+    }
+
+    /** 사용자 신원 + 주문 상세를 화면 직전에 합친다. 주문 날짜는 조회 시점에 계산되어 항상 신선하다. */
+    private UserView toView(DummyUser user) {
+        return UserView.of(user, orderRepository.findAllByCustomer(user.id()));
     }
 
     private DummyUser resolveUser(HttpSession session) {
