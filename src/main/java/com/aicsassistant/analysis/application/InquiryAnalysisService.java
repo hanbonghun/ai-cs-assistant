@@ -76,7 +76,8 @@ public class InquiryAnalysisService {
 
             List<InquiryMessage> history =
                     messageRepository.findByInquiryIdOrderByCreatedAtAsc(inquiryId);
-            return new AnalysisContext(inquiry, history, System.currentTimeMillis());
+            Long logId = analysisLogService.startRunning(inquiry);
+            return new AnalysisContext(inquiry, history, logId, System.currentTimeMillis());
         });
     }
 
@@ -90,15 +91,15 @@ public class InquiryAnalysisService {
         try {
             return agentService.run(ctx.inquiry(), ctx.history());
         } catch (ApiException ex) {
-            analysisLogService.logFailure(ctx.inquiry(), ex, ctx.startedAtMillis());
+            analysisLogService.completeFailure(ctx.logId(), ex, ctx.startedAtMillis());
             throw ex;
         } catch (IllegalStateException ex) {
-            analysisLogService.logFailure(ctx.inquiry(), ex, ctx.startedAtMillis());
+            analysisLogService.completeFailure(ctx.logId(), ex, ctx.startedAtMillis());
             log.error("AI 에이전트 파싱 실패 inquiryId={}", ctx.inquiry().getId(), ex);
             throw new ApiException(HttpStatus.BAD_GATEWAY, "AI_PARSE_ERROR",
                     "AI 응답을 파싱하지 못했습니다. 잠시 후 다시 시도해 주세요.");
         } catch (RuntimeException ex) {
-            analysisLogService.logFailure(ctx.inquiry(), ex, ctx.startedAtMillis());
+            analysisLogService.completeFailure(ctx.logId(), ex, ctx.startedAtMillis());
             log.error("AI 에이전트 실패 inquiryId={}", ctx.inquiry().getId(), ex);
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "AI_ANALYSIS_ERROR",
                     "AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
@@ -134,8 +135,8 @@ public class InquiryAnalysisService {
             messageRepository.save(
                     InquiryMessage.of(inquiry.getId(), InquiryMessageRole.AI, fa.answer()));
 
-            analysisLogService.logSuccess(inquiry, category, urgency, fa.retrievedChunks(), draft,
-                    fa.steps(), ctx.startedAtMillis(), fa.totalTokens());
+            analysisLogService.completeSuccess(ctx.logId(), category, urgency, fa.retrievedChunks(),
+                    draft, fa.steps(), ctx.startedAtMillis(), fa.totalTokens());
 
             InquiryAnalysisResponse response = InquiryAnalysisResponse.of(
                     inquiry, category, urgency, fa.retrievedChunks(), draft);
@@ -154,6 +155,9 @@ public class InquiryAnalysisService {
             messageRepository.save(
                     InquiryMessage.of(inquiry.getId(), InquiryMessageRole.AI, fq.question()));
             log.info("[추가 질문] inquiryId={} question={}", inquiry.getId(), fq.question());
+
+            analysisLogService.completeFollowUp(ctx.logId(), fq.question(), fq.steps(),
+                    ctx.startedAtMillis(), fq.totalTokens());
 
             // 분석 결과는 아직 없으므로 빈 DTO 반환 (상태: PENDING_CUSTOMER)
             CategoryResultDto emptyCategory = new CategoryResultDto("GENERAL", "", false, false, false);
@@ -207,6 +211,7 @@ public class InquiryAnalysisService {
     private record AnalysisContext(
             Inquiry inquiry,
             List<InquiryMessage> history,
+            Long logId,
             long startedAtMillis
     ) {}
 

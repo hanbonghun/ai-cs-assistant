@@ -92,57 +92,45 @@ public class InquiryAnalysisLog {
     protected InquiryAnalysisLog() {
     }
 
-    public static InquiryAnalysisLog success(
+    public static InquiryAnalysisLog running(
             Inquiry inquiry,
             String requestSnapshot,
+            String modelName,
+            String promptVersion
+    ) {
+        InquiryAnalysisLog log = new InquiryAnalysisLog();
+        log.inquiry = inquiry;
+        log.requestSnapshot = requestSnapshot;
+        log.modelName = modelName;
+        log.promptVersion = promptVersion;
+        log.analysisStatus = AnalysisStatus.RUNNING;
+        return log;
+    }
+
+    public void completeSuccess(
             InquiryCategory classifiedCategory,
             UrgencyLevel classifiedUrgency,
             List<Long> retrievedChunkIds,
             String generatedDraft,
-            String modelName,
-            String promptVersion,
             String agentSteps,
             long latencyMs,
             int totalTokens
     ) {
-        InquiryAnalysisLog log = new InquiryAnalysisLog();
-        log.inquiry = inquiry;
-        log.requestSnapshot = requestSnapshot;
-        log.classifiedCategory = classifiedCategory;
-        log.classifiedUrgency = classifiedUrgency;
-        log.retrievedChunkIds = toChunkIdCsv(retrievedChunkIds);
-        log.generatedDraft = generatedDraft;
-        log.modelName = modelName;
-        log.promptVersion = promptVersion;
-        log.agentSteps = agentSteps;
-        log.analysisStatus = AnalysisStatus.SUCCESS;
-        log.errorMessage = null;
-        log.latencyMs = latencyMs;
-        log.totalTokens = totalTokens;
-        return log;
+        this.classifiedCategory = classifiedCategory;
+        this.classifiedUrgency = classifiedUrgency;
+        this.retrievedChunkIds = toChunkIdCsv(retrievedChunkIds);
+        this.generatedDraft = generatedDraft;
+        this.agentSteps = agentSteps;
+        this.analysisStatus = AnalysisStatus.SUCCESS;
+        this.errorMessage = null;
+        this.latencyMs = latencyMs;
+        this.totalTokens = totalTokens;
     }
 
-    public static InquiryAnalysisLog failure(
-            Inquiry inquiry,
-            String requestSnapshot,
-            String modelName,
-            String promptVersion,
-            String errorMessage,
-            long latencyMs
-    ) {
-        InquiryAnalysisLog log = new InquiryAnalysisLog();
-        log.inquiry = inquiry;
-        log.requestSnapshot = requestSnapshot;
-        log.classifiedCategory = null;
-        log.classifiedUrgency = null;
-        log.retrievedChunkIds = null;
-        log.generatedDraft = null;
-        log.modelName = modelName;
-        log.promptVersion = promptVersion;
-        log.analysisStatus = AnalysisStatus.FAILURE;
-        log.errorMessage = errorMessage;
-        log.latencyMs = latencyMs;
-        return log;
+    public void completeFailure(String errorMessage, long latencyMs) {
+        this.analysisStatus = AnalysisStatus.FAILURE;
+        this.errorMessage = errorMessage;
+        this.latencyMs = latencyMs;
     }
 
     @PrePersist
