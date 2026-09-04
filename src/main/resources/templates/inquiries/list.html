@@ -39,8 +39,11 @@
                 <td th:text="${inquiry.id}">1</td>
                 <td th:text="${inquiry.title}">문의 제목</td>
                 <td th:text="${#strings.replace(inquiry.customerIdentifier, 'cust-', '고객 #')}">고객 #001</td>
-                <td th:text="${categoryLabels[inquiry.category.name()] ?: inquiry.category.name()}">반품</td>
-                <td th:text="${urgencyLabels[inquiry.urgency.name()] ?: inquiry.urgency.name()}">높음</td>
+                <!-- category/urgency 는 AI 분석 전이거나 분석이 실패하면 null 이다. ?: 는 앞 표현식의
+                     결과가 null 일 때만 동작하므로 .name() 호출 자체를 막아주지 않는다 —
+                     null 인 문의 하나가 목록 전체를 500 으로 만든다. user/home.html 과 같은 가드를 쓴다. -->
+                <td th:text="${inquiry.category != null ? (categoryLabels[inquiry.category.name()] ?: inquiry.category.name()) : '-'}">반품</td>
+                <td th:text="${inquiry.urgency != null ? (urgencyLabels[inquiry.urgency.name()] ?: inquiry.urgency.name()) : '-'}">높음</td>
                 <td>
                     <span th:switch="${inquiry.status.name()}">
                         <span th:case="'NEW'" style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:4px;font-size:12px;">접수됨</span>
