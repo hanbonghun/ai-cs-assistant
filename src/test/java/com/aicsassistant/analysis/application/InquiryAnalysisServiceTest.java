@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.aicsassistant.analysis.domain.AnalysisStatus;
+import com.aicsassistant.analysis.domain.InquiryAnalysisLog;
 import com.aicsassistant.analysis.dto.InquiryAnalysisResponse;
 import com.aicsassistant.analysis.infra.InquiryAnalysisLogRepository;
 import com.aicsassistant.analysis.infra.llm.ChatMessage;
@@ -156,6 +157,70 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
         assertThat(inquiryRepository.findById(saved.getId()).orElseThrow().getStatus())
                 .as("종료된 문의를 뒤늦은 분석 결과로 덮어쓰지 않는다")
                 .isEqualTo(InquiryStatus.CLOSED);
+    }
+
+    @Test
+    void followUpRoundClosesItsLogRow() {
+        Inquiry saved = inquiryRepository.save(Inquiry.create("cust-followup", "문의", "주문이 안 와요"));
+        seedManualChunk("배송 문의는 주문번호가 필요합니다.");
+        fakeLlmClient.enqueue("""
+                {"thought":"주문번호가 필요합니다.","followUpQuestion":"주문번호를 알려주시겠어요?"}
+                """);
+
+        inquiryAnalysisService.analyze(saved.getId());
+
+        assertThat(inquiryRepository.findById(saved.getId()).orElseThrow().getStatus())
+                .isEqualTo(InquiryStatus.PENDING_CUSTOMER);
+
+        List<InquiryAnalysisLog> logs =
+                inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(saved.getId());
+        assertThat(logs)
+                .as("추가 질문 라운드도 로그를 마감해야 한다 — 안 하면 RUNNING 이 영구히 남아 스위퍼가 계속 재분석한다")
+                .hasSize(1);
+        assertThat(logs.get(0).getAnalysisStatus()).isEqualTo(AnalysisStatus.SUCCESS);
+        assertThat(logs.get(0).getGeneratedDraft()).contains("주문번호");
+        assertThat(logs.get(0).getClassifiedCategory())
+                .as("추가 질문 단계에는 분류가 없다")
+                .isNull();
+    }
+
+    @Test
+    void successFlipsRunningRowInPlace() {
+        Inquiry saved = inquiryRepository.save(Inquiry.create("cust-run", "문의", "환불 문의"));
+        seedManualChunk("환불은 영업일 기준 3일 내 처리됩니다.");
+        fakeLlmClient.enqueue("""
+                {"thought":"바로 답변합니다.","finalAnswer":"안녕하세요. 환불 규정에 따라 ...","category":"REFUND","urgency":"MEDIUM","needsHumanReview":true,"needsEscalation":false,"fraudRiskFlag":false,"reason":"환불 문의"}
+                """);
+
+        inquiryAnalysisService.analyze(saved.getId());
+
+        List<InquiryAnalysisLog> logs =
+                inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(saved.getId());
+        assertThat(logs)
+                .as("시도당 로그 행은 하나여야 한다 — RUNNING 행을 제자리에서 뒤집는다")
+                .hasSize(1);
+        assertThat(logs.get(0).getAnalysisStatus()).isEqualTo(AnalysisStatus.SUCCESS);
+        assertThat(logs.get(0).getLatencyMs()).isNotNull();
+    }
+
+    @Test
+    void agentFailureFlipsRunningRowToFailureAndLeavesInquiryNew() {
+        Inquiry saved = inquiryRepository.save(Inquiry.create("cust-fail2", "문의", "환불 요청"));
+        seedManualChunk("환불은 영업일 기준 3일 내 처리됩니다.");
+        fakeLlmClient.failWith(new RuntimeException("upstream timeout"));
+
+        assertThatThrownBy(() -> inquiryAnalysisService.analyze(saved.getId()))
+                .isInstanceOf(ApiException.class);
+
+        List<InquiryAnalysisLog> logs =
+                inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(saved.getId());
+        assertThat(logs).hasSize(1);
+        assertThat(logs.get(0).getAnalysisStatus()).isEqualTo(AnalysisStatus.FAILURE);
+        assertThat(logs.get(0).getErrorMessage()).contains("upstream timeout");
+
+        assertThat(inquiryRepository.findById(saved.getId()).orElseThrow().getStatus())
+                .as("실패한 분석은 문의를 NEW 로 남긴다 — 스위퍼가 로그를 보고 줍는다")
+                .isEqualTo(InquiryStatus.NEW);
     }
 
     private void seedManualChunk(String content) {
