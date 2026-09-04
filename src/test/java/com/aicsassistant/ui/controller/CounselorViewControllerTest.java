@@ -157,4 +157,21 @@ public class CounselorViewControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(view().name("error"));
     }
+
+    @Test
+    public void rendersInquiryDetailWhenCategoryOrUrgencyIsNull() throws Exception {
+        // 분석이 실패하면 category/urgency 가 null 로 남는다(실제로 DB 커넥션이 끊겨 그런 문의가 생겼다).
+        // 목록과 같은 결함이 상세에도 있었는데, 앞선 전수 조사에서 grep 출력을 head 로 잘라 놓쳤다.
+        given(inquiryService.getInquiry(2L)).willReturn(new InquiryDetailResponse(
+                2L, "cust-001", "결제 문의", "이중 결제된거같음",
+                null, null, InquiryStatus.NEW,
+                null, null, null, null, null,
+                LocalDateTime.of(2026, 9, 4, 4, 46), LocalDateTime.of(2026, 9, 4, 4, 46),
+                List.of()
+        ));
+
+        mvc.perform(get("/ui/inquiries/2"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("결제 문의")));
+    }
 }
