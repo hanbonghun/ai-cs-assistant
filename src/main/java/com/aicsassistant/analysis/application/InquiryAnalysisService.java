@@ -208,6 +208,30 @@ public class InquiryAnalysisService {
         }
     }
 
+    /**
+     * 재시도 상한을 소진한 분석을 상담사에게 넘긴다.
+     *
+     * <p>ADR 0006 — 실패를 예외로 끝내지 않고 항상 상담사에게 도달시킨다. 이 조항이 없으면
+     * 고객은 유저 포털에서 타이핑 버블을 영원히 본다({@code user/inquiry-detail.html} 은
+     * {@code NEW} 면 무조건 typing 이고 폴링에 타임아웃이 없다).
+     *
+     * <p>합성 브리핑은 상담사용이라 고객 스레드에 메시지로 남기지 않는다 — 고객에게는
+     * {@code AI_PROCESSED} 분기의 "상담사가 확인 후 답변드릴 예정입니다" 가 보인다.
+     */
+    public void escalateAfterRetriesExhausted(Long inquiryId, long failures, String lastError) {
+        Inquiry persisted = txTemplate.execute(status -> {
+            Inquiry inquiry = reloadForPersist(inquiryId);
+            String briefing = """
+                    [자동 합성] AI 분석이 %d회 실패해 상담사 검토로 올렸습니다.
+                    마지막 오류: %s""".formatted(failures, lastError);
+            inquiry.applyAnalysis(InquiryCategory.GENERAL, UrgencyLevel.MEDIUM, briefing);
+            return inquiryRepository.save(inquiry);
+        });
+
+        notificationService.notifyHumanReviewRequired(persisted, "AI 분석 재시도 소진");
+        log.error("[분석 포기] inquiryId={} 실패={}건 상담사 검토로 전환", inquiryId, failures);
+    }
+
     private record AnalysisContext(
             Inquiry inquiry,
             List<InquiryMessage> history,

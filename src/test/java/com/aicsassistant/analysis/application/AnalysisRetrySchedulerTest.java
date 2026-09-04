@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.aicsassistant.analysis.domain.AnalysisStatus;
 import com.aicsassistant.analysis.infra.InquiryAnalysisLogRepository;
 import com.aicsassistant.inquiry.domain.Inquiry;
+import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryStatus;
+import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.infra.InquiryRepository;
 import com.aicsassistant.support.PostgresVectorIntegrationTest;
 import java.time.LocalDateTime;
@@ -85,6 +87,40 @@ class AnalysisRetrySchedulerTest extends PostgresVectorIntegrationTest {
         assertThat(logRepository.countByInquiryIdAndAnalysisStatus(saved.getId(), AnalysisStatus.RUNNING))
                 .as("최신 로그가 SUCCESS 면 다시 분석하지 않는다")
                 .isZero();
+    }
+
+    @Test
+    void escalatesToCounselorWhenRetriesExhausted() {
+        Inquiry saved = inquiryRepository.save(Inquiry.create("cust-giveup", "문의", "환불 문의"));
+        insertLog(saved.getId(), "FAILURE", LocalDateTime.now().minusMinutes(30), "upstream timeout");
+        insertLog(saved.getId(), "FAILURE", LocalDateTime.now().minusMinutes(20), "upstream timeout");
+        insertLog(saved.getId(), "FAILURE", LocalDateTime.now().minusMinutes(10), "upstream timeout");
+
+        scheduler.retryStalledAnalyses();
+
+        Inquiry reloaded = inquiryRepository.findById(saved.getId()).orElseThrow();
+        assertThat(reloaded.getStatus())
+                .as("상한을 소진하면 상담사 검토로 올린다 — ADR 0006")
+                .isEqualTo(InquiryStatus.AI_PROCESSED);
+        assertThat(reloaded.getAiDraftAnswer()).contains("[자동 합성]");
+        assertThat(reloaded.getAiDraftAnswer()).contains("upstream timeout");
+        assertThat(reloaded.getCategory()).isEqualTo(InquiryCategory.GENERAL);
+        assertThat(reloaded.getUrgency()).isEqualTo(UrgencyLevel.MEDIUM);
+    }
+
+    @Test
+    void escalatedInquiryDropsOutOfSweep() {
+        Inquiry saved = inquiryRepository.save(Inquiry.create("cust-once", "문의", "환불 문의"));
+        insertLog(saved.getId(), "FAILURE", LocalDateTime.now().minusMinutes(30), "upstream timeout");
+        insertLog(saved.getId(), "FAILURE", LocalDateTime.now().minusMinutes(20), "upstream timeout");
+        insertLog(saved.getId(), "FAILURE", LocalDateTime.now().minusMinutes(10), "upstream timeout");
+
+        scheduler.retryStalledAnalyses();
+        scheduler.retryStalledAnalyses();
+
+        assertThat(inquiryRepository.findById(saved.getId()).orElseThrow().getStatus())
+                .as("AI_PROCESSED 는 스위프 대상 상태가 아니므로 무한 스위프가 없다")
+                .isEqualTo(InquiryStatus.AI_PROCESSED);
     }
 
     private void insertLog(Long inquiryId, String status, LocalDateTime createdAt, String errorMessage) {
