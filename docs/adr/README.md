@@ -13,5 +13,6 @@
 | [0006](0006-never-lose-an-inquiry.md) | 에이전트가 실패해도 문의를 유실하지 않는다 | 채택 |
 | [0007](0007-writes-stage-only.md) | 에이전트의 쓰기 툴은 staging 만 하고, 실행은 승인 표면에서만 일어난다 | 채택 |
 | [0008](0008-counselor-owns-refund-amount.md) | 환불 금액의 최종 결정권은 상담사에게 있다 | 채택 |
+| [0009](0009-no-external-calls-in-transactions.md) | 트랜잭션 안에서 외부 호출을 하지 않는다 | 채택 |
 
 0001~0006 은 결정 당시 문서화하지 않아 2026-09-03 에 소급 기록했다.
