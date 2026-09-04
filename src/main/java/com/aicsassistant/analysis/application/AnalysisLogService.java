@@ -1,6 +1,7 @@
 package com.aicsassistant.analysis.application;
 
 import com.aicsassistant.analysis.agent.AgentStep;
+import com.aicsassistant.analysis.domain.AnalysisStatus;
 import com.aicsassistant.analysis.domain.InquiryAnalysisLog;
 import com.aicsassistant.analysis.dto.CategoryResultDto;
 import com.aicsassistant.analysis.dto.DraftAnswerDto;
@@ -8,13 +9,17 @@ import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.analysis.dto.UrgencyResultDto;
 import com.aicsassistant.analysis.infra.InquiryAnalysisLogRepository;
 import com.aicsassistant.analysis.infra.llm.LlmClient;
+import com.aicsassistant.common.exception.ApiException;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,9 +33,27 @@ public class AnalysisLogService {
     private final LlmClient llmClient;
     private final ObjectMapper objectMapper;
 
-    /** 분석 시작을 기록하고 로그 id 를 돌려준다. 종료 시 같은 행을 제자리에서 뒤집는다. */
+    /**
+     * RUNNING 을 stale 로 볼 임계. 에이전트 최장 실행(8스텝, 최악 ~60초)보다 충분히 크게 잡는다.
+     * 재시도 스위퍼도 같은 값을 쓴다.
+     */
+    public static final Duration RUNNING_STALE_AFTER = Duration.ofMinutes(5);
+
+    /**
+     * 분석 시작을 기록하고 로그 id 를 돌려준다. 종료 시 같은 행을 제자리에서 뒤집는다.
+     *
+     * <p>이미 진행 중인 분석이 있으면 거부한다 — 수동 버튼과 재시도 스위퍼가 겹치는 것을 막는다.
+     * stale RUNNING 은 FAILURE 로 마감한 뒤 새 행을 만든다. 마감하지 않으면 (1) RUNNING 행이
+     * 영구 고아로 쌓이고 (2) 더 중요하게, 재시도 상한을 FAILURE 개수로 세므로 프로세스가 세 번
+     * 죽으면 상한이 영원히 차지 않고 무한 재시도한다. 버려진 시도는 실제로 실패한 시도다.
+     */
+    // ponytail: 단일 인스턴스 전제의 소프트 락. 다중 인스턴스로 가면 select … for update 로 올린다.
     @Transactional
     public Long startRunning(Inquiry inquiry) {
+        inquiryAnalysisLogRepository.findFirstByInquiryIdOrderByIdDesc(inquiry.getId())
+                .filter(latest -> latest.getAnalysisStatus() == AnalysisStatus.RUNNING)
+                .ifPresent(latest -> closeOrRejectRunning(inquiry.getId(), latest));
+
         InquiryAnalysisLog entry = InquiryAnalysisLog.running(
                 inquiry,
                 inquiry.getContent(),
@@ -38,6 +61,19 @@ public class AnalysisLogService {
                 promptFactory.promptVersion()
         );
         return inquiryAnalysisLogRepository.save(entry).getId();
+    }
+
+    private void closeOrRejectRunning(Long inquiryId, InquiryAnalysisLog latest) {
+        LocalDateTime staleCutoff = LocalDateTime.now().minus(RUNNING_STALE_AFTER);
+        if (latest.getCreatedAt().isAfter(staleCutoff)) {
+            throw new ApiException(HttpStatus.CONFLICT, "ANALYSIS_IN_PROGRESS",
+                    "이미 분석이 진행 중입니다.");
+        }
+        long abandonedMs = Duration.between(latest.getCreatedAt(), LocalDateTime.now()).toMillis();
+        latest.completeFailure("타임아웃 — 이전 시도가 완료 신호를 남기지 못했습니다", abandonedMs);
+        inquiryAnalysisLogRepository.save(latest);
+        log.warn("[stale RUNNING 마감] inquiryId={} logId={} 경과={}ms",
+                inquiryId, latest.getId(), abandonedMs);
     }
 
     @Transactional
