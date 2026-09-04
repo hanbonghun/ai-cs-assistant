@@ -91,7 +91,6 @@ public class InquiryAgentService {
                 .setAttribute(ATTR_LF_INPUT, inquiry.getContent())
                 .setAttribute(ATTR_LF_SESSION_ID, "inquiry-" + inquiry.getId())
                 .setAttribute(ATTR_LF_USER_ID, safeUserId(inquiry))
-                .setAttribute(ATTR_LF_TAGS, buildTags(inquiry))
                 .startSpan();
         try (Scope ignored = agentSpan.makeCurrent()) {
             return runAgentLoop(inquiry, conversationHistory, tools, orderTool, searchTool, agentSpan);
@@ -150,6 +149,7 @@ public class InquiryAgentService {
                     AgentResult.FinalAnswer result = buildFinalAnswer(
                             node, steps, searchTool.getCollectedChunks(), totalTokens, callContext);
                     agentSpan.setAttribute(ATTR_AGENT_OUTCOME, "final_answer");
+                    agentSpan.setAttribute(ATTR_LF_TAGS, buildTags(result.category(), result.urgency()));
                     agentSpan.setAttribute(ATTR_LF_OUTPUT, result.answer());
                     agentSpan.setAttribute(ATTR_TOTAL_TOKENS, totalTokens);
                     agentSpan.setAttribute(ATTR_STEP_COUNT, (long) step + 1);
@@ -235,6 +235,7 @@ public class InquiryAgentService {
         log.info("[Agent forced final] inquiryId={} steps={} totalTokens={} synthetic={}",
                 inquiry.getId(), steps.size(), tokens, synthetic);
         agentSpan.setAttribute(ATTR_AGENT_OUTCOME, synthetic ? "forced_final_synthetic" : "forced_final_answer");
+        agentSpan.setAttribute(ATTR_LF_TAGS, buildTags(answer.category(), answer.urgency()));
         agentSpan.setAttribute(ATTR_LF_OUTPUT, answer.answer());
         agentSpan.setAttribute(ATTR_TOTAL_TOKENS, tokens);
         agentSpan.setAttribute(ATTR_STEP_COUNT, (long) steps.size());
@@ -270,13 +271,20 @@ public class InquiryAgentService {
         return id == null || id.isBlank() ? "anonymous" : id;
     }
 
-    static List<String> buildTags(Inquiry inquiry) {
+    /**
+     * Langfuse 트레이스 태그.
+     *
+     * <p>분류 결과가 나온 뒤에 호출해야 한다. 이전에는 span 을 만들 때 {@code Inquiry} 에서 읽었는데,
+     * 그 시점은 분석 전이라 category/urgency 가 둘 다 null 이었다 — 태그가 항상 빈 배열로 들어가
+     * Langfuse 에 {@code [{"arrayValue":{}}]} 로 보였다. 필터가 아예 동작하지 않던 원인이다.
+     */
+    static List<String> buildTags(String category, String urgency) {
         List<String> tags = new ArrayList<>();
-        if (inquiry.getCategory() != null) {
-            tags.add("category:" + inquiry.getCategory().name());
+        if (category != null && !category.isBlank()) {
+            tags.add("category:" + category);
         }
-        if (inquiry.getUrgency() != null) {
-            tags.add("urgency:" + inquiry.getUrgency().name());
+        if (urgency != null && !urgency.isBlank()) {
+            tags.add("urgency:" + urgency);
         }
         return tags;
     }

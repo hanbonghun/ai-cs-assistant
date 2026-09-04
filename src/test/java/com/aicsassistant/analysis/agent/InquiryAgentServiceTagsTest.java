@@ -12,34 +12,35 @@ import org.junit.jupiter.api.Test;
  */
 class InquiryAgentServiceTagsTest {
 
+    // buildTags 는 분석 결과(category/urgency 문자열)를 받는다. 이전에는 Inquiry 를 받았는데,
+    // span 생성 시점의 Inquiry 는 아직 분석 전이라 둘 다 null 이어서 태그가 항상 비어 있었다.
+
     @Test
     void buildTags_returnsEmptyList_whenCategoryAndUrgencyNull() {
-        Inquiry inquiry = Inquiry.create("kim", "t", "c");
+        assertThat(InquiryAgentService.buildTags(null, null)).isEmpty();
+    }
 
-        assertThat(InquiryAgentService.buildTags(inquiry)).isEmpty();
+    @Test
+    void buildTags_returnsEmptyList_whenBlank() {
+        assertThat(InquiryAgentService.buildTags("", "  ")).isEmpty();
     }
 
     @Test
     void buildTags_includesCategoryOnly_whenUrgencyNull() {
-        Inquiry inquiry = Inquiry.create("kim", "t", "c", InquiryCategory.REFUND, null);
-
-        assertThat(InquiryAgentService.buildTags(inquiry))
+        assertThat(InquiryAgentService.buildTags(InquiryCategory.REFUND.name(), null))
                 .containsExactly("category:REFUND");
     }
 
     @Test
     void buildTags_includesUrgencyOnly_whenCategoryNull() {
-        Inquiry inquiry = Inquiry.create("kim", "t", "c", null, UrgencyLevel.HIGH);
-
-        assertThat(InquiryAgentService.buildTags(inquiry))
+        assertThat(InquiryAgentService.buildTags(null, UrgencyLevel.HIGH.name()))
                 .containsExactly("urgency:HIGH");
     }
 
     @Test
     void buildTags_includesBoth_inOrder() {
-        Inquiry inquiry = Inquiry.create("kim", "t", "c", InquiryCategory.EXCHANGE, UrgencyLevel.MEDIUM);
-
-        assertThat(InquiryAgentService.buildTags(inquiry))
+        assertThat(InquiryAgentService.buildTags(
+                InquiryCategory.EXCHANGE.name(), UrgencyLevel.MEDIUM.name()))
                 .containsExactly("category:EXCHANGE", "urgency:MEDIUM");
     }
 

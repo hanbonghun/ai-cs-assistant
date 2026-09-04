@@ -9,11 +9,21 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+/**
+ * REST API 전용 예외 핸들러.
+ *
+ * <p>{@code annotations = RestController.class} 로 범위를 좁힌 이유: 이전에는 모든 컨트롤러에
+ * 적용되어 Thymeleaf 뷰 요청에도 JSON 을 쓰려 했고, 그때
+ * {@code HttpMessageNotWritableException: No converter for [ApiErrorResponse] with preset
+ * Content-Type 'text/html'} 이 나면서 <b>핸들러 자체가 실패</b>했다. 뷰가 터지면 에러 페이지조차
+ * 못 보여주는 이중 고장이었다. 뷰 요청은 이제 {@code templates/error.html} 로 간다.
+ */
 @Slf4j
-@RestControllerAdvice
+@RestControllerAdvice(annotations = RestController.class)
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
