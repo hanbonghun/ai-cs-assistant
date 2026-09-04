@@ -3,6 +3,10 @@ package com.aicsassistant.analysis.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.aicsassistant.analysis.agent.AgentTool;
+import com.aicsassistant.analysis.agent.tool.CheckOrderStatusTool;
+import com.aicsassistant.analysis.agent.tool.SearchFaqTool;
+import com.aicsassistant.faq.InMemoryFaqRepository;
+import com.aicsassistant.order.InMemoryOrderRepository;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -93,6 +97,23 @@ class PromptFactoryTest {
                 .contains("stage_refund")
                 .contains("NOT an executed refund")
                 .contains("never \"환불되었습니다\"");
+    }
+
+    @Test
+    void systemPromptIsDeterministic() {
+        // 이 프롬프트는 매 스텝·매 문의마다 재전송되고, OpenAI 는 요청 접두부가 이전 요청과
+        // 동일할 때만 프롬프트 캐시를 적용한다. 여기에 시각·랜덤·요청별 ID 가 섞이면 캐시가
+        // 통째로 무효화되면서 비용만 오르고 에러는 나지 않는다 — 조용한 사고라 테스트로 고정한다.
+        //
+        // 잡는 범위: 호출마다 값이 달라지는 것(LocalDateTime.now(), UUID, 카운터).
+        // 못 잡는 것: 하루 단위로만 바뀌는 값(LocalDate.now()) — 두 호출이 같은 날이라 통과한다.
+        // 후자는 캐시를 하루 한 번만 무효화하므로 피해가 훨씬 작다.
+        List<AgentTool<?>> tools = List.of(
+                new SearchFaqTool(new InMemoryFaqRepository()),
+                new CheckOrderStatusTool(new InMemoryOrderRepository(), "cust-001"));
+
+        assertThat(promptFactory.buildAgentSystemPrompt(tools))
+                .isEqualTo(promptFactory.buildAgentSystemPrompt(tools));
     }
 
     private static int countOf(String haystack, String needle) {

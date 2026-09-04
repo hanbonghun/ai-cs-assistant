@@ -114,10 +114,10 @@ class InquiryAgentServiceTest {
         String infiniteToolCall = toolCall("search_manual", "{\"query\":\"반복\"}");
         var stub = when(llmClient.completeWithUsage(anyList()));
         for (int i = 0; i < 8; i++) {
-            stub = stub.thenReturn(new LlmResponse(infiniteToolCall, 10, 20));
+            stub = stub.thenReturn(new LlmResponse(infiniteToolCall, 10, 20, 0));
         }
         stub.thenReturn(new LlmResponse(
-                finalAnswer("주문 상태까지만 확인했습니다. 상담사 확인이 필요합니다.", "DELIVERY", "HIGH", false), 10, 20));
+                finalAnswer("주문 상태까지만 확인했습니다. 상담사 확인이 필요합니다.", "DELIVERY", "HIGH", false), 10, 20, 0));
         when(manualRetrievalService.retrieve(any())).thenReturn(List.of());
 
         AgentResult result = agentService.run(inquiry("무한 루프 문의"), List.of());
@@ -134,7 +134,7 @@ class InquiryAgentServiceTest {
         // 마지막 라운드에서도 형식을 못 맞추는 최악의 경우 — 문의가 유실되지 않아야 한다
         String infiniteToolCall = toolCall("search_manual", "{\"query\":\"반복\"}");
         when(llmClient.completeWithUsage(anyList()))
-                .thenReturn(new LlmResponse(infiniteToolCall, 10, 20));
+                .thenReturn(new LlmResponse(infiniteToolCall, 10, 20, 0));
         when(manualRetrievalService.retrieve(any())).thenReturn(List.of());
 
         AgentResult result = agentService.run(inquiry("무한 루프 문의"), List.of());
@@ -493,7 +493,7 @@ class InquiryAgentServiceTest {
     private void givenLlmResponds(String... responses) {
         var stub = when(llmClient.completeWithUsage(anyList()));
         for (String response : responses) {
-            stub = stub.thenReturn(new LlmResponse(response, 10, 20));
+            stub = stub.thenReturn(new LlmResponse(response, 10, 20, 0));
         }
     }
 
