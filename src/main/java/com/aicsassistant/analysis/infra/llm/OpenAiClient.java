@@ -11,6 +11,7 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -35,6 +36,12 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
     private static final AttributeKey<Long> ATTR_GENAI_TOTAL_TOKENS = AttributeKey.longKey("gen_ai.usage.total_tokens");
     private static final AttributeKey<Long> ATTR_GENAI_CACHE_READ_TOKENS =
             AttributeKey.longKey("gen_ai.usage.cache_read_input_tokens");
+
+    /**
+     * 한 요청에 실을 최대 입력 수. text-embedding-3-small 은 입력 2048개까지 받지만 요청당 토큰
+     * 상한이 따로 있어, 500자 청크(≈150토큰) 기준으로 여유가 남는 값을 쓴다.
+     */
+    private static final int EMBEDDING_BATCH_SIZE = 100;
 
     private final WebClient webClient;
     private final AiProperties aiProperties;
@@ -135,6 +142,15 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
         return body;
     }
 
+    /** 묶음 요청. {@code input} 에 배열을 실으면 한 번의 왕복으로 여러 벡터를 받는다. */
+    ObjectNode buildEmbeddingRequest(List<String> texts) {
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("model", aiProperties.getEmbeddingModel());
+        ArrayNode input = body.putArray("input");
+        texts.forEach(input::add);
+        return body;
+    }
+
     @Override
     public List<Double> embed(String text) {
         Span span = tracer.spanBuilder("openai.embedding")
@@ -157,18 +173,11 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
                 throw new IllegalStateException("OpenAI embedding returned empty response");
             }
 
-            JsonNode vectorNode = response.path("data").path(0).path("embedding");
-            if (!vectorNode.isArray()) {
-                throw new IllegalStateException("OpenAI embedding missing vector");
-            }
+            List<Double> vector = toVector(response.path("data").path(0).path("embedding"));
 
             int promptTokens = response.path("usage").path("prompt_tokens").asInt(0);
             int totalTokens = response.path("usage").path("total_tokens").asInt(promptTokens);
 
-            List<Double> vector = new ArrayList<>();
-            for (JsonNode dimension : vectorNode) {
-                vector.add(dimension.asDouble());
-            }
             span.setAttribute(ATTR_LF_OUTPUT, "vector[" + vector.size() + "]");
             span.setAttribute(ATTR_GENAI_PROMPT_TOKENS, promptTokens);
             span.setAttribute(ATTR_GENAI_INPUT_TOKENS, promptTokens);
@@ -181,6 +190,91 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
         } finally {
             span.end();
         }
+    }
+
+    @Override
+    public List<List<Double>> embedAll(List<String> texts) {
+        if (texts.isEmpty()) {
+            return List.of();
+        }
+        List<List<Double>> vectors = new ArrayList<>(texts.size());
+        for (int from = 0; from < texts.size(); from += EMBEDDING_BATCH_SIZE) {
+            int to = Math.min(texts.size(), from + EMBEDDING_BATCH_SIZE);
+            vectors.addAll(embedBatch(texts.subList(from, to)));
+        }
+        return vectors;
+    }
+
+    /**
+     * 묶음 한 덩어리를 임베딩한다.
+     *
+     * <p><b>응답 {@code data[]} 의 순서는 보장되지 않는다.</b> 각 항목의 {@code index} 로 제자리에
+     * 놓는다 — 순서를 믿고 그대로 담으면 청크와 벡터가 어긋나고, 그 오류는 예외가 아니라
+     * "검색이 엉뚱한 문서를 집는다" 로만 드러나 알아채기 어렵다.
+     *
+     * <p>개수가 어긋나도 같은 이유로 실패시킨다. 모자란 채로 진행하면 어느 청크의 벡터가
+     * 빠졌는지 알 수 없다.
+     */
+    private List<List<Double>> embedBatch(List<String> batch) {
+        Span span = tracer.spanBuilder("openai.embedding.batch")
+                .setAttribute(ATTR_LF_TYPE, "generation")
+                .setAttribute(ATTR_GENAI_SYSTEM, "openai")
+                .setAttribute(ATTR_GENAI_MODEL, aiProperties.getEmbeddingModel())
+                .setAttribute(ATTR_LF_INPUT, batch.size() + " inputs")
+                .startSpan();
+        try (Scope ignored = span.makeCurrent()) {
+            JsonNode response = webClient.post()
+                    .uri("https://api.openai.com/v1/embeddings")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + aiProperties.getApiKey())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(buildEmbeddingRequest(batch))
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .block();
+
+            if (response == null) {
+                throw new IllegalStateException("OpenAI embedding returned empty response");
+            }
+            JsonNode data = response.path("data");
+            if (!data.isArray() || data.size() != batch.size()) {
+                throw new IllegalStateException("OpenAI embedding returned " + data.size()
+                        + " vectors for " + batch.size() + " inputs");
+            }
+
+            List<List<Double>> vectors = new ArrayList<>(Collections.nCopies(batch.size(), null));
+            for (JsonNode item : data) {
+                int index = item.path("index").asInt(-1);
+                if (index < 0 || index >= batch.size()) {
+                    throw new IllegalStateException("OpenAI embedding returned out-of-range index: " + index);
+                }
+                vectors.set(index, toVector(item.path("embedding")));
+            }
+
+            int promptTokens = response.path("usage").path("prompt_tokens").asInt(0);
+            int totalTokens = response.path("usage").path("total_tokens").asInt(promptTokens);
+            span.setAttribute(ATTR_LF_OUTPUT, "vector[" + batch.size() + " x " + vectors.get(0).size() + "]");
+            span.setAttribute(ATTR_GENAI_PROMPT_TOKENS, promptTokens);
+            span.setAttribute(ATTR_GENAI_INPUT_TOKENS, promptTokens);
+            span.setAttribute(ATTR_GENAI_TOTAL_TOKENS, totalTokens);
+            return vectors;
+        } catch (RuntimeException e) {
+            span.setStatus(StatusCode.ERROR, e.getMessage());
+            span.recordException(e);
+            throw e;
+        } finally {
+            span.end();
+        }
+    }
+
+    private List<Double> toVector(JsonNode embeddingNode) {
+        if (!embeddingNode.isArray()) {
+            throw new IllegalStateException("OpenAI embedding missing vector");
+        }
+        List<Double> vector = new ArrayList<>(embeddingNode.size());
+        for (JsonNode dimension : embeddingNode) {
+            vector.add(dimension.asDouble());
+        }
+        return vector;
     }
 
     @Override
