@@ -1,18 +1,23 @@
 package com.aicsassistant.analysis.application;
 
 import com.aicsassistant.analysis.agent.AgentTool;
+import com.aicsassistant.analysis.agent.ToolSchemaGenerator;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class PromptFactory {
 
     private static final String PROMPT_VERSION = "v5";
+
+    private final ToolSchemaGenerator schemaGenerator;
 
     public static final String FENCE_OPEN = "<<<UNTRUSTED_CUSTOMER_TEXT>>>";
     public static final String FENCE_CLOSE = "<<<END_UNTRUSTED_CUSTOMER_TEXT>>>";
@@ -162,6 +167,10 @@ public class PromptFactory {
     /**
      * 한 도구의 모든 표면을 통일된 블록으로 렌더링.
      * 가이드 "Tool Interface Design" 4요소 — 입력 형식·예제·엣지 케이스·유사 도구 경계 — 를 모두 노출한다.
+     *
+     * <p>입력 스키마만 도구가 아니라 {@link ToolSchemaGenerator} 에서 온다 — 도구가 직접 쓰면
+     * 입력 record 와 어긋나도 아무도 모른다. 나머지 넷은 record 에서 끌어낼 수 없는 판단이라
+     * 도구가 계속 쓴다.
      */
     private String renderToolSurface(AgentTool<?> tool) {
         return """
@@ -173,7 +182,8 @@ public class PromptFactory {
                 Output on success (data field): %s
                 Failure behavior: %s"""
                 .formatted(tool.name(), tool.description(), tool.whenToUse(), tool.usageBoundary(),
-                        tool.inputSchema(), tool.successOutputHint(), tool.failureBehavior());
+                        schemaGenerator.generate(tool.inputType()), tool.successOutputHint(),
+                        tool.failureBehavior());
     }
 
 }

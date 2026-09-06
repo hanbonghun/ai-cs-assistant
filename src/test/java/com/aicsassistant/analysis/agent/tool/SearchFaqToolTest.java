@@ -56,7 +56,6 @@ class SearchFaqToolTest {
         assertThat(tool.description()).isNotBlank();
         assertThat(tool.whenToUse()).isNotBlank();
         assertThat(tool.inputType()).isEqualTo(SearchFaqTool.Input.class);
-        assertThat(tool.inputSchema()).contains("question");
         assertThat(tool.successOutputHint()).isNotBlank();
         assertThat(tool.failureBehavior()).contains("NOT_FOUND");
     }

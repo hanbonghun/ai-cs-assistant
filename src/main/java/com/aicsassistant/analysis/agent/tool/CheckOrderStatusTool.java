@@ -2,6 +2,7 @@ package com.aicsassistant.analysis.agent.tool;
 
 import com.aicsassistant.analysis.agent.AgentTool;
 import com.aicsassistant.analysis.agent.ToolErrorCategory;
+import com.aicsassistant.analysis.agent.ToolParam;
 import com.aicsassistant.analysis.agent.ToolResult;
 import com.aicsassistant.order.InMemoryOrderRepository;
 
@@ -12,7 +13,11 @@ import com.aicsassistant.order.InMemoryOrderRepository;
 public class CheckOrderStatusTool implements AgentTool<CheckOrderStatusTool.Input> {
 
     /** 도구 입력 — 조회할 주문 식별자. */
-    public record Input(String orderId) {}
+    public record Input(
+            @ToolParam(description = "Full order identifier as provided by the customer "
+                    + "(e.g. 'ORD-20260410-001')")
+            String orderId
+    ) {}
 
     private final InMemoryOrderRepository orderRepository;
     /** 조회 범위를 이 고객의 주문으로 제한한다. 모델 인수가 아니라 문의에서 가져온다. */
@@ -49,11 +54,6 @@ public class CheckOrderStatusTool implements AgentTool<CheckOrderStatusTool.Inpu
     @Override
     public Class<Input> inputType() {
         return Input.class;
-    }
-
-    @Override
-    public String inputSchema() {
-        return "{\"orderId\": \"string (required) — full order identifier as provided by the customer (e.g. 'ORD-20260410-001')\"}";
     }
 
     @Override

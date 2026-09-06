@@ -2,6 +2,7 @@ package com.aicsassistant.analysis.agent.tool;
 
 import com.aicsassistant.analysis.agent.AgentTool;
 import com.aicsassistant.analysis.agent.ToolErrorCategory;
+import com.aicsassistant.analysis.agent.ToolParam;
 import com.aicsassistant.analysis.agent.ToolResult;
 import com.aicsassistant.analysis.application.ManualRetrievalService;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
@@ -16,7 +17,11 @@ import java.util.stream.Collectors;
 public class SearchManualTool implements AgentTool<SearchManualTool.Input> {
 
     /** 도구 입력 — 단일 한국어 검색 쿼리. */
-    public record Input(String query) {}
+    public record Input(
+            @ToolParam(description = "Korean keywords describing the policy you need "
+                    + "(e.g. '환불 가능 기간', '교환 배송비')")
+            String query
+    ) {}
 
     private final ManualRetrievalService manualRetrievalService;
     private final List<RetrievedManualChunkDto> collectedChunks = new ArrayList<>();
@@ -52,11 +57,6 @@ public class SearchManualTool implements AgentTool<SearchManualTool.Input> {
     @Override
     public Class<Input> inputType() {
         return Input.class;
-    }
-
-    @Override
-    public String inputSchema() {
-        return "{\"query\": \"string (required) — Korean keywords describing the policy you need (e.g. '환불 가능 기간', '교환 배송비')\"}";
     }
 
     @Override
