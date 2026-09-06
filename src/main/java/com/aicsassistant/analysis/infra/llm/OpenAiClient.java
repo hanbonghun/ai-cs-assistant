@@ -3,6 +3,8 @@ package com.aicsassistant.analysis.infra.llm;
 import com.aicsassistant.common.config.AiProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
@@ -10,7 +12,6 @@ import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -52,25 +53,19 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
 
     @Override
     public LlmResponse completeWithUsage(List<ChatMessage> messages) {
-        String messagesJson = serializeMessages(messages);
+        ObjectNode requestBody = buildChatRequest(messages);
         Span span = tracer.spanBuilder("openai.chat.completion")
                 .setAttribute(ATTR_LF_TYPE, "generation")
                 .setAttribute(ATTR_GENAI_SYSTEM, "openai")
                 .setAttribute(ATTR_GENAI_MODEL, aiProperties.getModel())
-                .setAttribute(ATTR_LF_INPUT, messagesJson)
+                .setAttribute(ATTR_LF_INPUT, requestBody.path("messages").toString())
                 .startSpan();
         try (Scope ignored = span.makeCurrent()) {
             JsonNode response = webClient.post()
                     .uri("https://api.openai.com/v1/chat/completions")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + aiProperties.getApiKey())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue("""
-                            {
-                              "model": "%s",
-                              "messages": %s,
-                              "temperature": 0.1
-                            }
-                            """.formatted(aiProperties.getModel(), messagesJson))
+                    .bodyValue(requestBody)
                     .retrieve()
                     .bodyToMono(JsonNode.class)
                     .block();
@@ -113,15 +108,31 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
         }
     }
 
-    private String serializeMessages(List<ChatMessage> messages) {
-        try {
-            List<Map<String, String>> payload = messages.stream()
-                    .map(m -> Map.of("role", m.role(), "content", m.content()))
-                    .toList();
-            return objectMapper.writeValueAsString(payload);
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to serialize chat messages", e);
+    /**
+     * 채팅 요청 본문을 구조적으로 만든다.
+     *
+     * <p>문자열 템플릿으로 조립하지 않는 이유: 본문에 실리는 값의 대부분이 고객이 쓴 텍스트다.
+     * 인용부호 하나가 어긋나면 요청 전체가 무효해지고, 그 실패는 OpenAI 400 으로만 보여
+     * 원인이 어느 필드인지 알 수 없다. 이스케이프는 Jackson 이 한다.
+     */
+    ObjectNode buildChatRequest(List<ChatMessage> messages) {
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("model", aiProperties.getModel());
+        ArrayNode messageArray = body.putArray("messages");
+        for (ChatMessage message : messages) {
+            ObjectNode node = messageArray.addObject();
+            node.put("role", message.role());
+            node.put("content", message.content());
         }
+        body.put("temperature", 0.1);
+        return body;
+    }
+
+    ObjectNode buildEmbeddingRequest(String text) {
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("model", aiProperties.getEmbeddingModel());
+        body.put("input", text);
+        return body;
     }
 
     @Override
@@ -137,12 +148,7 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
                     .uri("https://api.openai.com/v1/embeddings")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + aiProperties.getApiKey())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue("""
-                            {
-                              "model": "%s",
-                              "input": %s
-                            }
-                            """.formatted(aiProperties.getEmbeddingModel(), toJsonString(text)))
+                    .bodyValue(buildEmbeddingRequest(text))
                     .retrieve()
                     .bodyToMono(JsonNode.class)
                     .block();
@@ -180,15 +186,5 @@ public class OpenAiClient implements LlmClient, EmbeddingClient {
     @Override
     public String modelName() {
         return aiProperties.getModel();
-    }
-
-    private String toJsonString(String value) {
-        return "\"" + value
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t")
-                + "\"";
     }
 }
