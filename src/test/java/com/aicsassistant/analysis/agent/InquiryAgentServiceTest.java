@@ -20,10 +20,12 @@ import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.order.InMemoryOrderRepository;
 import com.aicsassistant.staging.infra.StagedChangeRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Tracer;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,17 +47,7 @@ class InquiryAgentServiceTest {
     @BeforeEach
     void setUp() {
         when(promptFactory.buildAgentSystemPrompt(anyList())).thenReturn("system prompt");
-        agentService = new InquiryAgentService(
-                llmClient,
-                manualRetrievalService,
-                promptFactory,
-                new ObjectMapper(),
-                new InMemoryOrderRepository(),
-                new InMemoryFaqRepository(),
-                List.of(),
-                noopTracer,
-                stagedChangeRepository
-        );
+        agentService = agentServiceWith(new InMemoryOrderRepository(), List.of());
     }
 
     @Test
@@ -161,23 +153,16 @@ class InquiryAgentServiceTest {
 
     @Test
     void interceptorCanBlockToolCallBeforeExecution() {
-        InquiryAgentService serviceWithBlocker = new InquiryAgentService(
-                llmClient, manualRetrievalService, promptFactory, new ObjectMapper(),
+        InquiryAgentService serviceWithBlocker = agentServiceWith(
                 new InMemoryOrderRepository(),
-                new InMemoryFaqRepository(),
-                List.of(new com.aicsassistant.analysis.agent.ToolCallInterceptor() {
+                List.of(new ToolCallInterceptor() {
                     @Override
-                    public java.util.Optional<com.aicsassistant.analysis.agent.ToolResult> beforeExecute(
-                            String toolName, com.fasterxml.jackson.databind.JsonNode input,
-                            com.aicsassistant.analysis.agent.ToolCallContext ctx) {
-                        return java.util.Optional.of(com.aicsassistant.analysis.agent.ToolResult.error(
-                                com.aicsassistant.analysis.agent.ToolErrorCategory.PERMISSION,
-                                false,
-                                "blocked-by-test"));
+                    public Optional<ToolResult> beforeExecute(
+                            String toolName, JsonNode input, ToolCallContext ctx) {
+                        return Optional.of(ToolResult.error(
+                                ToolErrorCategory.PERMISSION, false, "blocked-by-test"));
                     }
-                }),
-                noopTracer,
-                stagedChangeRepository);
+                }));
         givenLlmResponds(
                 toolCall("search_manual", "{\"query\":\"환불\"}"),
                 finalAnswer("권한 부족으로 상담사에게 라우팅합니다.", "REFUND", "MEDIUM", true)
@@ -193,22 +178,16 @@ class InquiryAgentServiceTest {
 
     @Test
     void interceptorCanModifyResultAfterExecution() {
-        InquiryAgentService serviceWithDecorator = new InquiryAgentService(
-                llmClient, manualRetrievalService, promptFactory, new ObjectMapper(),
+        InquiryAgentService serviceWithDecorator = agentServiceWith(
                 new InMemoryOrderRepository(),
-                new InMemoryFaqRepository(),
-                List.of(new com.aicsassistant.analysis.agent.ToolCallInterceptor() {
+                List.of(new ToolCallInterceptor() {
                     @Override
-                    public com.aicsassistant.analysis.agent.ToolResult afterExecute(
-                            String toolName, com.fasterxml.jackson.databind.JsonNode input,
-                            com.aicsassistant.analysis.agent.ToolResult result,
-                            com.aicsassistant.analysis.agent.ToolCallContext ctx) {
-                        return com.aicsassistant.analysis.agent.ToolResult.success(
+                    public ToolResult afterExecute(String toolName, JsonNode input,
+                            ToolResult result, ToolCallContext ctx) {
+                        return ToolResult.success(
                                 (result.data() == null ? "" : result.data()) + "\n[GUARD]");
                     }
-                }),
-                noopTracer,
-                stagedChangeRepository);
+                }));
         givenLlmResponds(
                 toolCall("search_manual", "{\"query\":\"환불\"}"),
                 finalAnswer("ok", "GENERAL", "LOW", false)
@@ -361,23 +340,16 @@ class InquiryAgentServiceTest {
     void multiConcernBudgetGuard_summarizesPartialAnswerAndEscalates() {
         // 케이스 3: 예산 가드(6회 한도) 발동 후 부분 답변 + needsHumanReview
         // 인터셉터가 즉시 차단하면 도구는 실행되지 않고 PERMISSION 에러가 observation에 들어감.
-        InquiryAgentService budgetExhaustedAgent = new InquiryAgentService(
-                llmClient, manualRetrievalService, promptFactory, new ObjectMapper(),
+        InquiryAgentService budgetExhaustedAgent = agentServiceWith(
                 new InMemoryOrderRepository(),
-                new InMemoryFaqRepository(),
-                List.of(new com.aicsassistant.analysis.agent.ToolCallInterceptor() {
+                List.of(new ToolCallInterceptor() {
                     @Override
-                    public java.util.Optional<com.aicsassistant.analysis.agent.ToolResult> beforeExecute(
-                            String toolName, com.fasterxml.jackson.databind.JsonNode input,
-                            com.aicsassistant.analysis.agent.ToolCallContext ctx) {
-                        return java.util.Optional.of(com.aicsassistant.analysis.agent.ToolResult.error(
-                                com.aicsassistant.analysis.agent.ToolErrorCategory.PERMISSION,
-                                false,
-                                "Tool call budget exhausted"));
+                    public Optional<ToolResult> beforeExecute(
+                            String toolName, JsonNode input, ToolCallContext ctx) {
+                        return Optional.of(ToolResult.error(
+                                ToolErrorCategory.PERMISSION, false, "Tool call budget exhausted"));
                     }
-                }),
-                noopTracer,
-                stagedChangeRepository);
+                }));
         givenLlmResponds(
                 toolCall("search_manual", "{\"query\":\"반품 정책\"}"),
                 finalAnswer(
@@ -439,12 +411,9 @@ class InquiryAgentServiceTest {
         // stage_refund 가 성공하면 모델이 needsHumanReview: false 를 줘도 무시한다
         when(stagedChangeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         InMemoryOrderRepository orders = new InMemoryOrderRepository();
-        InquiryAgentService service = new InquiryAgentService(
-                llmClient, manualRetrievalService, promptFactory, new ObjectMapper(),
-                orders, new InMemoryFaqRepository(),
+        InquiryAgentService service = agentServiceWith(orders,
                 List.of(new OrderProvenanceInterceptor(),
-                        new RefundGuardrailInterceptor(orders, stagedChangeRepository)),
-                noopTracer, stagedChangeRepository);
+                        new RefundGuardrailInterceptor(orders, stagedChangeRepository)));
         when(stagedChangeRepository.existsByOrderIdAndStatus(any(), any())).thenReturn(false);
         givenLlmResponds(
                 toolCall("check_order_status", "{\"orderId\":\"ORD-20260410-001\"}"),
@@ -466,12 +435,9 @@ class InquiryAgentServiceTest {
         // 이 케이스가 RefundGuardrailInterceptor 의 PERMISSION 차단에 걸린다.
         when(stagedChangeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         InMemoryOrderRepository orders = new InMemoryOrderRepository();
-        InquiryAgentService service = new InquiryAgentService(
-                llmClient, manualRetrievalService, promptFactory, new ObjectMapper(),
-                orders, new InMemoryFaqRepository(),
+        InquiryAgentService service = agentServiceWith(orders,
                 List.of(new OrderProvenanceInterceptor(),
-                        new RefundGuardrailInterceptor(orders, stagedChangeRepository)),
-                noopTracer, stagedChangeRepository);
+                        new RefundGuardrailInterceptor(orders, stagedChangeRepository)));
         when(stagedChangeRepository.existsByOrderIdAndStatus(any(), any())).thenReturn(false);
         givenLlmResponds(
                 toolCall("stage_refund",
@@ -489,6 +455,23 @@ class InquiryAgentServiceTest {
     }
 
     // --- helpers ---
+
+    /**
+     * 인터셉터 구성만 다른 에이전트를 만든다. 주문 저장소를 인자로 받는 이유: 가드레일 인터셉터와
+     * {@code check_order_status} 도구가 같은 인스턴스를 봐야 provenance·금액 검사가 성립한다.
+     */
+    private InquiryAgentService agentServiceWith(
+            InMemoryOrderRepository orders, List<ToolCallInterceptor> interceptors) {
+        ObjectMapper mapper = new ObjectMapper();
+        return new InquiryAgentService(
+                llmClient,
+                promptFactory,
+                new AgentToolFactory(manualRetrievalService, orders,
+                        new InMemoryFaqRepository(), stagedChangeRepository),
+                new ToolInvoker(interceptors, mapper),
+                new AgentResponseParser(mapper),
+                noopTracer);
+    }
 
     private void givenLlmResponds(String... responses) {
         var stub = when(llmClient.completeWithUsage(anyList()));

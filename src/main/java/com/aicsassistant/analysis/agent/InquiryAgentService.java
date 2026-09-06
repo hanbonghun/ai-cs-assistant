@@ -1,11 +1,6 @@
 package com.aicsassistant.analysis.agent;
 
 import com.aicsassistant.analysis.agent.tool.CheckOrderStatusTool;
-import com.aicsassistant.analysis.agent.tool.SearchFaqTool;
-import com.aicsassistant.analysis.agent.tool.SearchManualTool;
-import com.aicsassistant.analysis.agent.tool.StageRefundTool;
-import com.aicsassistant.faq.InMemoryFaqRepository;
-import com.aicsassistant.analysis.application.ManualRetrievalService;
 import com.aicsassistant.analysis.application.PromptFactory;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.analysis.infra.llm.ChatMessage;
@@ -17,19 +12,11 @@ import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.InquiryMessageRole;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.order.InMemoryOrderRepository;
-import java.time.LocalDate;
-import com.aicsassistant.staging.infra.StagedChangeRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.opentelemetry.api.common.AttributeKey;
-import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
-import io.opentelemetry.context.Scope;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +31,15 @@ import org.springframework.stereotype.Service;
  *   <li>followUpQuestion — 고객에게 추가 정보 요청</li>
  *   <li>finalAnswer — 최종 답변 생성</li>
  * </ol>
+ *
+ * <p>이 클래스는 <b>그 선택을 읽고 다음 라운드를 만드는 일만</b> 한다. 주변 관심사는 각각 나가 있다.
+ * <ul>
+ *   <li>{@link AgentToolFactory} — 이번 실행이 쓸 도구를 만든다. 루프는 무엇을 조회하는지 모른다</li>
+ *   <li>{@link ToolInvoker} — 인터셉터 정책 아래 도구를 실행한다 (ADR 0003)</li>
+ *   <li>{@link AgentResponseParser} — 모델 출력을 얼마나 관대하게 받아줄지 정한다 (ADR 0006)</li>
+ *   <li>{@link AgentTrace} — 무엇을 관측할지 정한다</li>
+ * </ul>
+ * 넷 다 루프 안에 있을 때는 "지금 읽는 코드가 에이전트의 판단인지 그 주변 배관인지" 가 섞였다.
  */
 @Slf4j
 @Service
@@ -52,72 +48,44 @@ public class InquiryAgentService {
 
     private static final int MAX_STEPS = 8;
 
-    private static final AttributeKey<String> ATTR_LF_TRACE_NAME = AttributeKey.stringKey("langfuse.trace.name");
-    private static final AttributeKey<String> ATTR_LF_INPUT = AttributeKey.stringKey("langfuse.observation.input");
-    private static final AttributeKey<String> ATTR_LF_OUTPUT = AttributeKey.stringKey("langfuse.observation.output");
-    private static final AttributeKey<String> ATTR_LF_SESSION_ID = AttributeKey.stringKey("langfuse.session.id");
-    private static final AttributeKey<String> ATTR_LF_USER_ID = AttributeKey.stringKey("langfuse.user.id");
-    private static final AttributeKey<List<String>> ATTR_LF_TAGS = AttributeKey.stringArrayKey("langfuse.trace.tags");
-    private static final AttributeKey<Long> ATTR_INQUIRY_ID = AttributeKey.longKey("inquiry.id");
-    private static final AttributeKey<Long> ATTR_TOTAL_TOKENS = AttributeKey.longKey("agent.total_tokens");
-    private static final AttributeKey<Long> ATTR_STEP_COUNT = AttributeKey.longKey("agent.steps");
-    private static final AttributeKey<String> ATTR_AGENT_OUTCOME = AttributeKey.stringKey("agent.outcome");
-    private static final AttributeKey<String> ATTR_TOOL_NAME = AttributeKey.stringKey("agent.tool");
-
     private final LlmClient llmClient;
-    private final ManualRetrievalService manualRetrievalService;
     private final PromptFactory promptFactory;
-    private final ObjectMapper objectMapper;
-    private final InMemoryOrderRepository orderRepository;
-    private final InMemoryFaqRepository faqRepository;
-    private final List<ToolCallInterceptor> interceptors;
+    private final AgentToolFactory toolFactory;
+    private final ToolInvoker toolInvoker;
+    private final AgentResponseParser parser;
     private final Tracer tracer;
-    private final StagedChangeRepository stagedChangeRepository;
 
     /**
-     * @param inquiry         분석할 문의
+     * @param inquiry             분석할 문의
      * @param conversationHistory 이전 대화 메시지 (최초 분석 시 빈 리스트)
      */
     public AgentResult run(Inquiry inquiry, List<InquiryMessage> conversationHistory) {
-        CheckOrderStatusTool orderTool = new CheckOrderStatusTool(orderRepository, inquiry.getCustomerIdentifier());
-        SearchManualTool searchTool = new SearchManualTool(manualRetrievalService);
-        SearchFaqTool faqTool = new SearchFaqTool(faqRepository);
-        StageRefundTool refundTool = new StageRefundTool(stagedChangeRepository, inquiry.getId());
-        List<AgentTool<?>> tools = List.of(faqTool, searchTool, orderTool, refundTool);
+        AgentToolFactory.Toolset toolset = toolFactory.createFor(inquiry);
 
-        Span agentSpan = tracer.spanBuilder("inquiry-analysis-agent")
-                .setAttribute(ATTR_LF_TRACE_NAME, "inquiry-analysis-agent")
-                .setAttribute(ATTR_INQUIRY_ID, inquiry.getId())
-                .setAttribute(ATTR_LF_INPUT, inquiry.getContent())
-                .setAttribute(ATTR_LF_SESSION_ID, "inquiry-" + inquiry.getId())
-                .setAttribute(ATTR_LF_USER_ID, safeUserId(inquiry))
-                .startSpan();
-        try (Scope ignored = agentSpan.makeCurrent()) {
-            return runAgentLoop(inquiry, conversationHistory, tools, orderTool, searchTool, agentSpan);
-        } catch (RuntimeException e) {
-            agentSpan.setStatus(StatusCode.ERROR, e.getMessage());
-            agentSpan.recordException(e);
-            throw e;
-        } finally {
-            agentSpan.end();
+        try (AgentTrace trace = AgentTrace.start(tracer, inquiry)) {
+            try {
+                return runAgentLoop(inquiry, conversationHistory, toolset, trace);
+            } catch (RuntimeException e) {
+                trace.recordError(e);
+                throw e;
+            }
         }
     }
 
     private AgentResult runAgentLoop(
             Inquiry inquiry,
             List<InquiryMessage> conversationHistory,
-            List<AgentTool<?>> tools,
-            CheckOrderStatusTool orderTool,
-            SearchManualTool searchTool,
-            Span agentSpan) {
+            AgentToolFactory.Toolset toolset,
+            AgentTrace trace) {
 
+        List<AgentTool<?>> tools = toolset.all();
         List<ChatMessage> messages = new ArrayList<>();
         messages.add(ChatMessage.system(promptFactory.buildAgentSystemPrompt(tools)));
 
         ToolCallContext callContext = new ToolCallContext(inquiry.getId(), inquiry.getCustomerIdentifier());
 
         // 최초 문의 내용 (주문번호가 있으면 주문 정보 선주입)
-        messages.add(ChatMessage.user(buildInitialMessage(inquiry, orderTool, callContext)));
+        messages.add(ChatMessage.user(buildInitialMessage(inquiry, toolset, callContext)));
 
         // 이전 대화 히스토리 주입 (CUSTOMER → user, AI → assistant)
         for (InquiryMessage msg : conversationHistory) {
@@ -132,63 +100,53 @@ public class InquiryAgentService {
         int totalTokens = 0;
 
         for (int step = 0; step < MAX_STEPS; step++) {
-            Span stepSpan = tracer.spanBuilder("agent-step")
-                    .setAttribute(AttributeKey.longKey("agent.step.index"), (long) step)
-                    .startSpan();
-            try (Scope ignored = stepSpan.makeCurrent()) {
+            try (AgentTrace.StepSpan stepSpan = trace.step(step)) {
                 LlmResponse llmResponse = llmClient.completeWithUsage(messages);
                 totalTokens += llmResponse.totalTokens();
                 String raw = llmResponse.content();
-                log.debug("[Agent inquiryId={} step={} tokens={}] raw={}", inquiry.getId(), step, llmResponse.totalTokens(), raw);
+                log.debug("[Agent inquiryId={} step={} tokens={}] raw={}",
+                        inquiry.getId(), step, llmResponse.totalTokens(), raw);
 
-                JsonNode node = parseJson(raw);
+                JsonNode node = parser.parse(raw);
                 String thought = node.path("thought").asText("");
 
                 if (node.has("finalAnswer")) {
                     log.info("[Agent done] inquiryId={} steps={} totalTokens={}", inquiry.getId(), step, totalTokens);
                     AgentResult.FinalAnswer result = buildFinalAnswer(
-                            node, steps, searchTool.getCollectedChunks(), totalTokens, callContext);
-                    agentSpan.setAttribute(ATTR_AGENT_OUTCOME, "final_answer");
-                    agentSpan.setAttribute(ATTR_LF_TAGS, buildTags(result.category(), result.urgency()));
-                    agentSpan.setAttribute(ATTR_LF_OUTPUT, result.answer());
-                    agentSpan.setAttribute(ATTR_TOTAL_TOKENS, totalTokens);
-                    agentSpan.setAttribute(ATTR_STEP_COUNT, (long) step + 1);
+                            node, steps, toolset.manual().getCollectedChunks(), totalTokens, callContext);
+                    trace.recordAnswer(result, AgentTrace.OUTCOME_FINAL_ANSWER, totalTokens, step + 1);
                     return result;
                 }
 
                 if (node.has("followUpQuestion")) {
                     String question = node.path("followUpQuestion").asText("").strip();
                     log.info("[Agent followUp] inquiryId={} steps={} totalTokens={}", inquiry.getId(), step, totalTokens);
-                    agentSpan.setAttribute(ATTR_AGENT_OUTCOME, "follow_up");
-                    agentSpan.setAttribute(ATTR_LF_OUTPUT, question);
-                    agentSpan.setAttribute(ATTR_TOTAL_TOKENS, totalTokens);
-                    agentSpan.setAttribute(ATTR_STEP_COUNT, (long) step + 1);
+                    trace.recordFollowUp(question, totalTokens, step + 1);
                     return new AgentResult.FollowUpQuestion(question, List.copyOf(steps), totalTokens);
                 }
 
                 String action = node.path("action").asText("");
                 JsonNode actionInput = node.path("actionInput");
-                stepSpan.setAttribute(ATTR_TOOL_NAME, action);
+                stepSpan.tool(action);
 
-                AgentTool<?> tool = resolveTool(tools, action);
-                ToolResult toolResult = invokeWithInterceptors(tool, action, actionInput, callContext, inquiry.getId(), step);
+                ToolResult toolResult = toolInvoker.invoke(tools, action, actionInput, callContext, step);
 
-                String observation = serializeObservation(toolResult);
+                String observation = toolInvoker.serializeObservation(toolResult);
                 log.info("[Agent inquiryId={} step={}] action={} ok={} category={} observation_len={}",
                         inquiry.getId(), step, action, toolResult.ok(), toolResult.errorCategory(), observation.length());
 
                 // search_manual 스텝에는 이번 호출에서 가져온 문서 목록을 첨부
-                List<RetrievedManualChunkDto> stepChunks = (tool instanceof SearchManualTool s) ? s.getLastCallChunks() : List.of();
+                List<RetrievedManualChunkDto> stepChunks = toolset.manual().name().equals(action)
+                        ? toolset.manual().getLastCallChunks()
+                        : List.of();
                 steps.add(new AgentStep(thought, action, actionInput.toString(), observation, stepChunks));
                 messages.add(ChatMessage.assistant(raw));
                 messages.add(ChatMessage.user("Observation:\n" + observation));
-            } finally {
-                stepSpan.end();
             }
         }
 
         // 스텝 소진 — 여기까지 온 문의가 가장 복잡한 건이므로 실패시키지 않고 답을 뽑아낸다
-        return forceFinalAnswerWithoutTools(inquiry, messages, steps, searchTool, totalTokens, agentSpan, callContext);
+        return forceFinalAnswerWithoutTools(inquiry, messages, steps, toolset, totalTokens, trace, callContext);
     }
 
     /**
@@ -202,9 +160,9 @@ public class InquiryAgentService {
             Inquiry inquiry,
             List<ChatMessage> messages,
             List<AgentStep> steps,
-            SearchManualTool searchTool,
+            AgentToolFactory.Toolset toolset,
             int totalTokens,
-            Span agentSpan,
+            AgentTrace trace,
             ToolCallContext ctx) {
 
         messages.add(ChatMessage.user(
@@ -218,9 +176,9 @@ public class InquiryAgentService {
         try {
             LlmResponse response = llmClient.completeWithUsage(messages);
             tokens += response.totalTokens();
-            JsonNode node = parseJson(response.content());
+            JsonNode node = parser.parse(response.content());
             if (node.has("finalAnswer")) {
-                answer = buildFinalAnswer(node, steps, searchTool.getCollectedChunks(), tokens, ctx)
+                answer = buildFinalAnswer(node, steps, toolset.manual().getCollectedChunks(), tokens, ctx)
                         .withHumanReview();
             }
         } catch (RuntimeException e) {
@@ -229,16 +187,16 @@ public class InquiryAgentService {
 
         boolean synthetic = answer == null;
         if (synthetic) {
-            answer = syntheticBriefing(inquiry, steps, searchTool.getCollectedChunks(), tokens);
+            answer = syntheticBriefing(inquiry, steps, toolset.manual().getCollectedChunks(), tokens);
         }
 
         log.info("[Agent forced final] inquiryId={} steps={} totalTokens={} synthetic={}",
                 inquiry.getId(), steps.size(), tokens, synthetic);
-        agentSpan.setAttribute(ATTR_AGENT_OUTCOME, synthetic ? "forced_final_synthetic" : "forced_final_answer");
-        agentSpan.setAttribute(ATTR_LF_TAGS, buildTags(answer.category(), answer.urgency()));
-        agentSpan.setAttribute(ATTR_LF_OUTPUT, answer.answer());
-        agentSpan.setAttribute(ATTR_TOTAL_TOKENS, tokens);
-        agentSpan.setAttribute(ATTR_STEP_COUNT, (long) steps.size());
+        trace.recordAnswer(
+                answer,
+                synthetic ? AgentTrace.OUTCOME_FORCED_SYNTHETIC : AgentTrace.OUTCOME_FORCED_FINAL,
+                tokens,
+                steps.size());
         return answer;
     }
 
@@ -266,36 +224,13 @@ public class InquiryAgentService {
                 totalTokens);
     }
 
-    static String safeUserId(Inquiry inquiry) {
-        String id = inquiry.getCustomerIdentifier();
-        return id == null || id.isBlank() ? "anonymous" : id;
-    }
-
-    /**
-     * Langfuse 트레이스 태그.
-     *
-     * <p>분류 결과가 나온 뒤에 호출해야 한다. 이전에는 span 을 만들 때 {@code Inquiry} 에서 읽었는데,
-     * 그 시점은 분석 전이라 category/urgency 가 둘 다 null 이었다 — 태그가 항상 빈 배열로 들어가
-     * Langfuse 에 {@code [{"arrayValue":{}}]} 로 보였다. 필터가 아예 동작하지 않던 원인이다.
-     */
-    static List<String> buildTags(String category, String urgency) {
-        List<String> tags = new ArrayList<>();
-        if (category != null && !category.isBlank()) {
-            tags.add("category:" + category);
-        }
-        if (urgency != null && !urgency.isBlank()) {
-            tags.add("urgency:" + urgency);
-        }
-        return tags;
-    }
-
     /**
      * 최초 사용자 메시지를 조립한다.
      *
      * <p>주문 정보는 서버가 조회한 신뢰 데이터라 울타리 밖에 두고, 제목·본문은 고객이 쓴 것이므로
      * 울타리 안에 넣는다. 이 구분이 프롬프트 인젝션 방어의 전부이므로 순서를 바꾸지 말 것.
      */
-    private String buildInitialMessage(Inquiry inquiry, CheckOrderStatusTool orderTool, ToolCallContext ctx) {
+    private String buildInitialMessage(Inquiry inquiry, AgentToolFactory.Toolset toolset, ToolCallContext ctx) {
         StringBuilder sb = new StringBuilder();
 
         // 모델에게는 시간 감각이 없다. 오늘을 알려주지 않으면 "도착예정: 2026-09-03" 이 과거인지
@@ -307,7 +242,7 @@ public class InquiryAgentService {
         String orderId = inquiry.getRelatedOrderId();
         if (orderId != null && !orderId.isBlank()) {
             try {
-                ToolResult orderResult = orderTool.execute(new CheckOrderStatusTool.Input(orderId));
+                ToolResult orderResult = toolset.order().execute(new CheckOrderStatusTool.Input(orderId));
                 if (orderResult.ok()) {
                     // 인터셉터를 지나가지 않는 경로라 여기서 직접 기록한다.
                     // 문의의 relatedOrderId 이고 소유자 검증을 통과한 고객 자기 주문이라 정당하다.
@@ -326,75 +261,13 @@ public class InquiryAgentService {
         return sb.toString();
     }
 
-    private ToolResult invokeWithInterceptors(
-            AgentTool<?> tool, String action, JsonNode actionInput,
-            ToolCallContext ctx, Long inquiryId, int step) {
-
-        for (ToolCallInterceptor interceptor : interceptors) {
-            Optional<ToolResult> blocked = interceptor.beforeExecute(action, actionInput, ctx);
-            if (blocked.isPresent()) {
-                log.info("[Agent inquiryId={} step={}] action={} blocked_by={}",
-                        inquiryId, step, action, interceptor.getClass().getSimpleName());
-                return blocked.get();
-            }
-        }
-
-        ToolResult result = executeTyped(tool, actionInput, action, inquiryId, step);
-        ctx.incrementToolCallCount();
-
-        for (ToolCallInterceptor interceptor : interceptors) {
-            result = interceptor.afterExecute(action, actionInput, result, ctx);
-        }
-        return result;
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private ToolResult executeTyped(AgentTool<?> tool, JsonNode actionInput, String action, Long inquiryId, int step) {
-        Object typedInput;
-        try {
-            typedInput = objectMapper.treeToValue(actionInput, tool.inputType());
-        } catch (JsonProcessingException | IllegalArgumentException e) {
-            log.info("[Agent inquiryId={} step={}] action={} input parse failed: {}",
-                    inquiryId, step, action, e.getMessage());
-            return ToolResult.error(
-                    ToolErrorCategory.VALIDATION,
-                    false,
-                    "Tool input does not match the declared schema: " + e.getMessage());
-        }
-        try {
-            return ((AgentTool) tool).execute(typedInput);
-        } catch (Exception e) {
-            log.warn("[Agent inquiryId={} step={}] tool error action={}", inquiryId, step, action, e);
-            return ToolResult.error(
-                    ToolErrorCategory.TRANSIENT,
-                    true,
-                    "Tool execution failed: " + e.getMessage());
-        }
-    }
-
-    private String serializeObservation(ToolResult result) {
-        try {
-            return objectMapper.writeValueAsString(result);
-        } catch (Exception e) {
-            return "{\"ok\":false,\"errorCategory\":\"TRANSIENT\",\"isRetryable\":true,"
-                    + "\"errorMessage\":\"Failed to serialize tool result\"}";
-        }
-    }
-
-    private AgentTool<?> resolveTool(List<AgentTool<?>> tools, String name) {
-        return tools.stream()
-                .filter(t -> t.name().equals(name))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Unknown tool requested by agent: " + name));
-    }
-
     private AgentResult.FinalAnswer buildFinalAnswer(
             JsonNode node, List<AgentStep> steps, List<RetrievedManualChunkDto> chunks,
             int totalTokens, ToolCallContext ctx) {
         AgentResult.FinalAnswer answer = new AgentResult.FinalAnswer(
-                requiredText(node, "finalAnswer"),
-                validCategory(requiredText(node, "category")),
-                validUrgency(requiredText(node, "urgency")),
+                parser.requiredText(node, "finalAnswer"),
+                parser.validCategory(parser.requiredText(node, "category")),
+                parser.validUrgency(parser.requiredText(node, "urgency")),
                 node.path("needsHumanReview").asBoolean(true),
                 node.path("needsEscalation").asBoolean(false),
                 node.path("fraudRiskFlag").asBoolean(false),
@@ -405,55 +278,5 @@ public class InquiryAgentService {
         );
         // 제안이 접수된 실행은 무조건 상담사가 본다 — 프롬프트 지시에 맡기지 않는다
         return ctx.stagedChange() ? answer.withHumanReview() : answer;
-    }
-
-    private JsonNode parseJson(String response) {
-        try {
-            return objectMapper.readTree(stripMarkdownFence(response));
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to parse agent response: " + response, e);
-        }
-    }
-
-    private String stripMarkdownFence(String response) {
-        String trimmed = response.strip();
-        if (trimmed.startsWith("```")) {
-            int firstNewline = trimmed.indexOf('\n');
-            int lastFence = trimmed.lastIndexOf("```");
-            if (firstNewline != -1 && lastFence > firstNewline) {
-                return trimmed.substring(firstNewline + 1, lastFence).strip();
-            }
-        }
-        return trimmed;
-    }
-
-    /**
-     * enum에 없는 값이면 GENERAL로 낮춘다. 하위 레이어의 {@code valueOf}가 던지면 분석 전체가
-     * 실패하는데, 분류를 하나 틀리는 것보다 문의를 잃는 게 나쁘다.
-     */
-    private String validCategory(String raw) {
-        try {
-            return InquiryCategory.valueOf(raw).name();
-        } catch (IllegalArgumentException e) {
-            log.warn("[Agent] 알 수 없는 category={} → GENERAL로 대체", raw);
-            return InquiryCategory.GENERAL.name();
-        }
-    }
-
-    private String validUrgency(String raw) {
-        try {
-            return UrgencyLevel.valueOf(raw).name();
-        } catch (IllegalArgumentException e) {
-            log.warn("[Agent] 알 수 없는 urgency={} → MEDIUM으로 대체", raw);
-            return UrgencyLevel.MEDIUM.name();
-        }
-    }
-
-    private String requiredText(JsonNode node, String fieldName) {
-        String value = node.path(fieldName).asText("").trim();
-        if (value.isEmpty()) {
-            throw new IllegalStateException("Agent final result missing field: " + fieldName);
-        }
-        return value;
     }
 }
