@@ -10,7 +10,7 @@
 > 주문 날짜는 조회 시점을 기준으로 계산합니다.
 
 LangChain 같은 LLM 프레임워크를 사용하지 않고 ReAct Agent 루프를 직접 구현했습니다.  
-Agent는 문의 내용에 따라 정책 검색, FAQ 조회, 주문 조회 등의 툴을 선택합니다. 환불처럼 실제 상태 변경이 필요한 작업은 바로 실행하지 않고 제안만 만든 뒤 상담사 승인을 거칩니다.
+Agent는 문의 내용에 따라 정책 검색, 주문 조회 등의 툴을 선택합니다. 환불처럼 실제 상태 변경이 필요한 작업은 바로 실행하지 않고 제안만 만든 뒤 상담사 승인을 거칩니다.
 
 RAG 검색은 87개 골든셋으로 회귀 테스트하고, LLM / Agent / RAG 호출은 OpenTelemetry를 통해 Langfuse에서 추적합니다.
 
@@ -57,7 +57,7 @@ flowchart LR
     Q(["고객 문의"]) --> EV["커밋 후<br/>비동기 트리거"]
     EV --> AG["ReAct Agent<br/>최대 8스텝"]
 
-    AG <-->|조회| TOOLS["FAQ · 정책 RAG<br/>주문 조회"]
+    AG <-->|조회| TOOLS["정책 RAG<br/>주문 조회"]
     AG -->|제안| GATE["승인 대기<br/>staged_change"]
 
     AG --> D{"판정"}
@@ -368,8 +368,8 @@ README에는 전체 흐름과 주요 판단만 남기고, 운영 중 겪은 문�
 - **타입 기반 Tool Schema 생성**  
   `AgentTool<I>`의 input record를 기준으로 JSON Schema를 생성해 Java 타입과 Tool Schema가 따로 관리되지 않게 했습니다.
 
-- **FAQ와 매뉴얼 검색 분리**  
-  짧게 답할 수 있는 FAQ와 정책 원문이 필요한 RAG Tool을 구분했습니다.
+- **큐레이션 FAQ Tool 제거**  
+  정책 원문 RAG와 별도로 키워드 매칭 FAQ Tool을 두었다가, 골든셋으로 재보니 응답 25건 중 3분의 1만 맞아서 걷어냈습니다. 틀린 FAQ는 `ok=true`로 반환되어 RAG 폴백을 막기 때문에 없느니만 못했습니다. → [Production Lessons](docs/operations.md#5-큐레이션-faq-를-재보고-걷어냈다)
 
 - **다중 관심사 처리**  
   한 문의에 여러 질문이 섞여 있으면 각각 필요한 Tool을 사용한 뒤 하나의 답변으로 합칩니다.
@@ -495,13 +495,13 @@ src/main/java/com/aicsassistant/
 ├── analysis/               # AI 분석
 │   ├── agent/              # ReAct, AgentTool, ToolSchemaGenerator, ToolResult
 │   │   ├── interceptor/    # Tool 정책
-│   │   └── tool/           # FAQ, RAG, 주문 조회, 환불 제안
+│   │   └── tool/           # RAG, 주문 조회, 환불 제안
 │   ├── application/        # 분석 유스케이스, PromptFactory
 │   ├── domain/             # 분석 로그
 │   └── infra/              # OpenAI, RAG
 ├── manual/                 # 정책 문서, Chunking, Embedding
 ├── staging/                # 환불 제안 및 승인
-├── faq/ · order/ · user/   # 데모용 InMemory 데이터
+├── order/ · user/          # 데모용 InMemory 데이터
 ├── ui/                     # Thymeleaf 화면
 └── common/                 # 공통 설정 및 예외 처리
 ```

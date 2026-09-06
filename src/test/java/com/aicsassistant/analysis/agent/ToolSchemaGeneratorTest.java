@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.aicsassistant.analysis.agent.tool.CheckOrderStatusTool;
-import com.aicsassistant.analysis.agent.tool.SearchFaqTool;
 import com.aicsassistant.analysis.agent.tool.SearchManualTool;
 import com.aicsassistant.analysis.agent.tool.StageRefundTool;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -97,7 +96,6 @@ class ToolSchemaGeneratorTest {
     @Test
     void everyShippedToolInputProducesADescribedSchema() {
         List<Class<?>> inputs = List.of(
-                SearchFaqTool.Input.class,
                 SearchManualTool.Input.class,
                 CheckOrderStatusTool.Input.class,
                 StageRefundTool.Input.class);

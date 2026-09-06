@@ -49,9 +49,9 @@ public class SearchManualTool implements AgentTool<SearchManualTool.Input> {
 
     @Override
     public String usageBoundary() {
-        return "Do NOT use for: (1) short well-known questions where a one-paragraph FAQ answer is enough (use search_faq first — cheaper and more direct), "
-                + "(2) order-specific status/tracking/amount lookups (use check_order_status), "
-                + "(3) customer personal info. This tool returns long authoritative policy chunks — overkill for simple FAQs.";
+        return "Do NOT use for: (1) order-specific status/tracking/amount lookups (use check_order_status), "
+                + "(2) customer personal info. This tool returns authoritative policy chunks — it is the only "
+                + "source for policy answers, so do not answer policy from your own knowledge.";
     }
 
     @Override

@@ -75,7 +75,7 @@ class InquiryDetailAssemblerTest {
     @Test
     void loadAgentSteps_extractsDataFromToolResultSuccess() {
         String stepsJson = """
-                [{"thought":"t","action":"search_faq","actionInput":"{}",
+                [{"thought":"t","action":"search_manual","actionInput":"{}",
                   "observation":"{\\"ok\\":true,\\"data\\":\\"Q: 회원 탈퇴는 어떻게 하나요?\\\\nA: 마이페이지에서...\\",\\"errorCategory\\":null,\\"isRetryable\\":false,\\"errorMessage\\":null}",
                   "referencedChunks":[]}]
                 """;

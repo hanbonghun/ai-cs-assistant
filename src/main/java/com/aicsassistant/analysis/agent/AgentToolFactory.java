@@ -1,11 +1,9 @@
 package com.aicsassistant.analysis.agent;
 
 import com.aicsassistant.analysis.agent.tool.CheckOrderStatusTool;
-import com.aicsassistant.analysis.agent.tool.SearchFaqTool;
 import com.aicsassistant.analysis.agent.tool.SearchManualTool;
 import com.aicsassistant.analysis.agent.tool.StageRefundTool;
 import com.aicsassistant.analysis.application.ManualRetrievalService;
-import com.aicsassistant.faq.InMemoryFaqRepository;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.order.InMemoryOrderRepository;
 import com.aicsassistant.staging.infra.StagedChangeRepository;
@@ -26,7 +24,7 @@ import org.springframework.stereotype.Component;
  *       된다</li>
  * </ul>
  *
- * <p>이 클래스가 데이터 소스 넷을 대신 들고 있어서 {@link InquiryAgentService} 는 루프가 무엇을
+ * <p>이 클래스가 데이터 소스 셋을 대신 들고 있어서 {@link InquiryAgentService} 는 루프가 무엇을
  * 조회하는지 몰라도 된다. 도구를 하나 더 붙일 때 손대는 곳이 여기와 프롬프트뿐이다.
  */
 @Component
@@ -35,12 +33,10 @@ class AgentToolFactory {
 
     private final ManualRetrievalService manualRetrievalService;
     private final InMemoryOrderRepository orderRepository;
-    private final InMemoryFaqRepository faqRepository;
     private final StagedChangeRepository stagedChangeRepository;
 
     Toolset createFor(Inquiry inquiry) {
         return new Toolset(
-                new SearchFaqTool(faqRepository),
                 new SearchManualTool(manualRetrievalService),
                 new CheckOrderStatusTool(orderRepository, inquiry.getCustomerIdentifier()),
                 new StageRefundTool(stagedChangeRepository, inquiry.getId()));
@@ -51,7 +47,6 @@ class AgentToolFactory {
      * 해서 리스트가 아니라 record 로 돌려준다 — 전자는 수집한 문서를, 후자는 주문 선주입을 위해서다.
      */
     record Toolset(
-            SearchFaqTool faq,
             SearchManualTool manual,
             CheckOrderStatusTool order,
             StageRefundTool refund
@@ -59,7 +54,7 @@ class AgentToolFactory {
 
         /** 모델이 프롬프트에서 보는 순서. 이름 해석도 이 목록에서 한다. */
         List<AgentTool<?>> all() {
-            return List.of(faq, manual, order, refund);
+            return List.of(manual, order, refund);
         }
     }
 }
