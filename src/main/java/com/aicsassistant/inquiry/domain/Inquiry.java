@@ -117,8 +117,7 @@ public class Inquiry {
     }
 
     public void applyAnalysis(InquiryCategory category, UrgencyLevel urgency, String aiDraftAnswer) {
-        if (status == InquiryStatus.CLOSED || status == InquiryStatus.REVIEWED
-                || status == InquiryStatus.AUTO_ANSWERED) {
+        if (status.isFinished()) {
             throw new ApiException(
                     HttpStatus.BAD_REQUEST,
                     "INVALID_INQUIRY_STATE",
