@@ -23,7 +23,7 @@
 
 1. 분할 수단은 private 메서드 안의 `TransactionTemplate` 이다. `@Transactional` 두 개로 나누면
    같은 빈 안의 호출이 프록시를 타지 않아 **트랜잭션이 조용히 걸리지 않는다.** 새 빈을 만드는 것은
-   프록시 사정 때문에 클래스를 만드는 일이라 하지 않았다
+   프록시 사정 때문에 클래스를 만드는 일이라 하지 않았다 (2026-09-06 에 바꿨다 — 아래 「후속」 참고)
 2. Slack 알림은 커밋 후에 보낸다. 알림만 나가고 커밋이 실패하는 순서를 없앤다. 알림에는 저장
    단계가 돌려준 엔티티를 넘긴다 — Slack 메시지가 `getCategory()`/`getUrgency()`/
    `getAiDraftAnswer()` 를 읽으므로 낡은 detached 엔티티를 넘기면 null 로 나간다
@@ -57,7 +57,7 @@
 - "영구히 분석 중" 이 원리적으로 불가능하다. 상태가 항상 `NEW` 를 벗어나므로 UI 폴링 타임아웃은
   도달 불가 코드가 되어 추가하지 않았다
 - 대가 1: 이 코드베이스의 다른 곳은 `@Transactional` 을 쓰는데 여기만 `TransactionTemplate` 이다.
-  경계가 호출 지점에서 안 보인다 — 대신 조용히 실패하지 않는다
+  경계가 호출 지점에서 안 보인다 — 대신 조용히 실패하지 않는다 (2026-09-06 에 해소, 아래 참고)
 - 대가 2: 저장 단계에서 상태가 변해 결과를 못 쓰는 경우가 생긴다. 에이전트 실행 비용을 버리지만,
   이미 종료된 문의를 덮어쓰는 것보다 낫다
 - 대가 3: 추가 질문 라운드도 분석 로그를 남기게 되어 대시보드의 총 분석 건수·평균 지연·평균 토큰에
@@ -71,3 +71,26 @@
 - 대가 6: `@Scheduled` 빈은 `spring.main.lazy-initialization` 을 우회해 즉시 생성된다. DB 없이
   컨텍스트 로딩만 확인하는 테스트가 DataSource 오토컨피그를 빼고 도는데 그 컨텍스트에서 기동이
   깨졌다. `app.analysis.retry.enabled` 로 끌 수 있게 했다 — 운영에서 잠시 내리는 스위치로도 쓴다
+
+## 후속 (2026-09-06) — 경계를 `InquiryAnalysisRecorder` 로 옮긴다
+
+결정 자체는 그대로다. 외부 호출은 여전히 트랜잭션 밖이고 경계도 여전히 셋이다. 바뀐 것은 **분할 수단**이다.
+
+`TransactionTemplate` 을 고른 이유는 "프록시 사정 때문에 클래스를 만들지는 않겠다" 였다. 그런데
+`InquiryAnalysisService` 가 유스케이스 순서와 영속화 세부를 함께 들고 있어, 세 줄짜리 흐름이 이백 줄에
+묻혀 **이 ADR 이 만든 3단계 구조가 코드에서 안 보였다.** 클래스를 나눌 이유가 프록시와 무관하게 생긴
+것이므로 원래의 반대 근거가 사라진다.
+
+- `InquiryAnalysisRecorder` 가 트랜잭션 경계 넷을 갖는다 — `startAnalysis` · `recordFinalAnswer` ·
+  `recordFollowUp` · `recordRetriesExhausted`. 별개 빈이라 `@Transactional` 프록시가 정상 동작한다
+- `InquiryAnalysisService` 는 순서·에이전트 실행·예외 매핑·알림만 남는다. `analyze()` 가 읽기 →
+  에이전트 → 저장 세 줄로 읽힌다
+- 종료 상태 판정은 `InquiryStatus.isFinished()` 로 내렸다. `Inquiry.applyAnalysis` 의 거부 조건과
+  분석 유스케이스의 진입·저장 검증이 같은 목록을 따로 나열하고 있었다
+
+### 결과
+
+- 대가 1(경계가 호출 지점에서 안 보인다)이 사라진다. 코드베이스의 나머지와 같은 `@Transactional` 을 쓴다
+- `agentRunsOutsideTransaction` 테스트가 그대로 통과한다 — 성질은 안 바뀌었다는 증거다
+- 새 함정: **`InquiryAnalysisRecorder` 의 public 메서드끼리 호출하면 안 된다.** 같은 빈 안의 호출은
+  프록시를 타지 않아 이 ADR 이 피하려던 바로 그 방식으로 조용히 실패한다. 클래스 javadoc 에 적었다
