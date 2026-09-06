@@ -73,7 +73,6 @@ class SearchManualToolTest {
         assertThat(tool.description()).isNotBlank();
         assertThat(tool.whenToUse()).isNotBlank();
         assertThat(tool.inputType()).isEqualTo(SearchManualTool.Input.class);
-        assertThat(tool.inputSchema()).contains("query");
         assertThat(tool.successOutputHint()).isNotBlank();
         assertThat(tool.failureBehavior()).contains("VALIDATION");
     }

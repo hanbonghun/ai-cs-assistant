@@ -91,7 +91,6 @@ class StageRefundToolTest {
 
         assertThat(tool.name()).isEqualTo("stage_refund");
         assertThat(tool.inputType()).isEqualTo(StageRefundTool.Input.class);
-        assertThat(tool.inputSchema()).contains("orderId").contains("amount").contains("reason");
         assertThat(tool.whenToUse()).isNotBlank();
         assertThat(tool.usageBoundary()).contains("check_order_status");
         assertThat(tool.successOutputHint()).contains("승인");

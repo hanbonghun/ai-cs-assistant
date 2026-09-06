@@ -388,7 +388,7 @@ class InquiryAgentServiceTest {
     @SuppressWarnings("unchecked")
     void routesCustomerTextThroughFenceBeforeSendingToLlm() {
         // 위조된 정책 가드가 LLM에 도달하지 않는지 — 조립 배선 검증
-        PromptFactory real = new PromptFactory();
+        PromptFactory real = new PromptFactory(new ToolSchemaGenerator(new ObjectMapper()));
         when(promptFactory.fenceCustomerText(anyString()))
                 .thenAnswer(inv -> real.fenceCustomerText(inv.getArgument(0)));
         givenLlmResponds(finalAnswer("확인했습니다.", "REFUND", "LOW", true));

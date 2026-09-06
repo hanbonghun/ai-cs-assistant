@@ -2,6 +2,7 @@ package com.aicsassistant.analysis.agent.tool;
 
 import com.aicsassistant.analysis.agent.AgentTool;
 import com.aicsassistant.analysis.agent.ToolErrorCategory;
+import com.aicsassistant.analysis.agent.ToolParam;
 import com.aicsassistant.analysis.agent.ToolResult;
 import com.aicsassistant.faq.InMemoryFaqRepository;
 import java.util.Optional;
@@ -15,7 +16,11 @@ import java.util.Optional;
 public class SearchFaqTool implements AgentTool<SearchFaqTool.Input> {
 
     /** 도구 입력 — 한 문장의 자연어 질문. */
-    public record Input(String question) {}
+    public record Input(
+            @ToolParam(description = "A single short Korean question "
+                    + "(e.g. '환불은 며칠 걸리나요?')")
+            String question
+    ) {}
 
     private final InMemoryFaqRepository faqRepository;
 
@@ -52,11 +57,6 @@ public class SearchFaqTool implements AgentTool<SearchFaqTool.Input> {
     @Override
     public Class<Input> inputType() {
         return Input.class;
-    }
-
-    @Override
-    public String inputSchema() {
-        return "{\"question\": \"string (required) — single Korean question, ideally short (e.g. '환불은 며칠 걸리나요?')\"}";
     }
 
     @Override

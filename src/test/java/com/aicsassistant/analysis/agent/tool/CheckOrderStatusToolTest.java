@@ -69,7 +69,6 @@ class CheckOrderStatusToolTest {
         assertThat(tool.name()).isEqualTo("check_order_status");
         assertThat(tool.description()).isNotBlank();
         assertThat(tool.whenToUse()).isNotBlank();
-        assertThat(tool.inputSchema()).contains("orderId");
         assertThat(tool.successOutputHint()).contains("주문번호").contains("결제금액");
         assertThat(tool.failureBehavior()).contains("NOT_FOUND");
     }

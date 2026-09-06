@@ -2,6 +2,7 @@ package com.aicsassistant.analysis.agent.tool;
 
 import com.aicsassistant.analysis.agent.AgentTool;
 import com.aicsassistant.analysis.agent.ToolErrorCategory;
+import com.aicsassistant.analysis.agent.ToolParam;
 import com.aicsassistant.analysis.agent.ToolResult;
 import com.aicsassistant.staging.domain.ChangeType;
 import com.aicsassistant.staging.domain.StagedChange;
@@ -17,7 +18,19 @@ import com.aicsassistant.staging.infra.StagedChangeRepository;
 public class StageRefundTool implements AgentTool<StageRefundTool.Input> {
 
     /** 도구 입력 — 금액은 부분 환불을 허용하므로 결제금액과 다를 수 있다. */
-    public record Input(String orderId, Integer amount, String reason, String policyBasis) {}
+    public record Input(
+            @ToolParam(description = "Order looked up with check_order_status in this conversation")
+            String orderId,
+
+            @ToolParam(description = "KRW to refund. Must be > 0 and <= the order's paid amount")
+            Integer amount,
+
+            @ToolParam(description = "Korean explanation of how you arrived at this amount")
+            String reason,
+
+            @ToolParam(description = "The policy clause you relied on", required = false)
+            String policyBasis
+    ) {}
 
     private final StagedChangeRepository stagedChangeRepository;
     private final Long inquiryId;
@@ -55,14 +68,6 @@ public class StageRefundTool implements AgentTool<StageRefundTool.Input> {
     @Override
     public Class<Input> inputType() {
         return Input.class;
-    }
-
-    @Override
-    public String inputSchema() {
-        return "{\"orderId\": \"string (required) — order looked up in this conversation\", "
-                + "\"amount\": \"integer (required) — KRW to refund, must be > 0 and <= the order's paid amount\", "
-                + "\"reason\": \"string (required) — Korean explanation of how you arrived at this amount\", "
-                + "\"policyBasis\": \"string (optional) — the policy clause you relied on\"}";
     }
 
     @Override

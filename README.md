@@ -403,8 +403,8 @@ Agent가 `followUpQuestion`으로 주문번호를 되묻는 대신, 문의 등�
 
 새 가드는 `ToolCallInterceptor` 구현체를 Spring 빈으로 추가하면 자동으로 체인에 등록됩니다.
 
-### 11. 타입 세이프 도구 인터페이스 + 7-필드 표면 (Tool Interface Design)
-모델은 도구의 소스코드가 아니라 표면(surface)만 보고 호출을 결정합니다(공식 가이드 *CCAF Domain 2 — Tool Interface Design*의 좋은 도구 설명 4요소: 입력 형식 · 예제 질의 · 엣지 케이스 · 유사 도구 경계). 이를 모두 노출하기 위해 `AgentTool<I>`는 7개 표면 메서드를 갖습니다.
+### 11. 타입 세이프 도구 인터페이스 + 입력 record 단일 출처 (Tool Interface Design)
+모델은 도구의 소스코드가 아니라 표면(surface)만 보고 호출을 결정합니다(공식 가이드 *CCAF Domain 2 — Tool Interface Design*의 좋은 도구 설명 4요소: 입력 형식 · 예제 질의 · 엣지 케이스 · 유사 도구 경계). 이를 모두 노출하기 위해 `AgentTool<I>`는 6개 표면 메서드를 갖습니다.
 
 ```java
 public interface AgentTool<I> {
@@ -412,15 +412,36 @@ public interface AgentTool<I> {
     String description();        // 무엇을 하는지
     String whenToUse();          // 언제 호출해야 하는지
     String usageBoundary();      // 쓰지 말아야 할 때 / 유사 도구와의 경계 (가이드 4번)
-    Class<I> inputType();        // 역직렬화 타깃 record
-    String inputSchema();        // 입력 필드 형태/제약 (가이드 1번)
+    Class<I> inputType();        // 역직렬화 타깃 record — 입력 스키마의 유일한 출처 (가이드 1번)
     String successOutputHint();  // 성공 시 data 필드 형태
     String failureBehavior();    // 카테고리별 LLM 대응 가이드 (가이드 3번)
     ToolResult execute(I input);
 }
 ```
 
-각 도구는 자기 입력을 nested record로 선언하고(`SearchManualTool.Input`, `CheckOrderStatusTool.Input`, `SearchFaqTool.Input`), `InquiryAgentService`가 `ObjectMapper.treeToValue`로 JsonNode → record를 자동 변환합니다. 변환 실패는 `ToolResult.error(VALIDATION, ...)`로 LLM에 반환되어 입력 수정/추가 질문 흐름이 자동 트리거됩니다. `PromptFactory`는 도구별 7개 표면을 통일된 블록으로 시스템 프롬프트에 노출해 모델이 첫 호출 전에 모든 정보를 갖게 합니다. 특히 `usageBoundary`는 **유사 기능 도구가 늘어났을 때 모델의 도구 선택 정확도를 좌우하는 핵심 신호**입니다.
+입력 스키마는 도구가 직접 쓰지 않고 `ToolSchemaGenerator`가 `inputType()`에서 만듭니다.
+
+```text
+AgentTool<I>.inputType()  ──▶  ToolSchemaGenerator  ──▶  JSON Schema  ──▶  PromptFactory
+   (record + @ToolParam)          (리플렉션)                                  (도구 표면 블록)
+```
+
+이전에는 각 도구가 `inputSchema()`로 같은 정보를 손으로 한 번 더 적었습니다. record에 필드를 더해도 그 문자열은 컴파일러가 보지 않으므로, 실제 Java 타입과 모델이 보는 스키마가 조용히 어긋날 수 있었습니다. 이제 record가 유일한 출처이고, 필드의 의미와 필수 여부는 `@ToolParam`이 갖습니다.
+
+```java
+public record Input(
+        @ToolParam(description = "Order looked up with check_order_status in this conversation")
+        String orderId,
+        @ToolParam(description = "The policy clause you relied on", required = false)
+        String policyBasis
+) {}
+```
+
+생성기는 모르는 Java 타입을 만나면 그럴듯한 스키마를 지어내지 않고 던집니다 — 잘못된 스키마는 모델이 잘못된 인자를 만들게 하고, 그 실패는 도구 실행 시점까지 미뤄져 원인을 찾기 어렵기 때문입니다. 표준 JSON Schema를 만들며, OpenAI strict 모드가 요구하는 변형(모든 필드를 `required`에 넣고 optional은 nullable 유니온으로 적는 규칙)은 provider 어댑터의 몫으로 남겨둡니다.
+
+**생성자에 묶인 값은 스키마에 나타나지 않습니다.** `CheckOrderStatusTool`의 `customerIdentifier`와 `StageRefundTool`의 `inquiryId`는 record 밖에 있어 모델이 인자로 표현할 수단 자체가 없습니다 (ADR 0005). 모델이 정하는 값과 서버가 아는 값의 경계가 검사 코드가 아니라 타입으로 그어져 있습니다.
+
+`InquiryAgentService`는 `ObjectMapper.treeToValue`로 JsonNode → record를 자동 변환합니다. 변환 실패는 `ToolResult.error(VALIDATION, ...)`로 LLM에 반환되어 입력 수정/추가 질문 흐름이 자동 트리거됩니다. `PromptFactory`는 도구별 표면을 통일된 블록으로 시스템 프롬프트에 노출해 모델이 첫 호출 전에 모든 정보를 갖게 합니다. 특히 `usageBoundary`는 **유사 기능 도구가 늘어났을 때 모델의 도구 선택 정확도를 좌우하는 핵심 신호**입니다.
 
 ### 12. 유사 기능 도구 차별화 (search_faq vs search_manual)
 가이드 1단계의 "유사 기능 도구를 두어 description 차별화 압력을 만든다" 연습. 두 도구가 모두 정책 정보 텍스트를 반환하지만 의도가 다릅니다.

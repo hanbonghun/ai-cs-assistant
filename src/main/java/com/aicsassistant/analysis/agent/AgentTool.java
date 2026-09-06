@@ -4,7 +4,7 @@ package com.aicsassistant.analysis.agent;
  * 에이전트가 호출 가능한 도구의 인터페이스.
  *
  * <p>모델은 도구의 구현 코드가 아닌 {@link #name()}, {@link #description()},
- * {@link #whenToUse()}, {@link #inputSchema()}, {@link #outputSchemaHint()}로
+ * {@link #whenToUse()}, {@link #inputType()}에서 생성된 JSON Schema, {@link #successOutputHint()}로
  * 구성된 표면(surface)만 보고 호출 여부를 결정한다. 따라서 각 메서드는
  * "모델이 무엇을 보아야 하는가"를 기준으로 작성한다.
  *
@@ -30,14 +30,12 @@ public interface AgentTool<I> {
      */
     String usageBoundary();
 
-    /** 입력 record 클래스. {@code ObjectMapper.treeToValue}로 변환된다. */
-    Class<I> inputType();
-
     /**
-     * 입력 스키마를 모델에게 노출할 JSON 문자열.
-     * 예: {@code {"query": "string (required) — 한국어 키워드"}}
+     * 입력 record 클래스. 모델에게 보여줄 JSON Schema 의 유일한 출처이며
+     * ({@code ToolSchemaGenerator}), {@code ObjectMapper.treeToValue} 로 변환된다.
+     * 각 component 에는 {@link ToolParam} 을 붙인다.
      */
-    String inputSchema();
+    Class<I> inputType();
 
     /**
      * 성공 시 {@code ToolResult.data} 필드에 들어오는 텍스트의 형태 설명.

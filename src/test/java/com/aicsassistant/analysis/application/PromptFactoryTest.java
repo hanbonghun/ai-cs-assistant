@@ -3,16 +3,19 @@ package com.aicsassistant.analysis.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.aicsassistant.analysis.agent.AgentTool;
+import com.aicsassistant.analysis.agent.ToolSchemaGenerator;
 import com.aicsassistant.analysis.agent.tool.CheckOrderStatusTool;
 import com.aicsassistant.analysis.agent.tool.SearchFaqTool;
 import com.aicsassistant.faq.InMemoryFaqRepository;
 import com.aicsassistant.order.InMemoryOrderRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class PromptFactoryTest {
 
-    private final PromptFactory promptFactory = new PromptFactory();
+    private final PromptFactory promptFactory =
+            new PromptFactory(new ToolSchemaGenerator(new ObjectMapper()));
 
     @Test
     void wrapsCustomerTextInFence() {
@@ -97,6 +100,23 @@ class PromptFactoryTest {
                 .contains("stage_refund")
                 .contains("NOT an executed refund")
                 .contains("never \"환불되었습니다\"");
+    }
+
+    /**
+     * 도구 표면의 입력 스키마는 손으로 쓴 문자열이 아니라 입력 record 에서 생성된다.
+     * 생성자에 묶인 신뢰 컨텍스트는 record 밖이라 프롬프트에도 나타나지 않는다.
+     */
+    @Test
+    void rendersInputSchemaGeneratedFromTheInputRecord() {
+        List<AgentTool<?>> tools = List.of(new CheckOrderStatusTool(new InMemoryOrderRepository(), "cust-001"));
+
+        String prompt = promptFactory.buildAgentSystemPrompt(tools);
+
+        assertThat(prompt)
+                .contains("\"orderId\"")
+                .contains("\"required\":[\"orderId\"]")
+                .contains("\"additionalProperties\":false")
+                .doesNotContain("customerIdentifier");
     }
 
     @Test
