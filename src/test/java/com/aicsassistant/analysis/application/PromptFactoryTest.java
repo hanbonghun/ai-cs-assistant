@@ -5,8 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.aicsassistant.analysis.agent.AgentTool;
 import com.aicsassistant.analysis.agent.ToolSchemaGenerator;
 import com.aicsassistant.analysis.agent.tool.CheckOrderStatusTool;
-import com.aicsassistant.analysis.agent.tool.SearchFaqTool;
-import com.aicsassistant.faq.InMemoryFaqRepository;
+import com.aicsassistant.analysis.agent.tool.StageRefundTool;
 import com.aicsassistant.order.InMemoryOrderRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -129,8 +128,8 @@ class PromptFactoryTest {
         // 못 잡는 것: 하루 단위로만 바뀌는 값(LocalDate.now()) — 두 호출이 같은 날이라 통과한다.
         // 후자는 캐시를 하루 한 번만 무효화하므로 피해가 훨씬 작다.
         List<AgentTool<?>> tools = List.of(
-                new SearchFaqTool(new InMemoryFaqRepository()),
-                new CheckOrderStatusTool(new InMemoryOrderRepository(), "cust-001"));
+                new CheckOrderStatusTool(new InMemoryOrderRepository(), "cust-001"),
+                new StageRefundTool(null, 1L));
 
         assertThat(promptFactory.buildAgentSystemPrompt(tools))
                 .isEqualTo(promptFactory.buildAgentSystemPrompt(tools));

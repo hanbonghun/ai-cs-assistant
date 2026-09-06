@@ -14,7 +14,6 @@ import com.aicsassistant.analysis.application.PromptFactory;
 import com.aicsassistant.analysis.infra.llm.ChatMessage;
 import com.aicsassistant.analysis.infra.llm.LlmClient;
 import com.aicsassistant.analysis.infra.llm.LlmResponse;
-import com.aicsassistant.faq.InMemoryFaqRepository;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
@@ -200,42 +199,7 @@ class InquiryAgentServiceTest {
         assertThat(step.observation()).contains("[GUARD]");
     }
 
-    @Test
-    void faqMissThenFallsBackToManualSearch() {
-        // 가이드 시나리오: search_faq가 NOT_FOUND를 반환하면 LLM이 search_manual로 폴백해야 함
-        givenLlmResponds(
-                toolCall("search_faq", "{\"question\":\"우주선 발사 절차\"}"),
-                toolCall("search_manual", "{\"query\":\"우주선 발사\"}"),
-                finalAnswer("죄송합니다, 관련 정책을 찾지 못했습니다.", "GENERAL", "LOW", true)
-        );
-        when(manualRetrievalService.retrieve(any())).thenReturn(List.of());
 
-        AgentResult result = agentService.run(inquiry("우주선 발사 절차 알려주세요"), List.of());
-
-        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
-        assertThat(answer.steps()).hasSize(2);
-        assertThat(answer.steps().get(0).action()).isEqualTo("search_faq");
-        assertThat(answer.steps().get(0).observation())
-                .contains("\"errorCategory\":\"NOT_FOUND\"")
-                .contains("search_manual");
-        assertThat(answer.steps().get(1).action()).isEqualTo("search_manual");
-    }
-
-    @Test
-    void faqAnswersCommonQuestionWithoutManualFallback() {
-        // 단순 FAQ는 search_faq 한 번으로 처리, search_manual 호출 없이 finalAnswer
-        givenLlmResponds(
-                toolCall("search_faq", "{\"question\":\"환불 며칠 걸려요?\"}"),
-                finalAnswer("환불은 영업일 2~3일 내에 처리됩니다.", "REFUND", "LOW", false)
-        );
-
-        AgentResult result = agentService.run(inquiry("환불 며칠 걸려요?"), List.of());
-
-        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
-        assertThat(answer.steps()).hasSize(1);
-        assertThat(answer.steps().get(0).action()).isEqualTo("search_faq");
-        assertThat(answer.steps().get(0).observation()).contains("\"ok\":true");
-    }
 
     @Test
     void mapsSchemaMismatchToValidationError() {
@@ -466,8 +430,7 @@ class InquiryAgentServiceTest {
         return new InquiryAgentService(
                 llmClient,
                 promptFactory,
-                new AgentToolFactory(manualRetrievalService, orders,
-                        new InMemoryFaqRepository(), stagedChangeRepository),
+                new AgentToolFactory(manualRetrievalService, orders, stagedChangeRepository),
                 new ToolInvoker(interceptors, mapper),
                 new AgentResponseParser(mapper),
                 noopTracer);

@@ -138,8 +138,7 @@ public class PromptFactory {
                 fraudRiskFlag = true if the pattern suggests refund/return abuse or account fraud.
 
                 ## Guidelines
-                - Tool selection: short well-known question → search_faq · detailed/exact policy → search_manual · order-specific data → check_order_status
-                - For policy questions, prefer search_faq first; if it returns NOT_FOUND, fall back to search_manual
+                - Tool selection: any policy or process question → search_manual · order-specific data → check_order_status
                 - Call check_order_status if the customer mentions an order ID
                 - If the customer's message lacks critical information (e.g. order ID for a delivery inquiry), use followUpQuestion to ask — do not guess
                 - You may ask follow-up questions up to 3 times total across the entire conversation. Count the number of followUpQuestion turns already in the conversation history and stop asking once 3 have been made.
@@ -151,7 +150,7 @@ public class PromptFactory {
                 - For action-required cases (cancellation, return, exchange, refund): acknowledge the request clearly in finalAnswer, confirm a counselor will handle it, do NOT ask the customer to contact anywhere else
                 - The first line of the customer message is "[오늘] YYYY-MM-DD" — the current date. Compare every order date against it before describing timing
                 - If an order's 도착예정 is on or before [오늘] and the order has not been delivered, it is ALREADY overdue. Say it is delayed and past due — never phrase a past date as a future promise ("~에 배송될 예정입니다")
-                - For refund requests: call check_order_status first, then search_manual/search_faq for the refund policy, then stage_refund with the amount you believe is correct. A staged proposal is NOT an executed refund
+                - For refund requests: call check_order_status first, then search_manual for the refund policy, then stage_refund with the amount you believe is correct. A staged proposal is NOT an executed refund
                 - After stage_refund succeeds, tell the customer "담당자가 확인 후 처리해 드리겠습니다" — never "환불되었습니다" or "환불 처리 완료" (nothing has been refunded yet)
 
                 ## Context gathering before human handoff
