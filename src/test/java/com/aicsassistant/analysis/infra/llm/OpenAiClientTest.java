@@ -63,4 +63,15 @@ class OpenAiClientTest {
         assertThat(body.path("model").asText()).isEqualTo("text-embedding-3-small");
         assertThat(body.path("input").asText()).isEqualTo(hostile);
     }
+
+    /** 묶음 요청은 input 이 배열이어야 한다 — 문자열이면 청크 하나만 임베딩된다. */
+    @Test
+    void buildsBatchedEmbeddingRequestWithInputArray() {
+        JsonNode body = client.buildEmbeddingRequest(List.of("첫 청크", "둘째 \"청크\""));
+
+        assertThat(body.path("model").asText()).isEqualTo("text-embedding-3-small");
+        assertThat(body.path("input").isArray()).isTrue();
+        assertThat(body.path("input")).hasSize(2);
+        assertThat(body.path("input").path(1).asText()).isEqualTo("둘째 \"청크\"");
+    }
 }
