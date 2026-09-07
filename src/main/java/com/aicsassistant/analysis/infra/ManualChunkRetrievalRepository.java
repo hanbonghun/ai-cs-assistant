@@ -17,9 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
  * RAG 검색 전용 read-only repository.
  *
  * <p>pgvector(`&lt;=&gt;`)와 pg_trgm(`&lt;%`, `&lt;&lt;-&gt;`) PostgreSQL 확장 연산자를 사용하므로
- * raw SQL을 JdbcTemplate으로 직접 실행한다. 호출자는 service 레이어에서
- * {@code @Transactional(readOnly = true)} 안에서 호출해야 한다 — keyword 검색은
- * {@code SET LOCAL pg_trgm.word_similarity_threshold}에 의존하기 때문.
+ * raw SQL을 JdbcTemplate으로 직접 실행한다. 호출자는 service 레이어의 read-only 트랜잭션
+ * 안에서 호출해야 한다 — keyword 검색이 {@code SET LOCAL pg_trgm.word_similarity_threshold}에
+ * 의존하기 때문. 단, 임베딩 API 호출은 그 트랜잭션 밖에 둔다
+ * ({@link com.aicsassistant.analysis.application.ManualRetrievalService#retrieve}).
  */
 @Repository
 @RequiredArgsConstructor
