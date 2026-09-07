@@ -14,13 +14,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
-@RequiredArgsConstructor
 public class ManualRetrievalService {
 
     private static final int DEFAULT_TOP_K = 5;
@@ -38,8 +37,28 @@ public class ManualRetrievalService {
     private final ManualChunkRetrievalRepository retrievalRepository;
     private final EmbeddingClient embeddingClient;
     private final Tracer tracer;
+    private final TransactionTemplate readOnlyTx;
 
-    @Transactional(readOnly = true)
+    public ManualRetrievalService(ManualChunkRetrievalRepository retrievalRepository,
+                                  EmbeddingClient embeddingClient,
+                                  Tracer tracer,
+                                  PlatformTransactionManager transactionManager) {
+        this.retrievalRepository = retrievalRepository;
+        this.embeddingClient = embeddingClient;
+        this.tracer = tracer;
+        this.readOnlyTx = new TransactionTemplate(transactionManager);
+        this.readOnlyTx.setReadOnly(true);
+    }
+
+    /**
+     * 문의 본문으로 정책 청크를 검색한다.
+     *
+     * <p>임베딩 API 왕복은 트랜잭션 <b>밖</b>에서 돈다. 이 메서드에 {@code @Transactional} 을 걸면
+     * Hibernate 가 트랜잭션 시작 시점에 커넥션을 잡으므로, OpenAI 응답을 기다리는 내내 풀의
+     * 커넥션 하나가 놀면서 묶인다. DB 구간만 {@link TransactionTemplate} 으로 감싸는 이유는
+     * ADR 0009 와 같다 — 같은 빈 안의 {@code @Transactional} 자기 호출은 프록시를 타지 않고,
+     * 여기서 클래스를 나눌 응집도상의 이유는 없다.
+     */
     public List<RetrievedManualChunkDto> retrieve(String inquiryContent) {
         Span span = tracer.spanBuilder("rag.retrieve")
                 .setAttribute(ATTR_LF_INPUT, inquiryContent)
@@ -61,6 +80,10 @@ public class ManualRetrievalService {
 
     private RetrievalOutcome doRetrieveWithPath(String inquiryContent) {
         List<Double> queryEmbedding = embeddingClient.embed(inquiryContent);
+        return readOnlyTx.execute(status -> queryChunks(queryEmbedding, inquiryContent));
+    }
+
+    private RetrievalOutcome queryChunks(List<Double> queryEmbedding, String inquiryContent) {
         if (queryEmbedding != null && !queryEmbedding.isEmpty()) {
             try {
                 if (!retrievalRepository.hasActiveEmbeddings()) {
