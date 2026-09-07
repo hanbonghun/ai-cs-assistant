@@ -80,21 +80,22 @@ public class ManualRetrievalService {
 
     private RetrievalOutcome doRetrieveWithPath(String inquiryContent) {
         List<Double> queryEmbedding = embeddingClient.embed(inquiryContent);
-        return readOnlyTx.execute(status -> queryChunks(queryEmbedding, inquiryContent));
-    }
-
-    private RetrievalOutcome queryChunks(List<Double> queryEmbedding, String inquiryContent) {
         if (queryEmbedding != null && !queryEmbedding.isEmpty()) {
             try {
-                if (!retrievalRepository.hasActiveEmbeddings()) {
-                    return new RetrievalOutcome(retrievalRepository.findFallbackTopK(DEFAULT_TOP_K), "fallback_no_embeddings");
-                }
-                return new RetrievalOutcome(findByHybrid(queryEmbedding, inquiryContent), "hybrid");
+                return readOnlyTx.execute(status -> hybridOutcome(queryEmbedding, inquiryContent));
             } catch (DataAccessException ignored) {
-                // Fallback path is used when vector dimensions/data are not ready.
+                // 벡터 차원/데이터가 아직 준비되지 않은 경우. 폴백은 실패한 트랜잭션 밖에서 돌아야 한다 —
+                // 안에서 돌리면 PostgreSQL 이 abort 시킨 트랜잭션이라 25P02 로 같이 죽는다.
             }
         }
         return new RetrievalOutcome(retrievalRepository.findFallbackTopK(DEFAULT_TOP_K), "fallback_query_error");
+    }
+
+    private RetrievalOutcome hybridOutcome(List<Double> queryEmbedding, String inquiryContent) {
+        if (!retrievalRepository.hasActiveEmbeddings()) {
+            return new RetrievalOutcome(retrievalRepository.findFallbackTopK(DEFAULT_TOP_K), "fallback_no_embeddings");
+        }
+        return new RetrievalOutcome(findByHybrid(queryEmbedding, inquiryContent), "hybrid");
     }
 
     private record RetrievalOutcome(List<RetrievedManualChunkDto> chunks, String path) {
