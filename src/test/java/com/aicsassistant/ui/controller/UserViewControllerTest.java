@@ -7,7 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.aicsassistant.inquiry.application.InquiryService;
-import com.aicsassistant.order.InMemoryOrderRepository;
+import com.aicsassistant.order.application.OrderService;
+import com.aicsassistant.order.infra.InMemoryOrderRepository;
+import com.aicsassistant.ui.application.UserViewAssembler;
 import jakarta.servlet.http.HttpSession;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -30,7 +32,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * 갖는지가 검증 대상이므로 mock 으로 대체하면 의미가 없다.
  */
 @WebMvcTest(UserViewController.class)
-@Import(InMemoryOrderRepository.class)
+@Import({UserViewAssembler.class, OrderService.class, InMemoryOrderRepository.class})
 public class UserViewControllerTest {
 
     @Autowired

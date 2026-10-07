@@ -1,30 +1,25 @@
 package com.aicsassistant.ui.viewmodel;
 
-import com.aicsassistant.inquiry.domain.InquiryMessage;
-import com.aicsassistant.inquiry.domain.InquiryMessageRole;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
+import com.aicsassistant.inquiry.dto.InquiryMessageResponse;
 import com.aicsassistant.staging.dto.StagedChangeResponse;
-import java.time.LocalDateTime;
 import java.util.List;
 
 public record InquiryDetailViewModel(
         InquiryDetailResponse inquiry,
         List<EvidenceChunkView> evidenceChunks,
-        List<MessageView> messages,
+        List<InquiryMessageResponse> messages,
         List<AgentStepView> agentSteps,
         List<StagedChangeResponse> stagedChanges
 ) {
     public static InquiryDetailViewModel from(
             InquiryDetailResponse inquiry,
             List<EvidenceChunkView> evidenceChunks,
-            List<InquiryMessage> messages,
+            List<InquiryMessageResponse> messages,
             List<AgentStepView> agentSteps,
             List<StagedChangeResponse> stagedChanges
     ) {
-        List<MessageView> messageViews = messages.stream()
-                .map(m -> new MessageView(m.getRole(), m.getContent(), m.getCreatedAt()))
-                .toList();
-        return new InquiryDetailViewModel(inquiry, List.copyOf(evidenceChunks), messageViews,
+        return new InquiryDetailViewModel(inquiry, List.copyOf(evidenceChunks), List.copyOf(messages),
                 List.copyOf(agentSteps), List.copyOf(stagedChanges));
     }
 
@@ -37,12 +32,6 @@ public record InquiryDetailViewModel(
             Integer documentVersion,
             Integer tokenCount,
             String content
-    ) {}
-
-    public record MessageView(
-            InquiryMessageRole role,
-            String content,
-            LocalDateTime createdAt
     ) {}
 
     /** 상담사가 읽기 쉬운 형태로 변환된 에이전트 스텝 뷰 */

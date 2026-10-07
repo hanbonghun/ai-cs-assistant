@@ -114,16 +114,16 @@
             <div th:each="msg : ${messages}" th:with="s=${inquiry.status.name()}">
                 <!-- AI 메시지: 추가 질문(PENDING_CUSTOMER) 또는 자동 처리(AUTO_ANSWERED)일 때만 표시
                      AI_PROCESSED는 어드민 검토 전 초안이므로 유저에게 숨김 -->
-                <div th:if="${msg.getRole().name() == 'AI' and
+                <div th:if="${msg.role.name() == 'AI' and
                              (s == 'PENDING_CUSTOMER' or s == 'AUTO_ANSWERED')}"
                      class="bubble-wrap ai">
                     <div class="bubble-avatar ai-av">AI</div>
-                    <div class="bubble ai-bubble" th:text="${msg.getContent()}"></div>
+                    <div class="bubble ai-bubble" th:text="${msg.content}"></div>
                 </div>
                 <!-- 고객 추가 답변 -->
-                <div th:if="${msg.getRole().name() == 'CUSTOMER'}" class="bubble-wrap">
+                <div th:if="${msg.role.name() == 'CUSTOMER'}" class="bubble-wrap">
                     <div class="bubble-avatar customer" th:text="${#strings.substring(user.name, 0, 1)}">김</div>
-                    <div class="bubble customer-bubble" th:text="${msg.getContent()}"></div>
+                    <div class="bubble customer-bubble" th:text="${msg.content}"></div>
                 </div>
             </div>
 

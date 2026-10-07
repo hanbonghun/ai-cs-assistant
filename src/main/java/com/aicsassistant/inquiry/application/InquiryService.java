@@ -1,7 +1,6 @@
 package com.aicsassistant.inquiry.application;
 
-import com.aicsassistant.analysis.domain.InquiryAnalysisLog;
-import com.aicsassistant.analysis.infra.InquiryAnalysisLogRepository;
+import com.aicsassistant.analysis.application.AnalysisLogService;
 import com.aicsassistant.common.exception.ApiException;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
@@ -12,6 +11,7 @@ import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.CreateInquiryRequest;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.inquiry.dto.InquiryListResponse;
+import com.aicsassistant.inquiry.dto.InquiryMessageResponse;
 import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
 import com.aicsassistant.inquiry.infra.InquiryRepository;
 import java.util.List;
@@ -27,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class InquiryService {
 
     private final InquiryRepository inquiryRepository;
-    private final InquiryAnalysisLogRepository inquiryAnalysisLogRepository;
+    private final AnalysisLogService analysisLogService;
     private final InquiryMessageRepository inquiryMessageRepository;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -66,12 +66,7 @@ public class InquiryService {
 
     public InquiryDetailResponse getInquiry(Long id) {
         Inquiry inquiry = getInquiryEntity(id);
-        List<InquiryAnalysisLog> logs = inquiryAnalysisLogRepository
-                .findByInquiryIdOrderByCreatedAtDesc(id)
-                .stream()
-                .limit(5)
-                .toList();
-        return InquiryDetailResponse.from(inquiry, logs);
+        return InquiryDetailResponse.from(inquiry, analysisLogService.getRecentLogs(id));
     }
 
     @Transactional
@@ -83,8 +78,11 @@ public class InquiryService {
         inquiry.close();
     }
 
-    public List<InquiryMessage> getMessages(Long inquiryId) {
-        return inquiryMessageRepository.findByInquiryIdOrderByCreatedAtAsc(inquiryId);
+    public List<InquiryMessageResponse> getMessages(Long inquiryId) {
+        return inquiryMessageRepository.findByInquiryIdOrderByCreatedAtAsc(inquiryId)
+                .stream()
+                .map(InquiryMessageResponse::from)
+                .toList();
     }
 
     /**

@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolResult;
-import com.aicsassistant.order.InMemoryOrderRepository;
+import com.aicsassistant.order.infra.InMemoryOrderRepository;
 import org.junit.jupiter.api.Test;
 
 class CheckOrderStatusToolTest {

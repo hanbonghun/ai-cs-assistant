@@ -4,8 +4,8 @@ import com.aicsassistant.analysis.agent.ToolCallContext;
 import com.aicsassistant.analysis.agent.ToolCallInterceptor;
 import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolResult;
-import com.aicsassistant.order.InMemoryOrderRepository;
-import com.aicsassistant.order.InMemoryOrderRepository.OrderInfo;
+import com.aicsassistant.order.infra.InMemoryOrderRepository;
+import com.aicsassistant.order.infra.InMemoryOrderRepository.OrderInfo;
 import static com.aicsassistant.staging.domain.RefundGuardrails.REFUND_BLOCKING_STATUSES;
 
 import com.aicsassistant.staging.domain.StagedChangeStatus;

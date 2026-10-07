@@ -3,8 +3,9 @@ package com.aicsassistant.analysis.api;
 import com.aicsassistant.analysis.application.AnalysisLogService;
 import com.aicsassistant.analysis.application.InquiryAnalysisService;
 import com.aicsassistant.analysis.dto.InquiryAnalysisResponse;
+import com.aicsassistant.analysis.dto.RateDraftRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,10 +26,7 @@ public class InquiryAnalysisController {
     }
 
     @PostMapping("/{id}/rate-draft")
-    public ResponseEntity<Void> rateDraft(@PathVariable Long id, @RequestBody RateDraftRequest request) {
+    public void rateDraft(@PathVariable Long id, @Valid @RequestBody RateDraftRequest request) {
         analysisLogService.rateLatestLog(id, request.rating(), request.reason(), request.note());
-        return ResponseEntity.ok().build();
     }
-
-    record RateDraftRequest(String rating, String reason, String note) {}
 }

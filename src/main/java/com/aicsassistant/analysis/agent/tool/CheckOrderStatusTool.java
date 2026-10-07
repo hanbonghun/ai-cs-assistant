@@ -4,7 +4,7 @@ import com.aicsassistant.analysis.agent.AgentTool;
 import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolParam;
 import com.aicsassistant.analysis.agent.ToolResult;
-import com.aicsassistant.order.InMemoryOrderRepository;
+import com.aicsassistant.order.infra.InMemoryOrderRepository;
 
 /**
  * 주문 조회 도구 — InMemoryOrderRepository에 위임하는 얇은 어댑터.

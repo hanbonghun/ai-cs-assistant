@@ -9,7 +9,7 @@ import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.InquiryMessageRole;
 import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
 import com.aicsassistant.inquiry.infra.InquiryRepository;
-import com.aicsassistant.order.InMemoryOrderRepository;
+import com.aicsassistant.order.infra.InMemoryOrderRepository;
 import com.aicsassistant.staging.domain.ChangeType;
 import com.aicsassistant.staging.domain.StagedChange;
 import com.aicsassistant.staging.domain.StagedChangeStatus;

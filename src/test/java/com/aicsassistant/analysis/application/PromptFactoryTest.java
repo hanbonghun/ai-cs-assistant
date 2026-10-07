@@ -6,7 +6,7 @@ import com.aicsassistant.analysis.agent.AgentTool;
 import com.aicsassistant.analysis.agent.ToolSchemaGenerator;
 import com.aicsassistant.analysis.agent.tool.CheckOrderStatusTool;
 import com.aicsassistant.analysis.agent.tool.StageRefundTool;
-import com.aicsassistant.order.InMemoryOrderRepository;
+import com.aicsassistant.order.infra.InMemoryOrderRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.junit.jupiter.api.Test;

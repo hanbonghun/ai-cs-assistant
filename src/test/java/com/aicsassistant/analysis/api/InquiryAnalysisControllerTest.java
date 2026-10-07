@@ -1,6 +1,10 @@
 package com.aicsassistant.analysis.api;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -20,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(InquiryAnalysisController.class)
@@ -65,5 +70,30 @@ class InquiryAnalysisControllerTest {
                 .andExpect(jsonPath("$.urgency.value").value("MEDIUM"))
                 .andExpect(jsonPath("$.retrievedChunks[0].id").value(10))
                 .andExpect(jsonPath("$.draft.usedChunkIds[0]").value(10));
+    }
+
+    @Test
+    void ratesDraft() throws Exception {
+        mockMvc.perform(post("/api/inquiries/1/rate-draft")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"rating":"BAD","reason":"WRONG_POLICY","note":"정책 버전이 다름"}
+                                """))
+                .andExpect(status().isOk());
+
+        verify(analysisLogService).rateLatestLog(1L, "BAD", "WRONG_POLICY", "정책 버전이 다름");
+    }
+
+    @Test
+    void rejectsUnknownRating() throws Exception {
+        mockMvc.perform(post("/api/inquiries/1/rate-draft")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"rating":"MEH"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        verify(analysisLogService, never()).rateLatestLog(anyLong(), any(), any(), any());
     }
 }
