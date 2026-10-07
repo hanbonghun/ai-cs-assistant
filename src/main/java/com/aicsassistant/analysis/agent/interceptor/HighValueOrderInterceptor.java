@@ -3,8 +3,8 @@ package com.aicsassistant.analysis.agent.interceptor;
 import com.aicsassistant.analysis.agent.ToolCallContext;
 import com.aicsassistant.analysis.agent.ToolCallInterceptor;
 import com.aicsassistant.analysis.agent.ToolResult;
-import com.aicsassistant.order.infra.InMemoryOrderRepository;
-import com.aicsassistant.order.infra.InMemoryOrderRepository.OrderInfo;
+import com.aicsassistant.order.application.OrderService;
+import com.aicsassistant.order.dto.OrderInfo;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -25,7 +25,7 @@ public class HighValueOrderInterceptor implements ToolCallInterceptor {
     static final long HIGH_VALUE_THRESHOLD_KRW = 1_000_000L;
     private static final String TARGET_TOOL = "check_order_status";
 
-    private final InMemoryOrderRepository orderRepository;
+    private final OrderService orderService;
 
     @Override
     public ToolResult afterExecute(String toolName, JsonNode input, ToolResult result, ToolCallContext ctx) {
@@ -38,7 +38,7 @@ public class HighValueOrderInterceptor implements ToolCallInterceptor {
             return result;
         }
 
-        OrderInfo order = orderRepository.findById(orderId, ctx.customerIdentifier()).orElse(null);
+        OrderInfo order = orderService.findOrder(orderId, ctx.customerIdentifier()).orElse(null);
         if (order == null || order.amount() < HIGH_VALUE_THRESHOLD_KRW) {
             return result;
         }

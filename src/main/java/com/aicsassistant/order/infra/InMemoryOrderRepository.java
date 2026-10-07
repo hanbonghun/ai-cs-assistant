@@ -1,5 +1,6 @@
 package com.aicsassistant.order.infra;
 
+import com.aicsassistant.order.dto.OrderInfo;
 import com.aicsassistant.user.DummyUserStore;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -31,19 +32,6 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class InMemoryOrderRepository {
-
-    /** 조회 시점에 조립된 주문 정보. 날짜는 이미 문자열로 포맷되어 있다. */
-    public record OrderInfo(
-            String orderId,
-            String productName,
-            String status,
-            int amount,
-            String orderedAt,
-            String courier,
-            String trackingNumber,
-            String estimatedDelivery,
-            String note
-    ) {}
 
     /**
      * 주문 하나의 정적 정의. 날짜를 값이 아니라 오늘 기준 오프셋으로 갖는다.
@@ -233,20 +221,5 @@ public class InMemoryOrderRepository {
     /** ponytail: static mutable 상태를 테스트 간 격리하기 위한 복구 훅. 운영 코드에서 호출하지 않는다. */
     public void resetForTest() {
         STATUS_OVERRIDES.clear();
-    }
-
-    /** 알려진 주문 ID를 텍스트로 포맷 */
-    public String formatText(OrderInfo o) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("주문번호: ").append(o.orderId()).append("\n");
-        sb.append("상품명: ").append(o.productName()).append("\n");
-        sb.append("상태: ").append(o.status()).append("\n");
-        sb.append("결제금액: ").append(String.format("%,d", o.amount())).append("원\n");
-        sb.append("주문일: ").append(o.orderedAt()).append("\n");
-        if (o.courier() != null)           sb.append("배송사: ").append(o.courier()).append("\n");
-        if (o.trackingNumber() != null)    sb.append("운송장번호: ").append(o.trackingNumber()).append("\n");
-        if (o.estimatedDelivery() != null) sb.append("도착예정: ").append(o.estimatedDelivery()).append("\n");
-        if (o.note() != null)              sb.append("비고: ").append(o.note()).append("\n");
-        return sb.toString();
     }
 }

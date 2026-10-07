@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolResult;
+import com.aicsassistant.order.application.OrderService;
 import com.aicsassistant.order.infra.InMemoryOrderRepository;
 import org.junit.jupiter.api.Test;
 
@@ -11,7 +12,7 @@ class CheckOrderStatusToolTest {
 
     /** ORD-20260410-001 은 cust-001 소유, ORD-20260401-004 는 cust-002 소유. */
     private final CheckOrderStatusTool tool =
-            new CheckOrderStatusTool(new InMemoryOrderRepository(), "cust-001");
+            new CheckOrderStatusTool(new OrderService(new InMemoryOrderRepository()), "cust-001");
 
     @Test
     void returnsSuccessForKnownOrderId() {

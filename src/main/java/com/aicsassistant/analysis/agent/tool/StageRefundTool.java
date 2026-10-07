@@ -4,9 +4,7 @@ import com.aicsassistant.analysis.agent.AgentTool;
 import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolParam;
 import com.aicsassistant.analysis.agent.ToolResult;
-import com.aicsassistant.staging.domain.ChangeType;
-import com.aicsassistant.staging.domain.StagedChange;
-import com.aicsassistant.staging.infra.StagedChangeRepository;
+import com.aicsassistant.staging.application.StagedChangeProposalService;
 
 /**
  * 환불 제안을 접수하는 도구. <b>환불을 실행하지 않는다.</b>
@@ -32,11 +30,11 @@ public class StageRefundTool implements AgentTool<StageRefundTool.Input> {
             String policyBasis
     ) {}
 
-    private final StagedChangeRepository stagedChangeRepository;
+    private final StagedChangeProposalService proposalService;
     private final Long inquiryId;
 
-    public StageRefundTool(StagedChangeRepository stagedChangeRepository, Long inquiryId) {
-        this.stagedChangeRepository = stagedChangeRepository;
+    public StageRefundTool(StagedChangeProposalService proposalService, Long inquiryId) {
+        this.proposalService = proposalService;
         this.inquiryId = inquiryId;
     }
 
@@ -101,11 +99,11 @@ public class StageRefundTool implements AgentTool<StageRefundTool.Input> {
                     "'reason' field is required — explain how you arrived at this amount.");
         }
 
-        StagedChange saved = stagedChangeRepository.save(StagedChange.propose(
-                inquiryId, ChangeType.REFUND, orderId, input.amount(), reason, input.policyBasis()));
+        Long proposalId = proposalService.proposeRefund(
+                inquiryId, orderId, input.amount(), reason, input.policyBasis());
 
         return ToolResult.success(
                 "환불 제안 #%s 접수됨 (주문 %s, %,d원). 아직 실행되지 않았으며 상담사 승인이 필요합니다."
-                        .formatted(saved.getId(), orderId, input.amount()));
+                        .formatted(proposalId, orderId, input.amount()));
     }
 }

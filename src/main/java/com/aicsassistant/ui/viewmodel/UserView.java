@@ -1,6 +1,6 @@
 package com.aicsassistant.ui.viewmodel;
 
-import com.aicsassistant.order.infra.InMemoryOrderRepository.OrderInfo;
+import com.aicsassistant.order.dto.OrderInfo;
 import com.aicsassistant.user.DummyUserStore.DummyUser;
 import java.util.List;
 

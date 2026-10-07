@@ -4,12 +4,11 @@ import com.aicsassistant.analysis.agent.ToolCallContext;
 import com.aicsassistant.analysis.agent.ToolCallInterceptor;
 import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolResult;
-import com.aicsassistant.order.infra.InMemoryOrderRepository;
-import com.aicsassistant.order.infra.InMemoryOrderRepository.OrderInfo;
+import com.aicsassistant.order.application.OrderService;
+import com.aicsassistant.order.dto.OrderInfo;
 import static com.aicsassistant.staging.domain.RefundGuardrails.REFUND_BLOCKING_STATUSES;
 
-import com.aicsassistant.staging.domain.StagedChangeStatus;
-import com.aicsassistant.staging.infra.StagedChangeRepository;
+import com.aicsassistant.staging.application.StagedChangeProposalService;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -30,8 +29,8 @@ public class RefundGuardrailInterceptor implements ToolCallInterceptor {
 
     private static final String TARGET_TOOL = "stage_refund";
 
-    private final InMemoryOrderRepository orderRepository;
-    private final StagedChangeRepository stagedChangeRepository;
+    private final OrderService orderService;
+    private final StagedChangeProposalService proposalService;
 
     @Override
     public Optional<ToolResult> beforeExecute(String toolName, JsonNode input, ToolCallContext ctx) {
@@ -49,7 +48,7 @@ public class RefundGuardrailInterceptor implements ToolCallInterceptor {
                             + "환불을 제안하기 전에 check_order_status로 주문을 먼저 조회하세요.");
         }
 
-        OrderInfo order = orderRepository.findById(orderId, ctx.customerIdentifier()).orElse(null);
+        OrderInfo order = orderService.findOrder(orderId, ctx.customerIdentifier()).orElse(null);
         if (order == null) {
             return blocked(ToolErrorCategory.PERMISSION,
                     "주문 [" + orderId + "] 정보를 확인할 수 없습니다. finalAnswer에서 needsHumanReview: true로 설정하세요.");
@@ -70,7 +69,7 @@ public class RefundGuardrailInterceptor implements ToolCallInterceptor {
         }
 
         // (4) 중복
-        if (stagedChangeRepository.existsByOrderIdAndStatus(orderId, StagedChangeStatus.PENDING)) {
+        if (proposalService.hasPendingProposal(orderId)) {
             return blocked(ToolErrorCategory.PERMISSION,
                     "주문 [" + orderId + "]에는 이미 승인 대기 중인 환불 제안이 있습니다. "
                             + "중복 제안하지 말고 finalAnswer에서 needsHumanReview: true로 설정하세요.");

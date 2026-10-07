@@ -7,11 +7,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.aicsassistant.common.exception.ApiException;
-import com.aicsassistant.inquiry.domain.Inquiry;
-import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
-import com.aicsassistant.inquiry.infra.InquiryRepository;
-import com.aicsassistant.order.infra.InMemoryOrderRepository;
-import com.aicsassistant.order.infra.InMemoryOrderRepository.OrderInfo;
+import com.aicsassistant.inquiry.application.InquiryService;
+import com.aicsassistant.order.application.OrderService;
+import com.aicsassistant.order.dto.OrderInfo;
 import com.aicsassistant.staging.domain.ChangeType;
 import com.aicsassistant.staging.domain.StagedChange;
 import com.aicsassistant.staging.dto.StagedChangeDecisionRequest;
@@ -45,16 +43,15 @@ class StagedChangeApprovalServiceOptimisticLockTest {
     private static final String CUSTOMER_ID = "cust-001";
 
     @Mock StagedChangeRepository stagedChangeRepository;
-    @Mock InquiryRepository inquiryRepository;
-    @Mock InquiryMessageRepository messageRepository;
-    @Mock InMemoryOrderRepository orderRepository;
+    @Mock InquiryService inquiryService;
+    @Mock OrderService orderService;
 
     StagedChangeApprovalService approvalService;
 
     @BeforeEach
     void setUp() {
         approvalService = new StagedChangeApprovalService(
-                stagedChangeRepository, inquiryRepository, messageRepository, orderRepository);
+                stagedChangeRepository, inquiryService, orderService);
     }
 
     private StagedChange pendingChange() {
@@ -65,9 +62,8 @@ class StagedChangeApprovalServiceOptimisticLockTest {
     void approveTranslatesOptimisticLockFailureIntoAlreadyDecided() {
         StagedChange change = pendingChange();
         when(stagedChangeRepository.findById(CHANGE_ID)).thenReturn(Optional.of(change));
-        when(inquiryRepository.findById(INQUIRY_ID))
-                .thenReturn(Optional.of(Inquiry.create(CUSTOMER_ID, "문의", "환불 요청", null, null, ORDER_ID)));
-        when(orderRepository.findById(ORDER_ID, CUSTOMER_ID)).thenReturn(Optional.of(
+        when(inquiryService.getCustomerIdentifier(INQUIRY_ID)).thenReturn(CUSTOMER_ID);
+        when(orderService.findOrder(ORDER_ID, CUSTOMER_ID)).thenReturn(Optional.of(
                 new OrderInfo(ORDER_ID, "상품", "배송완료", 45_000, "2026-01-01", null, null, null, null)));
         when(stagedChangeRepository.saveAndFlush(change))
                 .thenThrow(new ObjectOptimisticLockingFailureException(StagedChange.class, CHANGE_ID));
@@ -78,17 +74,16 @@ class StagedChangeApprovalServiceOptimisticLockTest {
                 .hasMessageContaining("ALREADY_DECIDED");
 
         // flush 를 markRefunded·알림 저장보다 앞에 뒀으므로, 패자는 둘 다 건드리지 않고 끝나야 한다
-        verify(orderRepository, never()).markRefunded(any());
-        verify(messageRepository, never()).save(any());
+        verify(orderService, never()).markRefunded(any());
+        verify(inquiryService, never()).notifyCustomer(any(), any());
     }
 
     @Test
     void approveTranslatesUniqueIndexViolationIntoAlreadyDecided() {
         StagedChange change = pendingChange();
         when(stagedChangeRepository.findById(CHANGE_ID)).thenReturn(Optional.of(change));
-        when(inquiryRepository.findById(INQUIRY_ID))
-                .thenReturn(Optional.of(Inquiry.create(CUSTOMER_ID, "문의", "환불 요청", null, null, ORDER_ID)));
-        when(orderRepository.findById(ORDER_ID, CUSTOMER_ID)).thenReturn(Optional.of(
+        when(inquiryService.getCustomerIdentifier(INQUIRY_ID)).thenReturn(CUSTOMER_ID);
+        when(orderService.findOrder(ORDER_ID, CUSTOMER_ID)).thenReturn(Optional.of(
                 new OrderInfo(ORDER_ID, "상품", "배송완료", 45_000, "2026-01-01", null, null, null, null)));
         when(stagedChangeRepository.saveAndFlush(change))
                 .thenThrow(new DataIntegrityViolationException("uq_staged_change_order_approved"));
@@ -99,8 +94,8 @@ class StagedChangeApprovalServiceOptimisticLockTest {
                 .hasMessageContaining("ALREADY_DECIDED");
 
         // flush 를 markRefunded·알림 저장보다 앞에 뒀으므로, 패자는 둘 다 건드리지 않고 끝나야 한다
-        verify(orderRepository, never()).markRefunded(any());
-        verify(messageRepository, never()).save(any());
+        verify(orderService, never()).markRefunded(any());
+        verify(inquiryService, never()).notifyCustomer(any(), any());
     }
 
     @Test

@@ -8,10 +8,10 @@ import com.aicsassistant.analysis.infra.llm.LlmClient;
 import com.aicsassistant.analysis.infra.llm.LlmResponse;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
-import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.InquiryMessageRole;
+import com.aicsassistant.inquiry.dto.InquiryMessageResponse;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
-import com.aicsassistant.order.infra.InMemoryOrderRepository;
+import com.aicsassistant.order.application.OrderService;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.opentelemetry.api.trace.Tracer;
 import java.time.LocalDate;
@@ -59,7 +59,7 @@ public class InquiryAgentService {
      * @param inquiry             분석할 문의
      * @param conversationHistory 이전 대화 메시지 (최초 분석 시 빈 리스트)
      */
-    public AgentResult run(Inquiry inquiry, List<InquiryMessage> conversationHistory) {
+    public AgentResult run(Inquiry inquiry, List<InquiryMessageResponse> conversationHistory) {
         AgentToolFactory.Toolset toolset = toolFactory.createFor(inquiry);
 
         try (AgentTrace trace = AgentTrace.start(tracer, inquiry)) {
@@ -74,7 +74,7 @@ public class InquiryAgentService {
 
     private AgentResult runAgentLoop(
             Inquiry inquiry,
-            List<InquiryMessage> conversationHistory,
+            List<InquiryMessageResponse> conversationHistory,
             AgentToolFactory.Toolset toolset,
             AgentTrace trace) {
 
@@ -88,11 +88,11 @@ public class InquiryAgentService {
         messages.add(ChatMessage.user(buildInitialMessage(inquiry, toolset, callContext)));
 
         // 이전 대화 히스토리 주입 (CUSTOMER → user, AI → assistant)
-        for (InquiryMessage msg : conversationHistory) {
-            if (msg.getRole() == InquiryMessageRole.AI) {
-                messages.add(ChatMessage.assistant(msg.getContent()));
+        for (InquiryMessageResponse msg : conversationHistory) {
+            if (msg.role() == InquiryMessageRole.AI) {
+                messages.add(ChatMessage.assistant(msg.content()));
             } else {
-                messages.add(ChatMessage.user(promptFactory.fenceCustomerText(msg.getContent())));
+                messages.add(ChatMessage.user(promptFactory.fenceCustomerText(msg.content())));
             }
         }
 
@@ -237,7 +237,7 @@ public class InquiryAgentService {
         // 미래인지 판단할 수 없어, 이미 지난 예정일을 "9월 3일에 배송될 예정입니다" 라고
         // 미래형으로 답하는 일이 실제로 있었다. 주문 mock 이 KST 기준이므로 같은 기준을 쓴다.
         // 시스템 프롬프트가 아니라 이 사용자 메시지에 넣는다 — 캐시되는 접두부를 날짜로 깨지 않기 위해서다.
-        sb.append("[오늘] ").append(LocalDate.now(InMemoryOrderRepository.KST)).append("\n\n");
+        sb.append("[오늘] ").append(LocalDate.now(OrderService.ZONE)).append("\n\n");
 
         String orderId = inquiry.getRelatedOrderId();
         if (orderId != null && !orderId.isBlank()) {

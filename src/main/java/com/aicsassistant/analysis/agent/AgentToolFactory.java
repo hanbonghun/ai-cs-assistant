@@ -5,8 +5,8 @@ import com.aicsassistant.analysis.agent.tool.SearchManualTool;
 import com.aicsassistant.analysis.agent.tool.StageRefundTool;
 import com.aicsassistant.analysis.application.ManualRetrievalService;
 import com.aicsassistant.inquiry.domain.Inquiry;
-import com.aicsassistant.order.infra.InMemoryOrderRepository;
-import com.aicsassistant.staging.infra.StagedChangeRepository;
+import com.aicsassistant.order.application.OrderService;
+import com.aicsassistant.staging.application.StagedChangeProposalService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -32,14 +32,14 @@ import org.springframework.stereotype.Component;
 class AgentToolFactory {
 
     private final ManualRetrievalService manualRetrievalService;
-    private final InMemoryOrderRepository orderRepository;
-    private final StagedChangeRepository stagedChangeRepository;
+    private final OrderService orderService;
+    private final StagedChangeProposalService proposalService;
 
     Toolset createFor(Inquiry inquiry) {
         return new Toolset(
                 new SearchManualTool(manualRetrievalService),
-                new CheckOrderStatusTool(orderRepository, inquiry.getCustomerIdentifier()),
-                new StageRefundTool(stagedChangeRepository, inquiry.getId()));
+                new CheckOrderStatusTool(orderService, inquiry.getCustomerIdentifier()),
+                new StageRefundTool(proposalService, inquiry.getId()));
     }
 
     /**
