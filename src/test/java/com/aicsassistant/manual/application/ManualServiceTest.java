@@ -2,8 +2,8 @@ package com.aicsassistant.manual.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.aicsassistant.analysis.infra.llm.EmbeddingClient;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
+import com.aicsassistant.llm.EmbeddingClient;
 import com.aicsassistant.manual.domain.ManualDocument;
 import com.aicsassistant.manual.dto.CreateManualDocumentRequest;
 import com.aicsassistant.manual.dto.ManualChunkResponse;

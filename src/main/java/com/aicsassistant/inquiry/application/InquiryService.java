@@ -1,6 +1,5 @@
 package com.aicsassistant.inquiry.application;
 
-import com.aicsassistant.analysis.application.AnalysisLogService;
 import com.aicsassistant.common.exception.ApiException;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
@@ -27,7 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class InquiryService {
 
     private final InquiryRepository inquiryRepository;
-    private final AnalysisLogService analysisLogService;
     private final InquiryMessageRepository inquiryMessageRepository;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -43,7 +41,7 @@ public class InquiryService {
         );
         Inquiry saved = inquiryRepository.save(inquiry);
         eventPublisher.publishEvent(new InquiryCreatedEvent(saved.getId()));
-        return InquiryDetailResponse.from(saved, List.of());
+        return InquiryDetailResponse.from(saved);
     }
 
     public List<InquiryListResponse> getInquiriesByCustomer(String customerIdentifier) {
@@ -65,8 +63,7 @@ public class InquiryService {
     }
 
     public InquiryDetailResponse getInquiry(Long id) {
-        Inquiry inquiry = getInquiryEntity(id);
-        return InquiryDetailResponse.from(inquiry, analysisLogService.getRecentLogs(id));
+        return InquiryDetailResponse.from(getInquiryEntity(id));
     }
 
     /** 종료 가능 여부는 {@link Inquiry#close()} 가 판단한다 — 여기서 다시 검사하지 않는다. */

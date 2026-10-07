@@ -1,4 +1,4 @@
-package com.aicsassistant.common.bootstrap;
+package com.aicsassistant.manual.bootstrap;
 
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.manual.application.ManualService;

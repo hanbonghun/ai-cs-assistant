@@ -7,14 +7,14 @@ import com.aicsassistant.analysis.domain.AnalysisStatus;
 import com.aicsassistant.analysis.domain.InquiryAnalysisLog;
 import com.aicsassistant.analysis.dto.InquiryAnalysisResponse;
 import com.aicsassistant.analysis.infra.InquiryAnalysisLogRepository;
-import com.aicsassistant.analysis.infra.llm.ChatMessage;
-import com.aicsassistant.analysis.infra.llm.EmbeddingClient;
-import com.aicsassistant.analysis.infra.llm.LlmClient;
 import com.aicsassistant.common.exception.ApiException;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryStatus;
 import com.aicsassistant.inquiry.infra.InquiryRepository;
+import com.aicsassistant.llm.ChatMessage;
+import com.aicsassistant.llm.EmbeddingClient;
+import com.aicsassistant.llm.LlmClient;
 import com.aicsassistant.support.PostgresVectorIntegrationTest;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
@@ -381,8 +381,8 @@ class InquiryAnalysisServiceTest extends PostgresVectorIntegrationTest {
         }
 
         @Override
-        public com.aicsassistant.analysis.infra.llm.LlmResponse completeWithUsage(List<ChatMessage> messages) {
-            return new com.aicsassistant.analysis.infra.llm.LlmResponse(complete(messages), 10, 20, 0);
+        public com.aicsassistant.llm.LlmResponse completeWithUsage(List<ChatMessage> messages) {
+            return new com.aicsassistant.llm.LlmResponse(complete(messages), 10, 20, 0);
         }
 
         @Override

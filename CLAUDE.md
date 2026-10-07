@@ -25,14 +25,17 @@ com.aicsassistant
 │   ├── agent/      # ReAct 에이전트 루프, 툴 정의
 │   ├── application/# 분석 서비스, 프롬프트 팩토리, 분류기
 │   ├── domain/     # InquiryAnalysisLog
-│   └── infra/      # 레포지터리, llm/(LlmClient, EmbeddingClient), vector/(RAG 검색)
+│   └── infra/      # 레포지터리, vector/(RAG 검색), Slack 알림
 ├── inquiry/        # 문의 도메인
 │   ├── api/        # REST 컨트롤러
 │   ├── application/# InquiryService, ReviewService
 │   ├── domain/     # Inquiry, InquiryMessage, 상태/카테고리 enum
 │   └── infra/      # 레포지터리
-├── manual/         # 정책 문서 관리 및 임베딩
-├── order/          # 주문 조회 (InMemory Mock)
+├── manual/         # 정책 문서 관리 및 임베딩 (bootstrap/: 로컬 시드)
+├── order/          # 주문 조회 (InMemory Mock) — 다른 도메인은 OrderService 로만 접근
+├── staging/        # 에이전트 제안 접수(Proposal)·상담사 승인(Approval)
+├── user/           # 데모 사용자 (정적 데이터)
+├── llm/            # LlmClient, EmbeddingClient — analysis·manual 이 함께 쓰는 외부 API 포트
 ├── ui/             # Thymeleaf 뷰 컨트롤러
 │   ├── application/# DashboardService (집계 쿼리)
 │   ├── controller/ # CounselorViewController, UserViewController
@@ -47,7 +50,10 @@ com.aicsassistant
 **컨트롤러 → 서비스 → 레포지터리** 방향을 반드시 지킨다.
 
 - 컨트롤러에서 Repository를 직접 주입하지 않는다.
-- 서비스에서 다른 도메인 서비스는 참조 가능하나, 다른 도메인 레포지터리 직접 참조는 지양한다.
+- 서비스에서 다른 도메인 서비스는 참조 가능하나, 다른 도메인 `infra` 패키지는 참조하지 않는다.
+- `domain` 패키지는 `application`·`api`·`infra`·`ui` 를 참조하지 않는다.
+- 최상위 패키지(도메인) 사이에 순환 의존을 만들지 않는다. 방향: `ui` → `analysis` → `staging`·`manual` → `inquiry`·`order` → `user`·`llm`·`common`.
+- 위 규칙은 `ArchitectureTest`(ArchUnit)가 빌드에서 검사한다. 규칙을 바꾸려면 테스트부터 고친다.
 - JdbcTemplate은 복잡한 집계 쿼리(대시보드 등)에 한해 서비스 레이어에서만 사용한다.
 
 ---

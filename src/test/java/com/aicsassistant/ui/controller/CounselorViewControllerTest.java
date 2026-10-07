@@ -68,9 +68,7 @@ public class CounselorViewControllerTest {
                 null,
                 null,
                 LocalDateTime.of(2026, 4, 8, 9, 0),
-                LocalDateTime.of(2026, 4, 8, 9, 0),
-                List.of()
-        ));
+                LocalDateTime.of(2026, 4, 8, 9, 0)));
 
         mvc.perform(get("/ui/inquiries/1"))
                 .andExpect(status().isOk())
@@ -101,9 +99,7 @@ public class CounselorViewControllerTest {
                 null,
                 null,
                 LocalDateTime.of(2026, 4, 8, 9, 0),
-                LocalDateTime.of(2026, 4, 8, 9, 0),
-                List.of()
-        ));
+                LocalDateTime.of(2026, 4, 8, 9, 0)));
         given(stagedChangeApprovalService.findByInquiry(1L)).willReturn(List.of(
                 new StagedChangeResponse(1L, "REFUND", "ORD-1", 45000, null,
                         "고객이 미배송을 주장", "환불정책 3조", "PENDING",
@@ -166,9 +162,7 @@ public class CounselorViewControllerTest {
                 2L, "cust-001", "결제 문의", "이중 결제된거같음",
                 null, null, InquiryStatus.NEW,
                 null, null, null, null, null,
-                LocalDateTime.of(2026, 9, 4, 4, 46), LocalDateTime.of(2026, 9, 4, 4, 46),
-                List.of()
-        ));
+                LocalDateTime.of(2026, 9, 4, 4, 46), LocalDateTime.of(2026, 9, 4, 4, 46)));
 
         mvc.perform(get("/ui/inquiries/2"))
                 .andExpect(status().isOk())

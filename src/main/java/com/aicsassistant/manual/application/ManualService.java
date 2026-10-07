@@ -1,10 +1,11 @@
 package com.aicsassistant.manual.application;
 
-import com.aicsassistant.analysis.infra.llm.EmbeddingClient;
 import com.aicsassistant.common.exception.ApiException;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
+import com.aicsassistant.llm.EmbeddingClient;
 import com.aicsassistant.manual.domain.ManualDocument;
 import com.aicsassistant.manual.dto.CreateManualDocumentRequest;
+import com.aicsassistant.manual.dto.EvidenceChunkResponse;
 import com.aicsassistant.manual.dto.ManualChunkResponse;
 import com.aicsassistant.manual.dto.ManualDocumentResponse;
 import com.aicsassistant.manual.dto.UpdateManualDocumentRequest;
@@ -111,7 +112,7 @@ public class ManualService {
         return manualChunkJdbcRepository.findActiveChunksByDocumentId(id);
     }
 
-    public List<com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.EvidenceChunkView> getEvidenceChunks(List<Long> chunkIds) {
+    public List<EvidenceChunkResponse> getEvidenceChunks(List<Long> chunkIds) {
         return manualChunkJdbcRepository.findEvidenceChunksByIds(chunkIds);
     }
 

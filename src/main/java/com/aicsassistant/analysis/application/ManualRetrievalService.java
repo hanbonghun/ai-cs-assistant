@@ -3,7 +3,7 @@ package com.aicsassistant.analysis.application;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.analysis.dto.ScoredManualChunk;
 import com.aicsassistant.analysis.infra.ManualChunkRetrievalRepository;
-import com.aicsassistant.analysis.infra.llm.EmbeddingClient;
+import com.aicsassistant.llm.EmbeddingClient;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
