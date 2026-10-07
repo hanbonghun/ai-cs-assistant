@@ -10,6 +10,7 @@ import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolResult;
 import com.aicsassistant.staging.domain.ChangeType;
 import com.aicsassistant.staging.domain.StagedChange;
+import com.aicsassistant.staging.application.StagedChangeProposalService;
 import com.aicsassistant.staging.infra.StagedChangeRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,7 +25,7 @@ class StageRefundToolTest {
     StagedChangeRepository stagedChangeRepository;
 
     private StageRefundTool tool() {
-        return new StageRefundTool(stagedChangeRepository, 7L);
+        return new StageRefundTool(new StagedChangeProposalService(stagedChangeRepository), 7L);
     }
 
     @Test

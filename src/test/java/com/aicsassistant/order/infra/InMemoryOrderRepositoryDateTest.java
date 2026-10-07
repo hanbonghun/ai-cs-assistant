@@ -2,6 +2,7 @@ package com.aicsassistant.order.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.aicsassistant.order.dto.OrderInfo;
 import java.time.LocalDate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -50,7 +51,7 @@ class InMemoryOrderRepositoryDateTest {
 
         assertThat(orders).hasSize(6);
         assertThat(orders.get(0).orderId()).isEqualTo("ORD-20260412-003");   // 1일 전 = 가장 최근
-        assertThat(orders).extracting(InMemoryOrderRepository.OrderInfo::orderId)
+        assertThat(orders).extracting(OrderInfo::orderId)
                 .doesNotContain("ORD-20260401-004");                          // cust-002 소유
     }
 

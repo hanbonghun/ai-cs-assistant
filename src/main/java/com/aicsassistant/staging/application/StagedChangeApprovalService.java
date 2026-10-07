@@ -4,13 +4,9 @@ import static com.aicsassistant.staging.domain.RefundGuardrails.ALREADY_REFUNDED
 import static com.aicsassistant.staging.domain.RefundGuardrails.REFUND_BLOCKING_STATUSES;
 
 import com.aicsassistant.common.exception.ApiException;
-import com.aicsassistant.inquiry.domain.Inquiry;
-import com.aicsassistant.inquiry.domain.InquiryMessage;
-import com.aicsassistant.inquiry.domain.InquiryMessageRole;
-import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
-import com.aicsassistant.inquiry.infra.InquiryRepository;
-import com.aicsassistant.order.infra.InMemoryOrderRepository;
-import com.aicsassistant.order.infra.InMemoryOrderRepository.OrderInfo;
+import com.aicsassistant.inquiry.application.InquiryService;
+import com.aicsassistant.order.application.OrderService;
+import com.aicsassistant.order.dto.OrderInfo;
 import com.aicsassistant.staging.domain.StagedChange;
 import com.aicsassistant.staging.domain.StagedChangeStatus;
 import com.aicsassistant.staging.dto.StagedChangeDecisionRequest;
@@ -43,9 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class StagedChangeApprovalService {
 
     private final StagedChangeRepository stagedChangeRepository;
-    private final InquiryRepository inquiryRepository;
-    private final InquiryMessageRepository messageRepository;
-    private final InMemoryOrderRepository orderRepository;
+    private final InquiryService inquiryService;
+    private final OrderService orderService;
 
     public List<StagedChangeResponse> findByInquiry(Long inquiryId) {
         return stagedChangeRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId).stream()
@@ -56,7 +51,7 @@ public class StagedChangeApprovalService {
     @Transactional
     public StagedChangeResponse approve(Long inquiryId, Long changeId, StagedChangeDecisionRequest request) {
         StagedChange change = loadForInquiry(inquiryId, changeId);
-        Inquiry inquiry = loadInquiry(inquiryId);
+        String customerIdentifier = inquiryService.getCustomerIdentifier(inquiryId);
 
         // 이미 결정된 제안이면 가드레일 재검사보다 먼저 걸러야 한다 — 예를 들어 승인 후 주문이
         // 환불완료로 바뀐 상태에서 재시도하면, 가드레일이 먼저 걸려 ALREADY_DECIDED 대신
@@ -68,15 +63,15 @@ public class StagedChangeApprovalService {
 
         // 상담사가 금액을 고쳤다면 그 금액으로 검사한다 — 제안 금액이 아니라 실제로 나갈 금액이 기준이다
         int finalAmount = request.approvedAmount() != null ? request.approvedAmount() : change.getAmount();
-        reCheckGuardrails(change, inquiry, finalAmount);
+        reCheckGuardrails(change, customerIdentifier, finalAmount);
 
         change.approve(request.decidedBy(), request.decisionNote(), request.approvedAmount());
         // 동시성 경합의 패자를 markRefunded·알림 저장 전에 먼저 걸러낸다 (이유는 아래 메서드 참고)
         flushOrRejectAsAlreadyDecided(change);
-        orderRepository.markRefunded(change.getOrderId());
-        messageRepository.save(InquiryMessage.of(inquiryId, InquiryMessageRole.AI,
+        orderService.markRefunded(change.getOrderId());
+        inquiryService.notifyCustomer(inquiryId,
                 "요청하신 환불이 승인되어 처리되었습니다. 주문 %s · 환불 금액 %,d원입니다. 카드 취소는 2~3 영업일이 소요될 수 있습니다."
-                        .formatted(change.getOrderId(), change.effectiveAmount())));
+                        .formatted(change.getOrderId(), change.effectiveAmount()));
 
         log.info("[StagedChange approved] changeId={} inquiryId={} orderId={} proposed={} final={} by={}",
                 changeId, inquiryId, change.getOrderId(), change.getAmount(),
@@ -129,9 +124,9 @@ public class StagedChangeApprovalService {
      *
      * <p>금액은 제안값이 아니라 상담사가 확정한 최종 금액({@code finalAmount})으로 검사한다.
      */
-    private void reCheckGuardrails(StagedChange change, Inquiry inquiry, int finalAmount) {
-        OrderInfo order = orderRepository
-                .findById(change.getOrderId(), inquiry.getCustomerIdentifier())
+    private void reCheckGuardrails(StagedChange change, String customerIdentifier, int finalAmount) {
+        OrderInfo order = orderService
+                .findOrder(change.getOrderId(), customerIdentifier)
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "GUARDRAIL_FAILED",
                         "주문 정보를 확인할 수 없어 승인할 수 없습니다. (GUARDRAIL_FAILED)"));
 
@@ -165,11 +160,5 @@ public class StagedChangeApprovalService {
                     "제안을 찾을 수 없습니다. (STAGED_CHANGE_NOT_FOUND)");
         }
         return change;
-    }
-
-    private Inquiry loadInquiry(Long inquiryId) {
-        return inquiryRepository.findById(inquiryId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "INQUIRY_NOT_FOUND",
-                        "Inquiry not found"));
     }
 }

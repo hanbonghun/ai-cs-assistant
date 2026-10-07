@@ -1,7 +1,7 @@
 package com.aicsassistant.analysis.application;
 
 import com.aicsassistant.inquiry.domain.Inquiry;
-import com.aicsassistant.inquiry.domain.InquiryMessage;
+import com.aicsassistant.inquiry.dto.InquiryMessageResponse;
 import java.util.List;
 
 /**
@@ -17,7 +17,7 @@ import java.util.List;
  */
 record AnalysisContext(
         Inquiry inquiry,
-        List<InquiryMessage> history,
+        List<InquiryMessageResponse> history,
         Long logId,
         long startedAtMillis
 ) {

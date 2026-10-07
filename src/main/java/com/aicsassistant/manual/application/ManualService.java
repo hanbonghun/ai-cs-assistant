@@ -97,6 +97,11 @@ public class ManualService {
                 .toList();
     }
 
+    /** 비활성 문서도 센다 — 시드 여부 판단용이라 한 번이라도 들어간 적이 있는지가 기준이다. */
+    public boolean hasAnyDocument() {
+        return manualDocumentRepository.count() > 0;
+    }
+
     public ManualDocumentResponse get(Long id) {
         return toResponse(getActiveDocument(id));
     }

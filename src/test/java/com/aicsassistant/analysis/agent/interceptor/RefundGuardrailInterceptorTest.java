@@ -7,10 +7,9 @@ import static org.mockito.Mockito.when;
 import com.aicsassistant.analysis.agent.ToolCallContext;
 import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolResult;
-import com.aicsassistant.order.infra.InMemoryOrderRepository;
-import com.aicsassistant.order.infra.InMemoryOrderRepository.OrderInfo;
-import com.aicsassistant.staging.domain.StagedChangeStatus;
-import com.aicsassistant.staging.infra.StagedChangeRepository;
+import com.aicsassistant.order.application.OrderService;
+import com.aicsassistant.order.dto.OrderInfo;
+import com.aicsassistant.staging.application.StagedChangeProposalService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Optional;
@@ -24,10 +23,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class RefundGuardrailInterceptorTest {
 
     @Mock
-    InMemoryOrderRepository orderRepository;
+    OrderService orderService;
 
     @Mock
-    StagedChangeRepository stagedChangeRepository;
+    StagedChangeProposalService proposalService;
 
     @InjectMocks
     RefundGuardrailInterceptor interceptor;
@@ -48,14 +47,14 @@ class RefundGuardrailInterceptorTest {
 
     private void givenObservedOrder(String status, int amount) {
         ctx.recordObservedOrder("ORD-A");
-        lenient().when(orderRepository.findById("ORD-A", "cust-001"))
+        lenient().when(orderService.findOrder("ORD-A", "cust-001"))
                 .thenReturn(Optional.of(order(status, amount)));
     }
 
     @Test
     void allowsWhenAllGuardrailsPass() {
         givenObservedOrder("배송완료", 45_000);
-        when(stagedChangeRepository.existsByOrderIdAndStatus("ORD-A", StagedChangeStatus.PENDING))
+        when(proposalService.hasPendingProposal("ORD-A"))
                 .thenReturn(false);
 
         Optional<ToolResult> blocked = interceptor.beforeExecute("stage_refund", input("ORD-A", 45_000), ctx);
@@ -98,7 +97,7 @@ class RefundGuardrailInterceptorTest {
     @Test
     void blocksDuplicatePendingProposal() {
         givenObservedOrder("배송완료", 45_000);
-        when(stagedChangeRepository.existsByOrderIdAndStatus("ORD-A", StagedChangeStatus.PENDING))
+        when(proposalService.hasPendingProposal("ORD-A"))
                 .thenReturn(true);
 
         Optional<ToolResult> blocked = interceptor.beforeExecute("stage_refund", input("ORD-A", 45_000), ctx);
@@ -124,7 +123,7 @@ class RefundGuardrailInterceptorTest {
     @Test
     void allowsPartiallyRefundedOrder() {
         givenObservedOrder("부분환불완료", 215_000);
-        when(stagedChangeRepository.existsByOrderIdAndStatus("ORD-A", StagedChangeStatus.PENDING))
+        when(proposalService.hasPendingProposal("ORD-A"))
                 .thenReturn(false);
 
         Optional<ToolResult> blocked = interceptor.beforeExecute("stage_refund", input("ORD-A", 32_000), ctx);

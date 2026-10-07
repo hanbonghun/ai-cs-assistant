@@ -5,18 +5,15 @@ import com.aicsassistant.analysis.dto.CategoryResultDto;
 import com.aicsassistant.analysis.dto.DraftAnswerDto;
 import com.aicsassistant.analysis.dto.InquiryAnalysisResponse;
 import com.aicsassistant.analysis.dto.UrgencyResultDto;
-import com.aicsassistant.common.exception.ApiException;
+import com.aicsassistant.inquiry.application.InquiryService;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
-import com.aicsassistant.inquiry.domain.InquiryMessage;
-import com.aicsassistant.inquiry.domain.InquiryMessageRole;
+import com.aicsassistant.inquiry.domain.InquiryStatus;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
-import com.aicsassistant.inquiry.infra.InquiryMessageRepository;
-import com.aicsassistant.inquiry.infra.InquiryRepository;
+import com.aicsassistant.inquiry.dto.InquiryMessageResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,10 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class InquiryAnalysisRecorder {
 
-    private static final String AUTO_PROCESSOR = "ai-auto";
-
-    private final InquiryRepository inquiryRepository;
-    private final InquiryMessageRepository messageRepository;
+    private final InquiryService inquiryService;
     private final AnalysisLogService analysisLogService;
 
     /**
@@ -58,17 +52,8 @@ public class InquiryAnalysisRecorder {
      */
     @Transactional
     public AnalysisContext startAnalysis(Long inquiryId) {
-        Inquiry inquiry = inquiryRepository.findById(inquiryId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "INQUIRY_NOT_FOUND",
-                        "Inquiry not found"));
-
-        if (inquiry.getStatus().isFinished()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INQUIRY_STATE",
-                    "이미 처리 완료된 문의입니다.");
-        }
-
-        List<InquiryMessage> history =
-                messageRepository.findByInquiryIdOrderByCreatedAtAsc(inquiryId);
+        Inquiry inquiry = inquiryService.getForAnalysis(inquiryId);
+        List<InquiryMessageResponse> history = inquiryService.getMessages(inquiryId);
         Long logId = analysisLogService.startRunning(inquiry);
         return new AnalysisContext(inquiry, history, logId, System.currentTimeMillis());
     }
@@ -76,11 +61,10 @@ public class InquiryAnalysisRecorder {
     /**
      * 3단계 — 최종 답변 기록. 분류·초안·상태 전이·AI 메시지·분석 로그가 한 커밋에 들어간다.
      *
-     * <p>상담사 검토가 필요 없는 건만 {@code AUTO_ANSWERED} 로 확정한다.
+     * <p>상담사 검토가 필요 없는 건만 {@code AUTO_ANSWERED} 로 확정한다 — 그 판단은 {@link Inquiry} 가 한다.
      */
     @Transactional
     public PersistedFinalAnswer recordFinalAnswer(AnalysisContext ctx, AgentResult.FinalAnswer fa) {
-        Inquiry inquiry = reloadForPersist(ctx.inquiry().getId());
 
         CategoryResultDto category = new CategoryResultDto(
                 fa.category(), fa.reason(), fa.needsHumanReview(), fa.needsEscalation(),
@@ -88,21 +72,17 @@ public class InquiryAnalysisRecorder {
         UrgencyResultDto urgency = new UrgencyResultDto(fa.urgency(), fa.reason());
         DraftAnswerDto draft = new DraftAnswerDto(fa.answer(), "", List.of());
 
-        inquiry.applyAnalysis(
+        Inquiry inquiry = inquiryService.recordAgentAnswer(
+                ctx.inquiry().getId(),
                 InquiryCategory.valueOf(fa.category()),
                 UrgencyLevel.valueOf(fa.urgency()),
-                fa.answer()
+                fa.answer(),
+                fa.needsEscalation() || fa.needsHumanReview()
         );
-
-        if (!fa.needsEscalation() && !fa.needsHumanReview()) {
-            inquiry.autoProcess(AUTO_PROCESSOR);
+        if (inquiry.getStatus() == InquiryStatus.AUTO_ANSWERED) {
             log.info("[자동 처리] inquiryId={} category={} urgency={}",
                     inquiry.getId(), inquiry.getCategory(), inquiry.getUrgency());
         }
-        inquiryRepository.save(inquiry);
-
-        messageRepository.save(
-                InquiryMessage.of(inquiry.getId(), InquiryMessageRole.AI, fa.answer()));
 
         analysisLogService.completeSuccess(ctx.logId(), category, urgency, fa.retrievedChunks(),
                 draft, fa.steps(), ctx.startedAtMillis(), fa.totalTokens());
@@ -118,12 +98,7 @@ public class InquiryAnalysisRecorder {
      */
     @Transactional
     public InquiryAnalysisResponse recordFollowUp(AnalysisContext ctx, AgentResult.FollowUpQuestion fq) {
-        Inquiry inquiry = reloadForPersist(ctx.inquiry().getId());
-        inquiry.askFollowUp();
-        inquiryRepository.save(inquiry);
-
-        messageRepository.save(
-                InquiryMessage.of(inquiry.getId(), InquiryMessageRole.AI, fq.question()));
+        Inquiry inquiry = inquiryService.recordFollowUpQuestion(ctx.inquiry().getId(), fq.question());
         log.info("[추가 질문] inquiryId={} question={}", inquiry.getId(), fq.question());
 
         analysisLogService.completeFollowUp(ctx.logId(), fq.question(), fq.steps(),
@@ -146,27 +121,10 @@ public class InquiryAnalysisRecorder {
      */
     @Transactional
     public Inquiry recordRetriesExhausted(Long inquiryId, long failures, String lastError) {
-        Inquiry inquiry = reloadForPersist(inquiryId);
         String briefing = """
                 [자동 합성] AI 분석이 %d회 실패해 상담사 검토로 올렸습니다.
                 마지막 오류: %s""".formatted(failures, lastError);
-        inquiry.applyAnalysis(InquiryCategory.GENERAL, UrgencyLevel.MEDIUM, briefing);
-        return inquiryRepository.save(inquiry);
-    }
-
-    /**
-     * 에이전트 실행 중(십수 초) 상담사가 문의를 종료했을 수 있다. 단일 트랜잭션이 공짜로 주던
-     * 보호라서 경계를 나눈 뒤에는 직접 확인한다.
-     */
-    private Inquiry reloadForPersist(Long inquiryId) {
-        Inquiry inquiry = inquiryRepository.findById(inquiryId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "INQUIRY_NOT_FOUND",
-                        "Inquiry not found"));
-        if (inquiry.getStatus().isFinished()) {
-            throw new ApiException(HttpStatus.CONFLICT, "INQUIRY_STATE_CHANGED",
-                    "분석 중 문의 상태가 변경되어 결과를 저장하지 않았습니다.");
-        }
-        return inquiry;
+        return inquiryService.escalateToCounselor(inquiryId, briefing);
     }
 
     /**

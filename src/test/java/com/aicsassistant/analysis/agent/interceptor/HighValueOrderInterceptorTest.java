@@ -6,8 +6,8 @@ import static org.mockito.Mockito.when;
 import com.aicsassistant.analysis.agent.ToolCallContext;
 import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolResult;
-import com.aicsassistant.order.infra.InMemoryOrderRepository;
-import com.aicsassistant.order.infra.InMemoryOrderRepository.OrderInfo;
+import com.aicsassistant.order.application.OrderService;
+import com.aicsassistant.order.dto.OrderInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Optional;
@@ -21,7 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class HighValueOrderInterceptorTest {
 
     @Mock
-    InMemoryOrderRepository orderRepository;
+    OrderService orderService;
 
     @InjectMocks
     HighValueOrderInterceptor interceptor;
@@ -37,7 +37,7 @@ class HighValueOrderInterceptorTest {
 
     @Test
     void appendsGuardNoteForHighValueOrder() {
-        when(orderRepository.findById("ORD-HIGH", "cust-001")).thenReturn(Optional.of(
+        when(orderService.findOrder("ORD-HIGH", "cust-001")).thenReturn(Optional.of(
                 new OrderInfo("ORD-HIGH", "노트북", "결제완료", 1_500_000, "2026-01-01", null, null, null, null)));
         ToolResult original = ToolResult.success("주문번호: ORD-HIGH\n");
 
@@ -54,7 +54,7 @@ class HighValueOrderInterceptorTest {
 
     @Test
     void doesNotModifyLowValueOrder() {
-        when(orderRepository.findById("ORD-LOW", "cust-001")).thenReturn(Optional.of(
+        when(orderService.findOrder("ORD-LOW", "cust-001")).thenReturn(Optional.of(
                 new OrderInfo("ORD-LOW", "이어폰", "배송완료", 89_000, "2026-01-01", null, null, null, null)));
         ToolResult original = ToolResult.success("주문번호: ORD-LOW\n");
 
@@ -92,7 +92,7 @@ class HighValueOrderInterceptorTest {
 
     @Test
     void ignoresWhenOrderNotFound() {
-        when(orderRepository.findById("ORD-UNKNOWN", "cust-001")).thenReturn(Optional.empty());
+        when(orderService.findOrder("ORD-UNKNOWN", "cust-001")).thenReturn(Optional.empty());
         ToolResult original = ToolResult.success("어쩌고");
 
         ToolResult result = interceptor.afterExecute("check_order_status", inputWithOrderId("ORD-UNKNOWN"), original, ctx);

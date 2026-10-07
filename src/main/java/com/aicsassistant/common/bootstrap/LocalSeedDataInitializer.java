@@ -3,7 +3,6 @@ package com.aicsassistant.common.bootstrap;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.manual.application.ManualService;
 import com.aicsassistant.manual.dto.CreateManualDocumentRequest;
-import com.aicsassistant.manual.infra.ManualDocumentRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,13 +17,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class LocalSeedDataInitializer implements CommandLineRunner {
 
-    private final ManualDocumentRepository manualDocumentRepository;
     private final ManualService manualService;
 
     @Override
     @Transactional
     public void run(String... args) {
-        if (manualDocumentRepository.count() > 0) {
+        if (manualService.hasAnyDocument()) {
             log.info("Skipping local seed data because demo tables are already populated.");
             return;
         }

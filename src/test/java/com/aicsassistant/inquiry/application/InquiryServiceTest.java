@@ -10,6 +10,7 @@ import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.CreateInquiryRequest;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.inquiry.dto.InquiryListResponse;
+import com.aicsassistant.inquiry.dto.InquiryMessageResponse;
 import com.aicsassistant.inquiry.dto.ReviewInquiryRequest;
 import com.aicsassistant.inquiry.infra.InquiryRepository;
 import com.aicsassistant.support.PostgresVectorIntegrationTest;
@@ -90,7 +91,7 @@ class InquiryServiceTest extends PostgresVectorIntegrationTest {
     }
 
     @Test
-    void closesOnlyReviewedInquiry() {
+    void closesReviewedInquiry() {
         Inquiry inquiry = inquiryRepository.save(Inquiry.create("cust-020", "문의", "답변 부탁드립니다."));
         inquiry.markAiProcessed();
         Inquiry saved = inquiryRepository.save(inquiry);
@@ -102,4 +103,30 @@ class InquiryServiceTest extends PostgresVectorIntegrationTest {
         assertThat(reloaded.getStatus()).isEqualTo(InquiryStatus.CLOSED);
     }
 
+    /** 서비스가 REVIEWED 만 통과시켜 Inquiry.close() 가 허용하는 AUTO_ANSWERED 를 막고 있었다. */
+    @Test
+    void closesAutoAnsweredInquiry() {
+        Inquiry saved = inquiryRepository.save(Inquiry.create("cust-021", "문의", "배송 언제 오나요?"));
+        inquiryService.recordAgentAnswer(saved.getId(), InquiryCategory.DELIVERY, UrgencyLevel.LOW,
+                "내일 도착 예정입니다.", false);
+
+        inquiryService.close(saved.getId());
+
+        Inquiry reloaded = inquiryRepository.findById(saved.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(InquiryStatus.CLOSED);
+    }
+
+    @Test
+    void recordAgentAnswerLeavesThreadMessageAndKeepsReviewWhenHumanNeeded() {
+        Inquiry saved = inquiryRepository.save(Inquiry.create("cust-022", "환불", "환불해 주세요"));
+
+        inquiryService.recordAgentAnswer(saved.getId(), InquiryCategory.REFUND, UrgencyLevel.HIGH,
+                "상담사가 확인 후 안내드리겠습니다.", true);
+
+        assertThat(inquiryRepository.findById(saved.getId()).orElseThrow().getStatus())
+                .isEqualTo(InquiryStatus.AI_PROCESSED);
+        assertThat(inquiryService.getMessages(saved.getId()))
+                .extracting(InquiryMessageResponse::content)
+                .containsExactly("상담사가 확인 후 안내드리겠습니다.");
+    }
 }

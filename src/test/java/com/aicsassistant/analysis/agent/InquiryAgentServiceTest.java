@@ -17,7 +17,9 @@ import com.aicsassistant.analysis.infra.llm.LlmResponse;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
+import com.aicsassistant.order.application.OrderService;
 import com.aicsassistant.order.infra.InMemoryOrderRepository;
+import com.aicsassistant.staging.application.StagedChangeProposalService;
 import com.aicsassistant.staging.infra.StagedChangeRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -377,7 +379,7 @@ class InquiryAgentServiceTest {
         InMemoryOrderRepository orders = new InMemoryOrderRepository();
         InquiryAgentService service = agentServiceWith(orders,
                 List.of(new OrderProvenanceInterceptor(),
-                        new RefundGuardrailInterceptor(orders, stagedChangeRepository)));
+                        new RefundGuardrailInterceptor(new OrderService(orders), new StagedChangeProposalService(stagedChangeRepository))));
         when(stagedChangeRepository.existsByOrderIdAndStatus(any(), any())).thenReturn(false);
         givenLlmResponds(
                 toolCall("check_order_status", "{\"orderId\":\"ORD-20260410-001\"}"),
@@ -401,7 +403,7 @@ class InquiryAgentServiceTest {
         InMemoryOrderRepository orders = new InMemoryOrderRepository();
         InquiryAgentService service = agentServiceWith(orders,
                 List.of(new OrderProvenanceInterceptor(),
-                        new RefundGuardrailInterceptor(orders, stagedChangeRepository)));
+                        new RefundGuardrailInterceptor(new OrderService(orders), new StagedChangeProposalService(stagedChangeRepository))));
         when(stagedChangeRepository.existsByOrderIdAndStatus(any(), any())).thenReturn(false);
         givenLlmResponds(
                 toolCall("stage_refund",
@@ -430,7 +432,8 @@ class InquiryAgentServiceTest {
         return new InquiryAgentService(
                 llmClient,
                 promptFactory,
-                new AgentToolFactory(manualRetrievalService, orders, stagedChangeRepository),
+                new AgentToolFactory(manualRetrievalService, new OrderService(orders),
+                        new StagedChangeProposalService(stagedChangeRepository)),
                 new ToolInvoker(interceptors, mapper),
                 new AgentResponseParser(mapper),
                 noopTracer);

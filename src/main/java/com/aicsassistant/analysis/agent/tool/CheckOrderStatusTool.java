@@ -4,7 +4,7 @@ import com.aicsassistant.analysis.agent.AgentTool;
 import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolParam;
 import com.aicsassistant.analysis.agent.ToolResult;
-import com.aicsassistant.order.infra.InMemoryOrderRepository;
+import com.aicsassistant.order.application.OrderService;
 
 /**
  * 주문 조회 도구 — InMemoryOrderRepository에 위임하는 얇은 어댑터.
@@ -19,12 +19,12 @@ public class CheckOrderStatusTool implements AgentTool<CheckOrderStatusTool.Inpu
             String orderId
     ) {}
 
-    private final InMemoryOrderRepository orderRepository;
+    private final OrderService orderService;
     /** 조회 범위를 이 고객의 주문으로 제한한다. 모델 인수가 아니라 문의에서 가져온다. */
     private final String customerIdentifier;
 
-    public CheckOrderStatusTool(InMemoryOrderRepository orderRepository, String customerIdentifier) {
-        this.orderRepository = orderRepository;
+    public CheckOrderStatusTool(OrderService orderService, String customerIdentifier) {
+        this.orderService = orderService;
         this.customerIdentifier = customerIdentifier;
     }
 
@@ -78,8 +78,8 @@ public class CheckOrderStatusTool implements AgentTool<CheckOrderStatusTool.Inpu
                     false,
                     "'orderId' field is required.");
         }
-        return orderRepository.findById(orderId, customerIdentifier)
-                .map(o -> ToolResult.success(orderRepository.formatText(o)))
+        return orderService.findOrder(orderId, customerIdentifier)
+                .map(o -> ToolResult.success(o.toText()))
                 .orElseGet(() -> ToolResult.error(
                         ToolErrorCategory.NOT_FOUND,
                         false,

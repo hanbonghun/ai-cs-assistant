@@ -19,6 +19,9 @@ import org.springframework.http.HttpStatus;
 @Entity
 @Table(name = "inquiry")
 public class Inquiry {
+
+    private static final String AUTO_PROCESSOR = "ai-auto";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -128,6 +131,31 @@ public class Inquiry {
         this.urgency = urgency;
         this.aiDraftAnswer = aiDraftAnswer;
         this.status = InquiryStatus.AI_PROCESSED;
+    }
+
+    /**
+     * 에이전트의 최종 답변을 반영한다. 사람이 볼 필요가 없으면 그 자리에서 {@code AUTO_ANSWERED} 로 확정한다.
+     *
+     * <p>"검토가 필요 없으면 자동 확정" 은 문의의 상태 규칙이라 여기 둔다 — 예전에는 분석 쪽
+     * {@code InquiryAnalysisRecorder} 가 이 분기를 들고 있었다.
+     */
+    public void applyAgentAnswer(InquiryCategory category, UrgencyLevel urgency, String answer, boolean needsHuman) {
+        applyAnalysis(category, urgency, answer);
+        if (!needsHuman) {
+            autoProcess(AUTO_PROCESSOR);
+        }
+    }
+
+    /** 고객이 AI 추가 질문에 답한다. 저장할 메시지를 돌려준다. */
+    public InquiryMessage replyAsCustomer(String content) {
+        if (status != InquiryStatus.PENDING_CUSTOMER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_INQUIRY_STATE",
+                    "고객 답변은 PENDING_CUSTOMER 상태에서만 가능합니다.");
+        }
+        if (content == null || content.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "EMPTY_CONTENT", "답변 내용을 입력해 주세요.");
+        }
+        return InquiryMessage.of(id, InquiryMessageRole.CUSTOMER, content.strip());
     }
 
     public void autoProcess(String reviewedBy) {
