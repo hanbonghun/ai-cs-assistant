@@ -62,9 +62,7 @@ class InquiryControllerTest {
                 null,
                 null,
                 LocalDateTime.of(2026, 4, 8, 10, 0),
-                LocalDateTime.of(2026, 4, 8, 10, 0),
-                List.of()
-        ));
+                LocalDateTime.of(2026, 4, 8, 10, 0)));
 
         mockMvc.perform(post("/api/inquiries")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -106,7 +104,7 @@ class InquiryControllerTest {
     }
 
     @Test
-    void returnsInquiryDetailIncludingAnalysisLogs() throws Exception {
+    void returnsInquiryDetail() throws Exception {
         given(inquiryService.getInquiry(1L)).willReturn(new InquiryDetailResponse(
                 1L,
                 "cust-001",
@@ -121,24 +119,13 @@ class InquiryControllerTest {
                 null,
                 null,
                 LocalDateTime.of(2026, 4, 8, 10, 0),
-                LocalDateTime.of(2026, 4, 8, 10, 5),
-                List.of(new InquiryDetailResponse.AnalysisLogSummary(
-                        10L,
-                        "SUCCESS",
-                        InquiryCategory.REFUND,
-                        UrgencyLevel.HIGH,
-                        "초안 답변",
-                        "gpt-test",
-                        "v1",
-                        321L,
-                        LocalDateTime.of(2026, 4, 8, 10, 3)
-                ))
+                LocalDateTime.of(2026, 4, 8, 10, 5)
         ));
 
         mockMvc.perform(get("/api/inquiries/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.analysisLogs[0].status").value("SUCCESS"))
-                .andExpect(jsonPath("$.analysisLogs[0].generatedDraft").value("초안 답변"));
+                .andExpect(jsonPath("$.status").value("AI_PROCESSED"))
+                .andExpect(jsonPath("$.aiDraftAnswer").value("초안 답변"));
     }
 
     @Test

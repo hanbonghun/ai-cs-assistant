@@ -3,6 +3,7 @@ package com.aicsassistant.ui.application;
 import com.aicsassistant.analysis.agent.AgentStep;
 import com.aicsassistant.analysis.application.AnalysisLogService;
 import com.aicsassistant.manual.application.ManualService;
+import com.aicsassistant.manual.dto.EvidenceChunkResponse;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView.DocRef;
@@ -47,7 +48,7 @@ public class InquiryDetailAssembler {
         }
     }
 
-    public List<InquiryDetailViewModel.EvidenceChunkView> loadEvidenceChunks(Long inquiryId) {
+    public List<EvidenceChunkResponse> loadEvidenceChunks(Long inquiryId) {
         String retrievedChunkIds = analysisLogService.getLatestRetrievedChunkIds(inquiryId).orElse(null);
         if (retrievedChunkIds == null || retrievedChunkIds.isBlank()) {
             return List.of();

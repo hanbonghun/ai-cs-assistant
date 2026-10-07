@@ -5,14 +5,15 @@ import com.aicsassistant.analysis.domain.AnalysisStatus;
 import com.aicsassistant.analysis.domain.InquiryAnalysisLog;
 import com.aicsassistant.analysis.dto.CategoryResultDto;
 import com.aicsassistant.analysis.dto.DraftAnswerDto;
+import com.aicsassistant.analysis.dto.InquiryAnalysisLogResponse;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.analysis.dto.UrgencyResultDto;
 import com.aicsassistant.analysis.infra.InquiryAnalysisLogRepository;
-import com.aicsassistant.analysis.infra.llm.LlmClient;
 import com.aicsassistant.common.exception.ApiException;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
+import com.aicsassistant.llm.LlmClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -162,8 +163,10 @@ public class AnalysisLogService {
                 .ifPresent(logEntry -> logEntry.rate(rating, reason, note));
     }
 
-    public List<InquiryAnalysisLog> getRecentLogs(Long inquiryId) {
-        return inquiryAnalysisLogRepository.findTop5ByInquiryIdOrderByCreatedAtDesc(inquiryId);
+    public List<InquiryAnalysisLogResponse> getRecentLogs(Long inquiryId) {
+        return inquiryAnalysisLogRepository.findTop5ByInquiryIdOrderByCreatedAtDesc(inquiryId).stream()
+                .map(InquiryAnalysisLogResponse::from)
+                .toList();
     }
 
     public Optional<String> getLatestAgentStepsJson(Long inquiryId) {

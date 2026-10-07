@@ -1,4 +1,4 @@
-package com.aicsassistant.analysis.infra.llm;
+package com.aicsassistant.llm;
 
 /**
  * LLM 호출 결과 — 응답 텍스트와 토큰 사용량을 함께 담는다.

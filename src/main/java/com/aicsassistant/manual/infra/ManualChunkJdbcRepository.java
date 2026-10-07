@@ -1,6 +1,7 @@
 package com.aicsassistant.manual.infra;
 
 import com.aicsassistant.manual.application.ChunkWithEmbedding;
+import com.aicsassistant.manual.dto.EvidenceChunkResponse;
 import com.aicsassistant.manual.dto.ManualChunkResponse;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -87,7 +88,7 @@ public class ManualChunkJdbcRepository {
                 """, CHUNK_ROW_MAPPER, documentId);
     }
 
-    public List<com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.EvidenceChunkView> findEvidenceChunksByIds(List<Long> chunkIds) {
+    public List<EvidenceChunkResponse> findEvidenceChunksByIds(List<Long> chunkIds) {
         if (chunkIds.isEmpty()) return List.of();
         String placeholders = chunkIds.stream().map(id -> "?").reduce((a, b) -> a + ", " + b).orElse("?");
         String sql = """
@@ -100,7 +101,7 @@ public class ManualChunkJdbcRepository {
                 order by mc.id
                 """.formatted(placeholders);
         return jdbcTemplate.query(sql, chunkIds.toArray(),
-                (rs, rowNum) -> new com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.EvidenceChunkView(
+                (rs, rowNum) -> new EvidenceChunkResponse(
                         rs.getLong("id"),
                         rs.getLong("manual_document_id"),
                         rs.getString("manual_document_title"),

@@ -1,4 +1,4 @@
-package com.aicsassistant.analysis.infra.llm;
+package com.aicsassistant.llm;
 
 public record ChatMessage(String role, String content) {
 

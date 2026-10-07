@@ -3,7 +3,7 @@ package com.aicsassistant.analysis.application;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
-import com.aicsassistant.analysis.infra.llm.EmbeddingClient;
+import com.aicsassistant.llm.EmbeddingClient;
 import com.aicsassistant.support.PostgresVectorIntegrationTest;
 import com.zaxxer.hikari.HikariDataSource;
 import java.time.LocalDateTime;

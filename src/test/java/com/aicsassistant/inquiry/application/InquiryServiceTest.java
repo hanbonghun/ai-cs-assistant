@@ -8,7 +8,6 @@ import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryStatus;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.CreateInquiryRequest;
-import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.inquiry.dto.InquiryListResponse;
 import com.aicsassistant.inquiry.dto.InquiryMessageResponse;
 import com.aicsassistant.inquiry.dto.ReviewInquiryRequest;
@@ -18,7 +17,6 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 @SpringBootTest
 class InquiryServiceTest extends PostgresVectorIntegrationTest {
@@ -31,9 +29,6 @@ class InquiryServiceTest extends PostgresVectorIntegrationTest {
 
     @Autowired
     InquiryRepository inquiryRepository;
-
-    @Autowired
-    JdbcTemplate jdbcTemplate;
 
     @Test
     void createsAndListsInquiriesWithOptionalFilters() {
@@ -59,35 +54,6 @@ class InquiryServiceTest extends PostgresVectorIntegrationTest {
         assertThat(filtered).hasSize(1);
         assertThat(filtered.get(0).category()).isEqualTo(InquiryCategory.REFUND);
         assertThat(filtered.get(0).urgency()).isEqualTo(UrgencyLevel.HIGH);
-    }
-
-    @Test
-    void returnsInquiryDetailWithRecentAnalysisLogs() {
-        Inquiry inquiry = inquiryRepository.save(Inquiry.create("cust-010", "환불 문의", "환불 가능한가요?"));
-        jdbcTemplate.update("""
-                insert into inquiry_analysis_log (
-                    inquiry_id, request_snapshot, classified_category, classified_urgency, retrieved_chunk_ids,
-                    generated_draft, model_name, prompt_version, analysis_status, error_message, latency_ms, created_at
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now())
-                """,
-                inquiry.getId(),
-                "환불 가능한가요?",
-                "REFUND",
-                "HIGH",
-                "1,2,3",
-                "초안 답변",
-                "gpt-test",
-                "v1",
-                "SUCCESS",
-                null,
-                321L
-        );
-
-        InquiryDetailResponse response = inquiryService.getInquiry(inquiry.getId());
-
-        assertThat(response.id()).isEqualTo(inquiry.getId());
-        assertThat(response.analysisLogs()).hasSize(1);
-        assertThat(response.analysisLogs().get(0).generatedDraft()).isEqualTo("초안 답변");
     }
 
     @Test

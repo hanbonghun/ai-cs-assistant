@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -13,11 +14,15 @@ import com.aicsassistant.analysis.application.AnalysisLogService;
 import com.aicsassistant.analysis.application.InquiryAnalysisService;
 import com.aicsassistant.analysis.dto.CategoryResultDto;
 import com.aicsassistant.analysis.dto.DraftAnswerDto;
+import com.aicsassistant.analysis.dto.InquiryAnalysisLogResponse;
 import com.aicsassistant.analysis.dto.InquiryAnalysisResponse;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.analysis.dto.UrgencyResultDto;
+import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryStatus;
+import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.common.exception.GlobalExceptionHandler;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,6 +75,26 @@ class InquiryAnalysisControllerTest {
                 .andExpect(jsonPath("$.urgency.value").value("MEDIUM"))
                 .andExpect(jsonPath("$.retrievedChunks[0].id").value(10))
                 .andExpect(jsonPath("$.draft.usedChunkIds[0]").value(10));
+    }
+
+    @Test
+    void returnsRecentAnalysisLogs() throws Exception {
+        given(analysisLogService.getRecentLogs(1L)).willReturn(List.of(new InquiryAnalysisLogResponse(
+                10L,
+                "SUCCESS",
+                InquiryCategory.REFUND,
+                UrgencyLevel.HIGH,
+                "초안 답변",
+                "gpt-test",
+                "v1",
+                321L,
+                LocalDateTime.of(2026, 4, 8, 10, 3)
+        )));
+
+        mockMvc.perform(get("/api/inquiries/1/analysis-logs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("SUCCESS"))
+                .andExpect(jsonPath("$[0].generatedDraft").value("초안 답변"));
     }
 
     @Test

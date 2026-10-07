@@ -6,16 +6,16 @@ import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
 import com.aicsassistant.inquiry.dto.InquiryMessageResponse;
 import com.aicsassistant.manual.application.ManualService;
+import com.aicsassistant.manual.dto.EvidenceChunkResponse;
 import com.aicsassistant.manual.dto.ManualChunkResponse;
 import com.aicsassistant.manual.dto.ManualDocumentResponse;
-import com.aicsassistant.ui.application.DashboardService;
-import com.aicsassistant.ui.application.DashboardService.DashboardStats;
 import com.aicsassistant.staging.application.StagedChangeApprovalService;
 import com.aicsassistant.staging.dto.StagedChangeResponse;
+import com.aicsassistant.ui.application.DashboardService;
+import com.aicsassistant.ui.application.DashboardService.DashboardStats;
 import com.aicsassistant.ui.application.InquiryDetailAssembler;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView;
-import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.EvidenceChunkView;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -57,9 +57,7 @@ public class CounselorViewController {
     @GetMapping("/inquiries/{id}")
     public String inquiryDetail(@PathVariable Long id, Model model) {
         InquiryDetailResponse inquiry = inquiryService.getInquiry(id);
-        List<EvidenceChunkView> evidenceChunks = inquiry.analysisLogs().isEmpty()
-                ? List.of()
-                : inquiryDetailAssembler.loadEvidenceChunks(id);
+        List<EvidenceChunkResponse> evidenceChunks = inquiryDetailAssembler.loadEvidenceChunks(id);
         List<InquiryMessageResponse> messages = inquiryService.getMessages(id);
         List<AgentStepView> agentSteps = inquiryDetailAssembler.loadAgentSteps(id);
         List<StagedChangeResponse> stagedChanges = stagedChangeApprovalService.findByInquiry(id);

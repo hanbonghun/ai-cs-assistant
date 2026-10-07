@@ -1,4 +1,4 @@
-package com.aicsassistant.analysis.infra.llm;
+package com.aicsassistant.llm;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

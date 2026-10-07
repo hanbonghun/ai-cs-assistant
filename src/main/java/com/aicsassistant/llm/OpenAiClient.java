@@ -1,4 +1,4 @@
-package com.aicsassistant.analysis.infra.llm;
+package com.aicsassistant.llm;
 
 import com.aicsassistant.common.config.AiProperties;
 import com.fasterxml.jackson.databind.JsonNode;
