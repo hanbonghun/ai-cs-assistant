@@ -2,9 +2,9 @@ package com.aicsassistant.ui.controller;
 
 import com.aicsassistant.inquiry.application.InquiryService;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
-import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
 import com.aicsassistant.inquiry.dto.InquiryDetailResponse;
+import com.aicsassistant.inquiry.dto.InquiryMessageResponse;
 import com.aicsassistant.manual.application.ManualService;
 import com.aicsassistant.manual.dto.ManualChunkResponse;
 import com.aicsassistant.manual.dto.ManualDocumentResponse;
@@ -16,8 +16,8 @@ import com.aicsassistant.ui.application.InquiryDetailAssembler;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.AgentStepView;
 import com.aicsassistant.ui.viewmodel.InquiryDetailViewModel.EvidenceChunkView;
-import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -36,24 +36,8 @@ public class CounselorViewController {
     private final InquiryDetailAssembler inquiryDetailAssembler;
     private final StagedChangeApprovalService stagedChangeApprovalService;
 
-    private static final LinkedHashMap<String, String> CATEGORY_LABELS = new LinkedHashMap<>();
-    private static final LinkedHashMap<String, String> URGENCY_LABELS  = new LinkedHashMap<>();
-    static {
-        CATEGORY_LABELS.put("ORDER",      "주문");
-        CATEGORY_LABELS.put("DELIVERY",   "배송");
-        CATEGORY_LABELS.put("RETURN",     "반품");
-        CATEGORY_LABELS.put("EXCHANGE",   "교환");
-        CATEGORY_LABELS.put("REFUND",     "환불");
-        CATEGORY_LABELS.put("PAYMENT",    "결제");
-        CATEGORY_LABELS.put("PRODUCT",    "상품");
-        CATEGORY_LABELS.put("MEMBERSHIP", "회원/혜택");
-        CATEGORY_LABELS.put("COMPLAINT",  "불만");
-        CATEGORY_LABELS.put("GENERAL",    "일반");
-
-        URGENCY_LABELS.put("LOW",    "낮음");
-        URGENCY_LABELS.put("MEDIUM", "보통");
-        URGENCY_LABELS.put("HIGH",   "높음");
-    }
+    private static final Map<String, String> CATEGORY_LABELS = InquiryCategory.labels();
+    private static final Map<String, String> URGENCY_LABELS  = UrgencyLevel.labels();
 
     @GetMapping("/inquiries")
     public String inquiryList(Model model) {
@@ -76,7 +60,7 @@ public class CounselorViewController {
         List<EvidenceChunkView> evidenceChunks = inquiry.analysisLogs().isEmpty()
                 ? List.of()
                 : inquiryDetailAssembler.loadEvidenceChunks(id);
-        List<InquiryMessage> messages = inquiryService.getMessages(id);
+        List<InquiryMessageResponse> messages = inquiryService.getMessages(id);
         List<AgentStepView> agentSteps = inquiryDetailAssembler.loadAgentSteps(id);
         List<StagedChangeResponse> stagedChanges = stagedChangeApprovalService.findByInquiry(id);
         model.addAttribute("detail",

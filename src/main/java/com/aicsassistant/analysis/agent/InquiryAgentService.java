@@ -11,7 +11,7 @@ import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.InquiryMessage;
 import com.aicsassistant.inquiry.domain.InquiryMessageRole;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
-import com.aicsassistant.order.InMemoryOrderRepository;
+import com.aicsassistant.order.infra.InMemoryOrderRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.opentelemetry.api.trace.Tracer;
 import java.time.LocalDate;

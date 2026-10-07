@@ -1,4 +1,4 @@
-package com.aicsassistant.order;
+package com.aicsassistant.order.infra;
 
 import com.aicsassistant.user.DummyUserStore;
 import java.time.LocalDate;

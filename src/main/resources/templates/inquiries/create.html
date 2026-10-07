@@ -35,13 +35,13 @@
                 <label>
                     카테고리
                     <select id="category">
-                        <option th:each="category : ${categories}" th:value="${category}" th:text="${category}">REFUND</option>
+                        <option th:each="category : ${categories}" th:value="${category}" th:text="${category.label}">REFUND</option>
                     </select>
                 </label>
                 <label>
                     긴급도
                     <select id="urgency">
-                        <option th:each="urgency : ${urgencies}" th:value="${urgency}" th:text="${urgency}">HIGH</option>
+                        <option th:each="urgency : ${urgencies}" th:value="${urgency}" th:text="${urgency.label}">HIGH</option>
                     </select>
                 </label>
             </div>

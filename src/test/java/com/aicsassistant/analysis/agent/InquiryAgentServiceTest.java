@@ -17,7 +17,7 @@ import com.aicsassistant.analysis.infra.llm.LlmResponse;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
-import com.aicsassistant.order.InMemoryOrderRepository;
+import com.aicsassistant.order.infra.InMemoryOrderRepository;
 import com.aicsassistant.staging.infra.StagedChangeRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

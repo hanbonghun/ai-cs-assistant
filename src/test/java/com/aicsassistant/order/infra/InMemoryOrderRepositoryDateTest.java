@@ -1,4 +1,4 @@
-package com.aicsassistant.order;
+package com.aicsassistant.order.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

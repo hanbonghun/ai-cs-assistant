@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -157,26 +158,21 @@ public class AnalysisLogService {
 
     @Transactional
     public void rateLatestLog(Long inquiryId, String rating, String reason, String note) {
-        inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId)
-                .stream()
-                .findFirst()
-                .ifPresent(logEntry -> {
-                    logEntry.rate(rating, reason, note);
-                    inquiryAnalysisLogRepository.save(logEntry);
-                });
+        inquiryAnalysisLogRepository.findFirstByInquiryIdOrderByIdDesc(inquiryId)
+                .ifPresent(logEntry -> logEntry.rate(rating, reason, note));
     }
 
-    public java.util.Optional<String> getLatestAgentStepsJson(Long inquiryId) {
-        return inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId)
-                .stream()
-                .findFirst()
+    public List<InquiryAnalysisLog> getRecentLogs(Long inquiryId) {
+        return inquiryAnalysisLogRepository.findTop5ByInquiryIdOrderByCreatedAtDesc(inquiryId);
+    }
+
+    public Optional<String> getLatestAgentStepsJson(Long inquiryId) {
+        return inquiryAnalysisLogRepository.findFirstByInquiryIdOrderByIdDesc(inquiryId)
                 .map(InquiryAnalysisLog::getAgentSteps);
     }
 
-    public java.util.Optional<String> getLatestRetrievedChunkIds(Long inquiryId) {
-        return inquiryAnalysisLogRepository.findByInquiryIdOrderByCreatedAtDesc(inquiryId)
-                .stream()
-                .findFirst()
+    public Optional<String> getLatestRetrievedChunkIds(Long inquiryId) {
+        return inquiryAnalysisLogRepository.findFirstByInquiryIdOrderByIdDesc(inquiryId)
                 .map(InquiryAnalysisLog::getRetrievedChunkIds);
     }
 

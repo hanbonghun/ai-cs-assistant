@@ -15,6 +15,8 @@ public interface InquiryAnalysisLogRepository extends JpaRepository<InquiryAnaly
 
     List<InquiryAnalysisLog> findByInquiryIdOrderByCreatedAtDesc(Long inquiryId);
 
+    List<InquiryAnalysisLog> findTop5ByInquiryIdOrderByCreatedAtDesc(Long inquiryId);
+
     Optional<InquiryAnalysisLog> findFirstByInquiryIdOrderByIdDesc(Long inquiryId);
 
     /**

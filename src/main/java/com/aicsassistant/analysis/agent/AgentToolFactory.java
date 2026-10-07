@@ -5,7 +5,7 @@ import com.aicsassistant.analysis.agent.tool.SearchManualTool;
 import com.aicsassistant.analysis.agent.tool.StageRefundTool;
 import com.aicsassistant.analysis.application.ManualRetrievalService;
 import com.aicsassistant.inquiry.domain.Inquiry;
-import com.aicsassistant.order.InMemoryOrderRepository;
+import com.aicsassistant.order.infra.InMemoryOrderRepository;
 import com.aicsassistant.staging.infra.StagedChangeRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;

@@ -92,8 +92,7 @@ public class ManualService {
     }
 
     public List<ManualDocumentResponse> getAll() {
-        return manualDocumentRepository.findAll().stream()
-                .filter(ManualDocument::isActive)
+        return manualDocumentRepository.findByActiveTrue().stream()
                 .map(this::toResponse)
                 .toList();
     }
