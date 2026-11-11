@@ -15,5 +15,6 @@
 | [0008](0008-counselor-owns-refund-amount.md) | 환불 금액의 최종 결정권은 상담사에게 있다 | 채택 |
 | [0009](0009-no-external-calls-in-transactions.md) | 트랜잭션 안에서 외부 호출을 하지 않는다 | 채택 |
 | [0010](0010-two-eval-sets.md) | 평가셋을 "검색 로직 회귀용" 과 "실측용" 두 벌로 나눈다 | 채택 |
+| [0011](0011-no-auto-answer-without-evidence.md) | 근거 없는 자동 답변은 코드가 막는다 | 채택 |
 
 0001~0006 은 결정 당시 문서화하지 않아 2026-09-03 에 소급 기록했다.

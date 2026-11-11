@@ -48,6 +48,9 @@ public class InquiryAgentService {
 
     private static final int MAX_STEPS = 8;
 
+    static final String NO_EVIDENCE_BRIEFING =
+            "AI가 정책 문서와 주문 조회에서 이 문의에 대한 근거를 찾지 못해 자동 답변을 보류했습니다. 상담사 확인이 필요합니다.";
+
     private final LlmClient llmClient;
     private final PromptFactory promptFactory;
     private final AgentToolFactory toolFactory;
@@ -130,6 +133,9 @@ public class InquiryAgentService {
                 stepSpan.tool(action);
 
                 ToolResult toolResult = toolInvoker.invoke(tools, action, actionInput, callContext, step);
+                if (toolResult.ok() && toolset.order().name().equals(action)) {
+                    callContext.markOrderEvidence();
+                }
 
                 String observation = toolInvoker.serializeObservation(toolResult);
                 log.info("[Agent inquiryId={} step={}] action={} ok={} category={} observation_len={}",
@@ -247,6 +253,7 @@ public class InquiryAgentService {
                     // 인터셉터를 지나가지 않는 경로라 여기서 직접 기록한다.
                     // 문의의 relatedOrderId 이고 소유자 검증을 통과한 고객 자기 주문이라 정당하다.
                     ctx.recordObservedOrder(orderId);
+                    ctx.markOrderEvidence();
                     sb.append("[관련 주문 정보]\n").append(orderResult.data()).append("\n\n");
                 } else {
                     sb.append("[관련 주문 조회 실패] ").append(orderResult.errorMessage()).append("\n\n");
@@ -277,6 +284,15 @@ public class InquiryAgentService {
                 totalTokens
         );
         // 제안이 접수된 실행은 무조건 상담사가 본다 — 프롬프트 지시에 맡기지 않는다
-        return ctx.stagedChange() ? answer.withHumanReview() : answer;
+        if (ctx.stagedChange()) {
+            return answer.withHumanReview();
+        }
+        // 근거 경계 — 정책 문서도 주문 조회도 없이 고객에게 바로 나갈 답을 만들었다면 코드가 막는다 (ADR 0011).
+        // 프롬프트 지시만으로는 범위 밖 질문 10건 중 절반이 일반 지식으로 답했다. 추가 질문(followUp)은 막지 않는다.
+        boolean autoAnswer = !answer.needsHumanReview() && !answer.needsEscalation();
+        if (autoAnswer && chunks.isEmpty() && !ctx.hasOrderEvidence()) {
+            return answer.withoutEvidence(NO_EVIDENCE_BRIEFING);
+        }
+        return answer;
     }
 }

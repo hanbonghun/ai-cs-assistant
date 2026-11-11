@@ -23,6 +23,15 @@ public sealed interface AgentResult {
             int totalTokens
     ) implements AgentResult {
 
+        /**
+         * 근거 없이 자동 답변하려던 결과를 상담사 이관으로 바꾼 사본. 모델 초안은 버린다 — 근거 없이 쓴
+         * 일반 지식이라 상담사 화면에 남겨도 그대로 전송될 위험만 있다 (ADR 0011).
+         */
+        public FinalAnswer withoutEvidence(String briefing) {
+            return new FinalAnswer(briefing, category, urgency, true, needsEscalation, fraudRiskFlag,
+                    "[근거 없음 — 자동 답변 차단] " + reason, steps, retrievedChunks, totalTokens);
+        }
+
         /** 상담사 검토를 강제한 사본 — 스텝 소진 후 강제 종료 경로에서 사용한다. */
         public FinalAnswer withHumanReview() {
             return new FinalAnswer(answer, category, urgency, true, needsEscalation, fraudRiskFlag,
