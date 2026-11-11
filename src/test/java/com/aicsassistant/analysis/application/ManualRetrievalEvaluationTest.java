@@ -23,7 +23,11 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * RAG 검색 품질 평가 (CSV 골든셋 기반).
+ * RAG 검색 <b>로직</b> 회귀 테스트 (CSV 골든셋 기반).
+ *
+ * <p>임베딩을 고정하므로 이 테스트의 수치는 실제 검색 품질이 아니다 — fusion·게이트·전처리를
+ * 바꿨을 때 결과가 어떻게 움직이는지를 결정론적으로 고정하는 용도다. 실제 임베딩·모델 기준 품질은
+ * {@code LiveRagEvaluationTest} 가 잰다 (ADR 0010).
  *
  * <p>FakeEmbedding은 케이스의 difficulty에 따라 의도적으로 강/약 신호를 만든다.
  * 현재 baseline은 hard 케이스가 threshold(0.75)에 걸려 잡히지 않는 상태이며,
