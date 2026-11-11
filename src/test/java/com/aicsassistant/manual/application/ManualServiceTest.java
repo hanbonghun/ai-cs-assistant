@@ -128,7 +128,7 @@ class ManualServiceTest extends PostgresVectorIntegrationTest {
     @Test
     @DisplayName("임베딩은 트랜잭션 밖에서, 청크 수와 무관하게 한 번의 묶음 호출로 돈다")
     void embedsOutsideTransactionInOneBatchedCall() {
-        // ManualChunker(500, 100) → 1200자는 청크 3개
+        // 문장 경계가 없는 1200자는 길이로 잘려 청크 3개 (ManualChunker 최대 500자)
         manualService.create(new CreateManualDocumentRequest(
                 "환불 정책", InquiryCategory.REFUND, "가".repeat(1200)));
 

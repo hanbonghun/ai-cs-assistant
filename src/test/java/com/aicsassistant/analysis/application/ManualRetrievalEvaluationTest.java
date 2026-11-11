@@ -30,7 +30,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * {@code LiveRagEvaluationTest} 가 잰다 (ADR 0010).
  *
  * <p>FakeEmbedding은 케이스의 difficulty에 따라 의도적으로 강/약 신호를 만든다.
- * hard 케이스는 vector 단독 임계(0.57) 아래, keyword 경로 하한(0.47) 위(cos ≈ 0.54)에 놓아 keyword 가 회복을 가르게 한다.
+ * hard 케이스는 vector 단독 임계(0.54) 아래, keyword 경로 하한(0.47) 위(cos ≈ 0.51)에 놓아 keyword 가 회복을 가르게 한다.
  * 임계값을 바꾸면 이 벡터도 같은 구간에 다시 놓아야 테스트의 뜻이 유지된다. 현재 baseline은 hard 케이스 대부분이 잡히지 않는 상태이며,
  * 검색 로직(예: keyword hybrid)을 개선하면 hard 케이스가 통과되며 메트릭이 올라가야 한다.
  */
@@ -170,8 +170,8 @@ class ManualRetrievalEvaluationTest extends PostgresVectorIntegrationTest {
     @DisplayName("[P1 회귀] keyword-strong 후보가 vector top-K 밖에 있어도 회복된다")
     void keywordOnlyCandidateOutsideVectorTopKIsRescued() {
         // distractor 25개 추가:
-        // - vector cos ≈ 0.56 (RETURN doc의 0.54 보다 약간 위) → vector top-20을 점령해 RETURN을 21위 밖으로 밀어냄
-        // - cos 0.56 < 0.57 (strong threshold) 라 vector path 만으론 통과 못 함
+        // - vector cos ≈ 0.53 (RETURN doc의 0.51 보다 약간 위) → vector top-20을 점령해 RETURN을 21위 밖으로 밀어냄
+        // - cos 0.53 < 0.54 (strong threshold) 라 vector path 만으론 통과 못 함
         // - content에는 "회수" 키워드 없음 → keyword 경로로도 통과 못 함 → gate에서 떨어짐
         // - 결과적으로 distractor는 최종 결과에 안 남고, P1이 정상이라면 RETURN만 회복되어 rank 1로 잡힘
         // P1 수정 전 (버그): vector candidates 21위 밖인 RETURN이 vectorScore=0.0 이라 gate 두 번째 조건도 실패 → empty 결과
@@ -194,11 +194,11 @@ class ManualRetrievalEvaluationTest extends PostgresVectorIntegrationTest {
                 values (?, ?, ?, ?, ?, ?, ?, ?)
                 """, id, "distractor-" + id, "GENERAL", content, 1, true, now, now);
 
-        // hard query 방향(축 3, 축 6)에 약하게 정렬 + orthogonal noise → cos ≈ 0.56 (RETURN 0.54 보다 살짝 위, 0.57 아래)
+        // hard query 방향(축 3, 축 6)에 약하게 정렬 + orthogonal noise → cos ≈ 0.53 (RETURN 0.51 보다 살짝 위, 0.54 아래)
         Map<Integer, Double> axes = Map.of(
                 TITLE_TO_AXIS.get("반품 정책"), 0.6,
                 DISTRACTOR_AXIS, 0.7,
-                noiseAxis, 1.35
+                noiseAxis, 1.46
         );
         jdbcTemplate.update("""
                 insert into manual_chunk (
@@ -301,7 +301,7 @@ class ManualRetrievalEvaluationTest extends PostgresVectorIntegrationTest {
             return switch (c.difficulty()) {
                 case EASY -> sparseVector(Map.of(axis, 1.0));
                 case MEDIUM -> sparseVector(Map.of(axis, 0.9, DISTRACTOR_AXIS, 0.4));
-                case HARD -> sparseVector(Map.of(axis, 0.45, DISTRACTOR_AXIS, 0.7));
+                case HARD -> sparseVector(Map.of(axis, 0.42, DISTRACTOR_AXIS, 0.7));
             };
         }
 
