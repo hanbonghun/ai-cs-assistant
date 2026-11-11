@@ -49,32 +49,38 @@ dependencies {
 }
 
 tasks.named('test') {
-    // 실측 평가는 API 비용이 든다 — 기본 빌드에서 빼고 liveEval 로만 돌린다 (ADR 0010)
+    // 실측 평가·보정은 API 비용이 든다 — 기본 빌드에서 빼고 liveEval · liveCalibrate 로만 돌린다 (ADR 0010)
     useJUnitPlatform {
-        excludeTags 'live-eval'
+        excludeTags 'live-eval', 'live-calibration'
     }
 }
 
-// 실제 임베딩·모델로 50건 평가셋을 돌린다. 키는 환경변수나 git 추적 밖의 .env 에서 읽는다.
-// 일부만: ./gradlew liveEval -Pids=S01,P01   judge 끄기: -Pjudge=false
-tasks.register('liveEval', Test) {
-    description = 'Runs the live RAG evaluation set against real OpenAI models (costs money).'
-    group = 'verification'
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
-    useJUnitPlatform {
-        includeTags 'live-eval'
-    }
-    def dotenv = file('.env')
-    if (!System.getenv('OPENAI_API_KEY') && dotenv.exists()) {
-        dotenv.readLines().findAll { it ==~ /^\s*OPENAI_API_KEY\s*=.+/ }.each {
-            environment 'OPENAI_API_KEY', it.split('=', 2)[1].trim()
+// 실제 OpenAI 를 부르는 테스트 태스크. 키는 환경변수나 git 추적 밖의 .env 에서 읽는다.
+def liveTestTask = { String name, String tag, String desc ->
+    tasks.register(name, Test) {
+        description = desc
+        group = 'verification'
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+        useJUnitPlatform {
+            includeTags tag
+        }
+        def dotenv = file('.env')
+        if (!System.getenv('OPENAI_API_KEY') && dotenv.exists()) {
+            dotenv.readLines().findAll { it ==~ /^\s*OPENAI_API_KEY\s*=.+/ }.each {
+                environment 'OPENAI_API_KEY', it.split('=', 2)[1].trim()
+            }
+        }
+        systemProperty 'liveEval.ids', findProperty('ids') ?: ''
+        systemProperty 'liveEval.judge', findProperty('judge') ?: 'true'
+        outputs.upToDateWhen { false }
+        testLogging {
+            showStandardStreams = true
         }
     }
-    systemProperty 'liveEval.ids', findProperty('ids') ?: ''
-    systemProperty 'liveEval.judge', findProperty('judge') ?: 'true'
-    outputs.upToDateWhen { false }
-    testLogging {
-        showStandardStreams = true
-    }
 }
+
+// 50건 평가셋. 일부만: ./gradlew liveEval -Pids=S01,P01   judge 끄기: -Pjudge=false
+liveTestTask('liveEval', 'live-eval', 'Runs the live RAG evaluation set against real OpenAI models (costs money).')
+// vector 임계값 보정. 임베딩만 부른다.
+liveTestTask('liveCalibrate', 'live-calibration', 'Measures real embedding similarity distribution for threshold calibration.')

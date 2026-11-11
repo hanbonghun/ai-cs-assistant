@@ -24,9 +24,12 @@ public class ManualRetrievalService {
 
     private static final int DEFAULT_TOP_K = 5;
     private static final int FUSION_CANDIDATE_K = 20;
-    private static final double MIN_SIMILARITY_SCORE = 0.75;
+    // vector 임계값 둘은 실제 text-embedding-3-small 분포로 정했다 (ADR 0010, VectorThresholdCalibrationTest).
+    // 이전 0.75 / 0.5 는 고정 벡터 위에서 정한 값이라, 실측 50건 어느 질의에서도 0.75 에 닿지 않았다.
+    // 규칙: 보정셋의 무관 질의가 그 경로로 새어 나간 최고 점수 + 0.02. 관련/무관 분포가 겹쳐 더 내리면 거짓 양성이 생긴다.
+    private static final double MIN_SIMILARITY_SCORE = 0.57;
     private static final double MIN_KEYWORD_SCORE = 0.18;
-    private static final double MIN_VECTOR_FLOOR_FOR_KEYWORD = 0.5;
+    private static final double MIN_VECTOR_FLOOR_FOR_KEYWORD = 0.47;
     private static final int RRF_K = 60;
 
     private static final AttributeKey<String> ATTR_LF_INPUT = AttributeKey.stringKey("langfuse.observation.input");

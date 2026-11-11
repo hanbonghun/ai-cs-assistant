@@ -32,7 +32,7 @@ import java.util.stream.Stream;
  *
  * <p>지표는 단계별로 따로 두고 하나로 합치지 않는다. 합치는 순간 어느 단계가 틀렸는지 사라진다.
  */
-final class LiveEvalReport {
+public final class LiveEvalReport {
 
     private static final List<String> GROUPS = List.of(
             "STALE", "PARAPHRASE", "COMPOSITE", "INJECTION", "OUT_OF_SCOPE", "ALL");
@@ -338,7 +338,7 @@ final class LiveEvalReport {
 
     // ---------- 실행 조건 ----------
 
-    static String gitDescribe() {
+    public static String gitDescribe() {
         String sha = run("git", "rev-parse", "--short", "HEAD").orElse("nogit");
         boolean dirty = run("git", "status", "--porcelain").map(s -> !s.isBlank()).orElse(false);
         return dirty ? sha + "-dirty" : sha;

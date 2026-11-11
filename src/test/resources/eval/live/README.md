@@ -9,6 +9,9 @@
 ./gradlew liveEval -Pjudge=false       # judge 호출 끄기
 ```
 
+vector 임계값 보정은 `./gradlew liveCalibrate` — 평가셋과 겹치지 않는 `calibration-queries.jsonl` 60건으로
+유사도 분포와 게이트 통과율을 재서 `eval/calibration/` 에 남긴다(임베딩만 사용).
+
 결과는 `eval/runs/<시각>_<커밋>/` 에 `cases.jsonl` · `metrics.json` · `summary.md` 로 남고,
 `summary.md` 에 직전 실행과의 비교표가 붙는다.
 
