@@ -79,8 +79,8 @@ final class LiveEvalScorer {
      * 근거 문구마다 그것을 담은 첫 청크의 순위(1부터). 없으면 0.
      *
      * <p>청크 id 가 아니라 본문 문구로 맞추는 이유: 청크 분할 규칙을 바꾸면 id 와 경계가 전부 바뀌는데,
-     * 그때가 바로 전후를 비교하고 싶은 순간이다. 청커는 100자를 겹쳐 자르므로 100자 미만 문구는
-     * 분할 방식과 무관하게 어느 한 청크에 통째로 들어간다.
+     * 그때가 바로 전후를 비교하고 싶은 순간이다. 근거 문구는 문장 하나 안에서 고르므로, 문장을 자르지 않는 분할이면
+     * 어느 한 청크에 통째로 들어간다(고정 길이 분할 시절에는 100자 겹침이 이를 보장했다).
      */
     static List<Integer> evidenceRanks(List<String> evidence, List<String> chunkContents) {
         List<Integer> ranks = new ArrayList<>();
