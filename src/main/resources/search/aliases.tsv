@@ -1,0 +1,58 @@
+# 고객 표현 → 매뉴얼 본문 용어. 키워드 경로(pg_trgm) 질의에만 적용한다 (ADR 0010 변경 4b).
+# 출처: general = 일반적인 CS 줄임말·구어, manual = 매뉴얼 본문의 동의 표현, calibration = 보정 질의셋.
+# 평가셋 50건을 보고 넣은 항목은 없다. 다만 작성자가 평가셋을 알고 있으므로, 평가 질문과 겹치는 항목 수를 ADR 에 따로 센다.
+# alias	canonical	source
+무배	무료배송	general
+택배비	배송비	general
+택비	배송비	general
+반품비	반품 배송비	general
+교환비	교환 배송비	general
+적립금	포인트	general
+마일리지	포인트	general
+환불금	환불 금액	general
+카드취소	승인 취소	general
+결제취소	주문 취소	general
+계좌이체	무통장 입금	general
+무이자	무이자 할부	general
+깨짐	파손	general
+깨졌	파손	general
+박살	파손	general
+없어졌	분실	general
+안 왔	배송 지연	general
+안왔	배송 지연	general
+늦게 와	배송 지연	general
+다른 거 왔	오배송	general
+다른거 왔	오배송	general
+엉뚱한 거	오배송	general
+배송조회	주문/배송 조회	general
+송장	배송 현황	general
+주소변경	배송지 변경	general
+주소 변경	배송지 변경	general
+고객센타	고객센터	general
+상담시간	고객센터 운영 시간	general
+운영시간	운영 시간	general
+토요일	주말	general
+일요일	주말	general
+공휴일	주말 및 공휴일	general
+회원탈퇴	회원 탈퇴	general
+등급업	회원 등급	general
+재입고	재입고 알림	general
+품절	품절 재고	general
+법인카드	법인/사업자 결제	general
+사업자	법인/사업자	general
+가상계좌	무통장 입금 가상계좌	manual
+간편결제	카카오페이 네이버페이 토스페이	manual
+구매확정	구매 확정	manual
+하자	상품 하자	manual
+불량	상품 불량	manual
+택배함	무인 택배함	manual
+제주도	도서산간	calibration
+경비실	경비실 배치	calibration
+인스타	SNS	calibration
+페북	SNS	calibration
+트위터	SNS	calibration
+전화 달라	콜백	calibration
+전화달라	콜백	calibration
+자주 묻는	FAQ 자주 묻는 질문	calibration
+세 번째	반복 민원	calibration
+속옷	속옷 식품 디지털 콘텐츠	calibration
