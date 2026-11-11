@@ -11,6 +11,7 @@ import com.aicsassistant.analysis.agent.interceptor.OrderProvenanceInterceptor;
 import com.aicsassistant.analysis.agent.interceptor.RefundGuardrailInterceptor;
 import com.aicsassistant.analysis.application.ManualRetrievalService;
 import com.aicsassistant.analysis.application.PromptFactory;
+import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
@@ -55,7 +56,8 @@ class InquiryAgentServiceTest {
     void returnsFinalAnswerOnFirstStep() {
         givenLlmResponds(finalAnswer("환불은 3일 이내 처리됩니다.", "REFUND", "LOW", false));
 
-        AgentResult result = agentService.run(inquiry("환불 문의"), List.of());
+        // 선주입된 주문이 근거가 된다 — 근거 없는 자동 답변은 경계가 막으므로(ADR 0011) 근거를 준다
+        AgentResult result = agentService.run(inquiryWithOrder("환불 문의"), List.of());
 
         assertThat(result).isInstanceOf(AgentResult.FinalAnswer.class);
         AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
@@ -95,7 +97,7 @@ class InquiryAgentServiceTest {
     void stripsMarkdownFenceFromLlmResponse() {
         givenLlmResponds("```json\n" + finalAnswer("마크다운 제거 테스트", "GENERAL", "LOW", false) + "\n```");
 
-        AgentResult result = agentService.run(inquiry("일반 문의"), List.of());
+        AgentResult result = agentService.run(inquiryWithOrder("일반 문의"), List.of());
 
         assertThat(result).isInstanceOf(AgentResult.FinalAnswer.class);
         assertThat(((AgentResult.FinalAnswer) result).answer()).isEqualTo("마크다운 제거 테스트");
@@ -420,6 +422,79 @@ class InquiryAgentServiceTest {
         assertThat(((AgentResult.FinalAnswer) result).needsHumanReview()).isTrue();
     }
 
+    // --- 근거 경계 (ADR 0011) ---
+
+    @Test
+    void blocksAutoAnswerWhenNoToolWasCalled() {
+        givenLlmResponds(finalAnswer("강남점은 3시간 무료 주차입니다.", "GENERAL", "LOW", false));
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) agentService.run(inquiry("강남점 주차"), List.of());
+
+        assertThat(answer.needsHumanReview()).isTrue();
+        assertThat(answer.answer()).isEqualTo(InquiryAgentService.NO_EVIDENCE_BRIEFING).doesNotContain("3시간");
+        assertThat(answer.reason()).startsWith("[근거 없음");
+    }
+
+    @Test
+    void blocksAutoAnswerWhenSearchFoundNothing() {
+        givenLlmResponds(
+                toolCall("search_manual", "{\"query\":\"다크모드\"}"),
+                finalAnswer("설정 메뉴에서 켜시면 됩니다.", "GENERAL", "LOW", false));
+        when(manualRetrievalService.retrieve(any())).thenReturn(List.of());
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) agentService.run(inquiry("다크모드 어디서 켜요"), List.of());
+
+        assertThat(answer.needsHumanReview()).isTrue();
+        assertThat(answer.answer()).isEqualTo(InquiryAgentService.NO_EVIDENCE_BRIEFING);
+    }
+
+    @Test
+    void allowsAutoAnswerGroundedInRetrievedManual() {
+        givenLlmResponds(
+                toolCall("search_manual", "{\"query\":\"배송비\"}"),
+                finalAnswer("30,000원 이상 무료배송입니다.", "DELIVERY", "LOW", false));
+        when(manualRetrievalService.retrieve(any())).thenReturn(List.of(new RetrievedManualChunkDto(
+                1L, 1L, "배송 정책", "DELIVERY", 0, 1, 10, "배송비는 30,000원 이상 구매 시 무료")));
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) agentService.run(inquiry("배송비 얼마"), List.of());
+
+        assertThat(answer.needsHumanReview()).isFalse();
+        assertThat(answer.answer()).isEqualTo("30,000원 이상 무료배송입니다.");
+    }
+
+    @Test
+    void allowsAutoAnswerGroundedInOrderLookup() {
+        givenLlmResponds(
+                toolCall("check_order_status", "{\"orderId\":\"ORD-20260410-001\"}"),
+                finalAnswer("배송 중입니다.", "DELIVERY", "LOW", false));
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) agentService.run(inquiry("ORD-20260410-001 어디쯤"), List.of());
+
+        assertThat(answer.needsHumanReview()).isFalse();
+    }
+
+    @Test
+    void failedOrderLookupIsNotEvidence() {
+        // 남의 주문(cust-002 소유)은 NOT_FOUND 다 — 조회 시도만으로는 근거가 아니다
+        givenLlmResponds(
+                toolCall("check_order_status", "{\"orderId\":\"ORD-20260401-004\"}"),
+                finalAnswer("해당 주문은 확인되지 않습니다.", "ORDER", "LOW", false));
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) agentService.run(inquiry("ORD-20260401-004 상태"), List.of());
+
+        assertThat(answer.needsHumanReview()).isTrue();
+    }
+
+    @Test
+    void keepsModelBriefingWhenModelAlreadyRoutedToHuman() {
+        givenLlmResponds(finalAnswer("고객이 법적 대응을 언급했습니다. 상담사 확인 필요.", "COMPLAINT", "HIGH", true));
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) agentService.run(inquiry("소비자원에 신고할게요"), List.of());
+
+        assertThat(answer.answer()).contains("법적 대응");
+        assertThat(answer.reason()).doesNotContain("[근거 없음");
+    }
+
     // --- helpers ---
 
     /**
@@ -467,5 +542,10 @@ class InquiryAgentServiceTest {
 
     private static Inquiry inquiry(String content) {
         return Inquiry.create("cust-001", "테스트 문의", content);
+    }
+
+    /** 고객 자기 주문이 선주입되는 문의. 주문 정보가 근거가 된다. */
+    private static Inquiry inquiryWithOrder(String content) {
+        return Inquiry.create("cust-001", "테스트 문의", content, null, null, "ORD-20260410-001");
     }
 }

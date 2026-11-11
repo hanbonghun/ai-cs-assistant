@@ -15,6 +15,7 @@ public final class ToolCallContext {
     private int toolCallCount;
     private final Set<String> observedOrderIds = new HashSet<>();
     private boolean stagedChange;
+    private boolean orderEvidence;
 
     public ToolCallContext(Long inquiryId, String customerIdentifier) {
         this.inquiryId = inquiryId;
@@ -44,6 +45,19 @@ public final class ToolCallContext {
 
     public boolean hasObservedOrder(String orderId) {
         return observedOrderIds.contains(orderId);
+    }
+
+    /**
+     * 주문 조회가 이번 실행에서 한 번이라도 성공했음을 표시한다. 근거 경계({@code InquiryAgentService})가 근거 유무를
+     * 가르는 데 쓴다. provenance 기록({@link #recordObservedOrder})과 따로 두는 이유: 그쪽은 인터셉터 구성에 따라
+     * 달라지지만, 근거 유무는 인터셉터가 없어도 같아야 한다.
+     */
+    public void markOrderEvidence() {
+        orderEvidence = true;
+    }
+
+    public boolean hasOrderEvidence() {
+        return orderEvidence;
     }
 
     /** 이번 실행에서 제안이 접수되었음을 표시한다. finalAnswer의 상담사 검토를 강제하는 데 쓴다. */
