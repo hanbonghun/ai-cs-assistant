@@ -103,6 +103,9 @@ alter table staged_change add column if not exists approved_amount integer;
 -- 동시 승인 방지용 낙관적 잠금 버전. 두 상담사가 같은 제안을 동시에 승인/거부하는 것을 막는다.
 alter table staged_change add column if not exists version bigint not null default 0;
 
+-- 공개 범위 (ADR 0012). 기존 행은 고객용으로 남는다 — 상담사용 지정은 운영 데이터에서 따로 한다.
+alter table manual_document add column if not exists visibility varchar(20) not null default 'CUSTOMER';
+
 -- 한 주문에 대해 PENDING 제안이 두 건 만들어져 각각 다른 트랜잭션에서 승인되는 경합을 막는다.
 -- @Version 은 같은 행에 대한 동시 결정만 막을 뿐, 서로 다른 행(제안) 두 개가 같은 주문을
 -- 동시에 환불하는 것은 막지 못한다. APPROVED 상태에만 유니크를 걸어야 한다 — PENDING 에

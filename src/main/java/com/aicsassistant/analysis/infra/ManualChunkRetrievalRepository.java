@@ -2,6 +2,7 @@ package com.aicsassistant.analysis.infra;
 
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.analysis.dto.ScoredManualChunk;
+import com.aicsassistant.manual.domain.ManualVisibility;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +43,8 @@ public class ManualChunkRetrievalRepository {
         return Boolean.TRUE.equals(exists);
     }
 
-    public List<ScoredManualChunk> findVectorCandidates(List<Double> queryEmbedding, int limit) {
+    /** 후보는 모두 {@code visibility} 로 거른다 — 공개 범위가 검색 단계에서 갈려야 모델이 보지 않는다 (ADR 0012). */
+    public List<ScoredManualChunk> findVectorCandidates(List<Double> queryEmbedding, int limit, ManualVisibility visibility) {
         String vectorLiteral = toVectorLiteral(queryEmbedding);
         return jdbcTemplate.query("""
                 select
@@ -60,9 +62,10 @@ public class ManualChunkRetrievalRepository {
                 where md.active = true
                   and mc.active = true
                   and mc.embedding is not null
+                  and md.visibility = ?
                 order by mc.embedding <=> cast(? as vector), mc.id
                 limit ?
-                """, scoredChunkRowMapper(), vectorLiteral, vectorLiteral, limit);
+                """, scoredChunkRowMapper(), vectorLiteral, visibility.name(), vectorLiteral, limit);
     }
 
     /**
@@ -75,7 +78,8 @@ public class ManualChunkRetrievalRepository {
      * 함께 동작한다 ({@code gin_trgm_ops} GIN 인덱스 활용).
      */
     @Transactional(propagation = Propagation.MANDATORY, readOnly = true)
-    public List<ScoredManualChunk> findKeywordCandidates(String cleanedQuery, double threshold, int limit) {
+    public List<ScoredManualChunk> findKeywordCandidates(
+            String cleanedQuery, double threshold, int limit, ManualVisibility visibility) {
         jdbcTemplate.execute("set local pg_trgm.word_similarity_threshold = " + threshold);
         return jdbcTemplate.query("""
                 select
@@ -92,10 +96,11 @@ public class ManualChunkRetrievalRepository {
                 join manual_document md on md.id = mc.manual_document_id
                 where md.active = true
                   and mc.active = true
+                  and md.visibility = ?
                   and cast(? as text) <% mc.content
                 order by cast(? as text) <<-> mc.content, mc.id
                 limit ?
-                """, scoredChunkRowMapper(), cleanedQuery, cleanedQuery, cleanedQuery, limit);
+                """, scoredChunkRowMapper(), cleanedQuery, visibility.name(), cleanedQuery, cleanedQuery, limit);
     }
 
     /**
@@ -126,7 +131,7 @@ public class ManualChunkRetrievalRepository {
         return scores;
     }
 
-    public List<RetrievedManualChunkDto> findFallbackTopK(int limit) {
+    public List<RetrievedManualChunkDto> findFallbackTopK(int limit, ManualVisibility visibility) {
         return jdbcTemplate.query("""
                 select
                     mc.id,
@@ -141,9 +146,10 @@ public class ManualChunkRetrievalRepository {
                 join manual_document md on md.id = mc.manual_document_id
                 where md.active = true
                   and mc.active = true
+                  and md.visibility = ?
                 order by mc.id, mc.chunk_index
                 limit ?
-                """, fallbackRowMapper(), limit);
+                """, fallbackRowMapper(), visibility.name(), limit);
     }
 
     private RowMapper<ScoredManualChunk> scoredChunkRowMapper() {

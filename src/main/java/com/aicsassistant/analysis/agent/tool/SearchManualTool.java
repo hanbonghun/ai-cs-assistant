@@ -5,6 +5,7 @@ import com.aicsassistant.analysis.agent.ToolErrorCategory;
 import com.aicsassistant.analysis.agent.ToolParam;
 import com.aicsassistant.analysis.agent.ToolResult;
 import com.aicsassistant.analysis.application.ManualRetrievalService;
+import com.aicsassistant.analysis.application.PromptFactory;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +62,7 @@ public class SearchManualTool implements AgentTool<SearchManualTool.Input> {
 
     @Override
     public String successOutputHint() {
-        return "Newline-separated policy chunks formatted as '[<title> / <category>]\\n<content>' joined by '\\n\\n---\\n\\n'. "
+        return "Policy chunks, each wrapped as '<<<REFERENCE_DOCUMENT>>>\\n[<title> / <category>]\\n<content>\\n<<<END_REFERENCE_DOCUMENT>>>'. "
                 + "If no chunks match the query, data is the literal string 'No relevant policy documents found for this query.' (this is still ok=true).";
     }
 
@@ -89,11 +90,19 @@ public class SearchManualTool implements AgentTool<SearchManualTool.Input> {
             return ToolResult.success("No relevant policy documents found for this query.");
         }
 
+        // 청크마다 울타리를 친다 — 본문에 심긴 지시가 Observation(신뢰 채널) 안에서 지시로 읽히지 않게 (ADR 0012)
         String formatted = chunks.stream()
-                .map(c -> "[%s / %s]\n%s".formatted(
+                .map(c -> PromptFactory.fenceReferenceDocument(
                         c.manualDocumentTitle(), c.manualCategory(), c.content()))
-                .collect(Collectors.joining("\n\n---\n\n"));
+                .collect(Collectors.joining("\n\n"));
         return ToolResult.success(formatted);
+    }
+
+    /**
+     * 상담사 전용 문서에서 참고 근거를 찾는다. 결과는 모델에게 가지 않는다 — 상담사에게 넘어간 건의 화면에만 붙는다.
+     */
+    public List<RetrievedManualChunkDto> counselorReferences(String inquiryContent) {
+        return manualRetrievalService.retrieveCounselorReferences(inquiryContent);
     }
 
     /** Returns all chunks retrieved across every call during this agent run. */

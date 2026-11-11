@@ -115,8 +115,8 @@ public class InquiryAgentService {
 
                 if (node.has("finalAnswer")) {
                     log.info("[Agent done] inquiryId={} steps={} totalTokens={}", inquiry.getId(), step, totalTokens);
-                    AgentResult.FinalAnswer result = buildFinalAnswer(
-                            node, steps, toolset.manual().getCollectedChunks(), totalTokens, callContext);
+                    AgentResult.FinalAnswer result = attachCounselorReferences(buildFinalAnswer(
+                            node, steps, toolset.manual().getCollectedChunks(), totalTokens, callContext), inquiry, toolset);
                     trace.recordAnswer(result, AgentTrace.OUTCOME_FINAL_ANSWER, totalTokens, step + 1);
                     return result;
                 }
@@ -196,6 +196,7 @@ public class InquiryAgentService {
             answer = syntheticBriefing(inquiry, steps, toolset.manual().getCollectedChunks(), tokens);
         }
 
+        answer = attachCounselorReferences(answer, inquiry, toolset);
         log.info("[Agent forced final] inquiryId={} steps={} totalTokens={} synthetic={}",
                 inquiry.getId(), steps.size(), tokens, synthetic);
         trace.recordAnswer(
@@ -204,6 +205,26 @@ public class InquiryAgentService {
                 tokens,
                 steps.size());
         return answer;
+    }
+
+    /**
+     * 상담사에게 넘어가는 건에만 상담사 전용 문서를 참고 근거로 붙인다 (ADR 0012).
+     *
+     * <p>모델 루프가 끝난 뒤라 모델은 이 문서를 보지 못한다 — 고객에게 나갈 답의 재료가 될 길이 없다. 자동 답변 건은
+     * 고객에게 바로 나가므로 붙이지 않는다. 참고 근거는 부가 정보라 검색이 실패해도 답은 그대로 둔다.
+     */
+    private AgentResult.FinalAnswer attachCounselorReferences(
+            AgentResult.FinalAnswer answer, Inquiry inquiry, AgentToolFactory.Toolset toolset) {
+        if (!answer.routedToCounselor()) {
+            return answer;
+        }
+        try {
+            List<RetrievedManualChunkDto> refs = toolset.manual().counselorReferences(inquiry.getContent());
+            return refs.isEmpty() ? answer : answer.withCounselorReferences(refs);
+        } catch (RuntimeException e) {
+            log.warn("[Agent] 상담사 참고 근거 검색 실패 inquiryId={}", inquiry.getId(), e);
+            return answer;
+        }
     }
 
     /** LLM이 마지막 라운드에서도 형식을 못 맞춘 경우의 결정론적 대체 결과. */

@@ -38,6 +38,10 @@ public class ManualDocument {
     @Column(nullable = false)
     private boolean active;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private ManualVisibility visibility;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -48,7 +52,13 @@ public class ManualDocument {
     }
 
     public static ManualDocument create(String title, InquiryCategory category, String content) {
+        return create(title, category, content, ManualVisibility.CUSTOMER);
+    }
+
+    public static ManualDocument create(
+            String title, InquiryCategory category, String content, ManualVisibility visibility) {
         ManualDocument document = new ManualDocument();
+        document.visibility = visibility;
         document.title = title;
         document.category = category;
         document.content = content;

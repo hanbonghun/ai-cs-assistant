@@ -134,6 +134,9 @@ class LiveRagEvaluationTest extends PostgresVectorIntegrationTest {
                 agent.put("needsEscalation", f.needsEscalation());
                 agent.put("category", f.category());
                 agent.put("reason", f.reason());
+                // 모델이 보지 않은 상담사 전용 참고 근거 (ADR 0012). 고객에게 나가는 답의 근거와 섞지 않는다
+                agent.put("counselorReferenceTitles", f.counselorReferences().stream()
+                        .map(RetrievedManualChunkDto::manualDocumentTitle).distinct().toList());
             } else {
                 AgentResult.FollowUpQuestion q = (AgentResult.FollowUpQuestion) result;
                 outcome = Outcome.FOLLOW_UP;

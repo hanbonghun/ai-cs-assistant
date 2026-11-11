@@ -53,7 +53,7 @@ public class ManualService {
 
         return txTemplate.execute(status -> {
             ManualDocument saved = manualDocumentRepository.save(ManualDocument.create(
-                    request.title(), request.category(), request.content()));
+                    request.title(), request.category(), request.content(), request.visibility()));
             manualChunkJdbcRepository.replaceActiveChunks(saved.getId(), saved.getVersion(), chunks);
             return toResponse(saved);
         });

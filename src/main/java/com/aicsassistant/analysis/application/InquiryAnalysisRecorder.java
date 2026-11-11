@@ -84,11 +84,12 @@ public class InquiryAnalysisRecorder {
                     inquiry.getId(), inquiry.getCategory(), inquiry.getUrgency());
         }
 
-        analysisLogService.completeSuccess(ctx.logId(), category, urgency, fa.retrievedChunks(),
+        // 상담사 화면에는 상담사 전용 참고 근거까지 보인다. 자동 답변 건은 참고 근거가 붙지 않는다 (ADR 0012)
+        analysisLogService.completeSuccess(ctx.logId(), category, urgency, fa.evidenceForCounselor(),
                 draft, fa.steps(), ctx.startedAtMillis(), fa.totalTokens());
 
         InquiryAnalysisResponse response = InquiryAnalysisResponse.of(
-                inquiry, category, urgency, fa.retrievedChunks(), draft);
+                inquiry, category, urgency, fa.evidenceForCounselor(), draft);
         return new PersistedFinalAnswer(response, inquiry);
     }
 

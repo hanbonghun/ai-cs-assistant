@@ -548,4 +548,35 @@ class InquiryAgentServiceTest {
     private static Inquiry inquiryWithOrder(String content) {
         return Inquiry.create("cust-001", "테스트 문의", content, null, null, "ORD-20260410-001");
     }
+
+    // --- 상담사 참고 근거 (ADR 0012) ---
+
+    @Test
+    void attachesInternalReferencesOnlyWhenRoutedToCounselor() {
+        givenLlmResponds(finalAnswer("고객이 상담원 응대에 항의합니다. 상담사 확인 필요.", "COMPLAINT", "HIGH", true));
+        RetrievedManualChunkDto internal = new RetrievedManualChunkDto(
+                9L, 90L, "고객 불만 및 민원 처리 기준", "COMPLAINT", 0, 1, 50, "팀장급 이상에게 에스컬레이션");
+        when(manualRetrievalService.retrieveCounselorReferences(any())).thenReturn(List.of(internal));
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) agentService.run(inquiry("상담원이 불친절했어요"), List.of());
+
+        assertThat(answer.counselorReferences()).containsExactly(internal);
+        assertThat(answer.retrievedChunks()).doesNotContain(internal);
+        assertThat(answer.evidenceForCounselor()).contains(internal);
+    }
+
+    @Test
+    void neverSearchesInternalDocumentsForAutoAnswers() {
+        givenLlmResponds(
+                toolCall("search_manual", "{\"query\":\"배송비\"}"),
+                finalAnswer("30,000원 이상 무료배송입니다.", "DELIVERY", "LOW", false));
+        when(manualRetrievalService.retrieve(any())).thenReturn(List.of(new RetrievedManualChunkDto(
+                1L, 1L, "배송 정책", "DELIVERY", 0, 1, 10, "배송비는 30,000원 이상 구매 시 무료")));
+
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) agentService.run(inquiry("배송비 얼마"), List.of());
+
+        assertThat(answer.needsHumanReview()).isFalse();
+        assertThat(answer.counselorReferences()).isEmpty();
+        org.mockito.Mockito.verify(manualRetrievalService, org.mockito.Mockito.never()).retrieveCounselorReferences(any());
+    }
 }
