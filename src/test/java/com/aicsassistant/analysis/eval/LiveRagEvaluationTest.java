@@ -153,6 +153,8 @@ class LiveRagEvaluationTest extends PostgresVectorIntegrationTest {
         agent.put("answer", answer);
         agent.put("tools", tools);
         agent.put("toolInputs", steps.stream().map(AgentStep::actionInput).toList());
+        // 관측 원문 — 기준선에는 없어서 재채점 때 근거 텍스트를 복원할 수 없었다
+        agent.put("observations", steps.stream().map(AgentStep::observation).toList());
         agent.put("evidenceCovered", LiveEvalScorer.evidenceRanks(c.expectedEvidence(), collectedContents).stream()
                 .map(r -> r > 0).toList());
         agent.put("staleLeaks", leaks(c.staleMarkers(), collectedContents));
@@ -165,16 +167,12 @@ class LiveRagEvaluationTest extends PostgresVectorIntegrationTest {
         row.put("agent", agent);
 
         // 3) 채점 — 규칙 기반은 항목별로 따로 남기고 합치지 않는다.
-        Map<String, Object> checks = new LinkedHashMap<>();
-        checks.put("mustIncludeMissing", LiveEvalScorer.missing(answer, c.mustInclude()));
-        checks.put("forbiddenHits", LiveEvalScorer.hits(answer, c.forbidden()));
-        checks.put("routingOk", c.expectedRouting() == LiveEvalCase.Routing.ANY
-                ? null : LiveEvalScorer.routingMatches(c.expectedRouting(), outcome));
-        checks.put("toolsOk", c.mustCallTools().isEmpty() ? null : Set.copyOf(tools).containsAll(c.mustCallTools()));
-        checks.put("abstained", c.expectAbstain() ? LiveEvalScorer.abstained(answer, outcome) : null);
-        checks.put("deflected", LiveEvalScorer.deflected(answer));
+        Map<String, Object> checks = LiveEvalScorer.checks(c, answer, outcome, tools,
+                collected.stream().map(RetrievedManualChunkDto::manualDocumentTitle).distinct().toList(), today.toString());
         row.put("checks", checks);
         row.put("expected", Map.of(
+                "abstain", c.expectAbstain(),
+                "mustCallTools", c.mustCallTools(),
                 "routing", c.expectedRouting().name(),
                 "mustInclude", c.mustInclude(),
                 "forbidden", c.forbidden(),
@@ -275,6 +273,8 @@ class LiveRagEvaluationTest extends PostgresVectorIntegrationTest {
         meta.put("promptVersion", promptFactory.promptVersion());
         meta.put("caseCount", caseCount);
         meta.put("caseFilter", System.getProperty("liveEval.ids", ""));
+        meta.put("scorerVersion", LiveEvalScorer.VERSION);
+        meta.put("label", System.getProperty("liveEval.label", ""));
         meta.put("judge", judgeEnabled ? aiProperties.getModel() + " (에이전트와 같은 모델)" : "off");
         meta.put("activeDocuments", docCount);
         meta.put("activeChunks", chunkContents.size());

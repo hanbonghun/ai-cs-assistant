@@ -51,7 +51,7 @@ dependencies {
 tasks.named('test') {
     // 실측 평가·보정은 API 비용이 든다 — 기본 빌드에서 빼고 liveEval · liveCalibrate 로만 돌린다 (ADR 0010)
     useJUnitPlatform {
-        excludeTags 'live-eval', 'live-calibration'
+        excludeTags 'live-eval', 'live-calibration', 'live-rescore'
     }
 }
 
@@ -73,6 +73,8 @@ def liveTestTask = { String name, String tag, String desc ->
         }
         systemProperty 'liveEval.ids', findProperty('ids') ?: ''
         systemProperty 'liveEval.judge', findProperty('judge') ?: 'true'
+        systemProperty 'liveEval.label', findProperty('label') ?: ''
+        systemProperty 'liveEval.labels', findProperty('labels') ?: ''
         outputs.upToDateWhen { false }
         testLogging {
             showStandardStreams = true
@@ -84,3 +86,5 @@ def liveTestTask = { String name, String tag, String desc ->
 liveTestTask('liveEval', 'live-eval', 'Runs the live RAG evaluation set against real OpenAI models (costs money).')
 // vector 임계값 보정. 임베딩만 부른다.
 liveTestTask('liveCalibrate', 'live-calibration', 'Measures real embedding similarity distribution for threshold calibration.')
+// 저장된 실행을 현재 채점기로 다시 매긴다. 모델·DB 를 쓰지 않는다. 라벨: -Plabels=20261112-062310=기준선,...
+liveTestTask('liveRescore', 'live-rescore', 'Rescores saved live-eval runs with the current scorer (no API calls).')

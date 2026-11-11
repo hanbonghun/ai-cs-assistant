@@ -52,6 +52,8 @@ public final class LiveEvalReport {
             "g.routing", "라우팅 일치",
             "g.abstain", "근거 없을 때 거절·이관",
             "g.grounded", "근거 일치 (judge)",
+            "g.ungrounded", "근거 0건인데 수치 단정 ↓",
+            "g.noEvidence", "근거 0건 비율 (참고)",
             "g.deflection", "고객센터 떠넘기기 ↓",
             "g.error", "실행 오류 ↓");
 
@@ -72,12 +74,16 @@ public final class LiveEvalReport {
             throws IOException {
         String stamp = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         Path dir = runsDir.resolve(stamp + "_" + meta.get("git"));
-        Files.createDirectories(dir);
-
         List<JsonNode> cases = rows.stream().map(r -> (JsonNode) mapper.valueToTree(r)).toList();
-        Map<String, Map<String, Object>> metrics = metrics(cases);
-        Optional<JsonNode> previous = previousMetrics(runsDir, dir, mapper);
+        writeTo(dir, meta, cases, previousMetrics(runsDir, dir, mapper), mapper);
+        return dir;
+    }
 
+    /** 실행 결과(또는 재채점 결과)를 {@code dir} 에 쓴다. */
+    static void writeTo(Path dir, Map<String, Object> meta, List<JsonNode> cases, Optional<JsonNode> previous,
+                        ObjectMapper mapper) throws IOException {
+        Files.createDirectories(dir);
+        Map<String, Map<String, Object>> metrics = metrics(cases);
         try (var out = Files.newBufferedWriter(dir.resolve("cases.jsonl"))) {
             for (JsonNode c : cases) {
                 out.write(mapper.writeValueAsString(c));
@@ -89,7 +95,66 @@ public final class LiveEvalReport {
         metricsFile.put("metrics", metrics);
         mapper.writerWithDefaultPrettyPrinter().writeValue(dir.resolve("metrics.json").toFile(), metricsFile);
         Files.writeString(dir.resolve("summary.md"), summary(meta, metrics, previous, cases));
-        return dir;
+    }
+
+    /**
+     * 실행 디렉터리에서 현재 채점기 버전의 지표 파일을 찾는다. 재채점본({@code rescore-v<버전>/})이 있으면 그쪽을,
+     * 없으면 원본을 쓰되 버전이 다르면 버린다 — 다른 잣대로 매긴 숫자를 나란히 놓지 않기 위해서다.
+     */
+    static Optional<JsonNode> currentVersionMetrics(Path runDir, ObjectMapper mapper) throws IOException {
+        for (Path candidate : List.of(runDir.resolve("rescore-v" + LiveEvalScorer.VERSION).resolve("metrics.json"),
+                runDir.resolve("metrics.json"))) {
+            if (Files.exists(candidate)) {
+                JsonNode node = mapper.readTree(candidate.toFile());
+                if (LiveEvalScorer.VERSION.equals(node.path("meta").path("scorerVersion").asText())) {
+                    ((com.fasterxml.jackson.databind.node.ObjectNode) node).put("dir", runDir.getFileName().toString());
+                    return Optional.of(node);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** 여러 실행을 한 표에 둔다. 셀은 값(분자/분모). */
+    static String comparison(List<JsonNode> runs, Map<String, String> labels) {
+        StringBuilder sb = new StringBuilder("# 실측 평가 실행 비교 (채점기 v" + LiveEvalScorer.VERSION + ")\n\n");
+        sb.append("같은 채점기로 매긴 실행만 나란히 둔다. 기준선·변경 1 은 원자료를 재채점한 값이다(모델 재호출 없음).\n\n");
+        sb.append("| 실행 | 라벨 | 커밋 | 프롬프트 |\n|---|---|---|---|\n");
+        for (JsonNode r : runs) {
+            sb.append("| ").append(r.path("dir").asText()).append(" | ").append(r.path("label").asText("")).append(" | ")
+                    .append(r.path("meta").path("git").asText()).append(" | ").append(r.path("meta").path("promptVersion").asText())
+                    .append(" |\n");
+        }
+        for (String g : GROUPS) {
+            sb.append("\n## ").append(groupName(g)).append("\n\n| 지표 |");
+            runs.forEach(r -> sb.append(' ').append(r.path("label").asText(r.path("dir").asText())).append(" |"));
+            sb.append("\n|---|").append("---|".repeat(runs.size())).append('\n');
+            labels.forEach((key, label) -> {
+                sb.append("| ").append(label).append(" |");
+                for (JsonNode r : runs) {
+                    JsonNode v = r.path("metrics").path(g).path(key);
+                    sb.append(' ').append(v.path("value").isNull() || v.isMissingNode()
+                            ? "—" : v.path("value").asText() + " (" + v.path("num").asText() + "/" + v.path("den").asText() + ")").append(" |");
+                }
+                sb.append('\n');
+            });
+        }
+        return sb.toString();
+    }
+
+    static Map<String, String> ratioLabels() {
+        return RATIO_LABELS;
+    }
+
+    private static String groupName(String g) {
+        return switch (g) {
+            case "STALE" -> "개정·종료";
+            case "PARAPHRASE" -> "다른 표현";
+            case "COMPOSITE" -> "복합";
+            case "INJECTION" -> "인젝션";
+            case "OUT_OF_SCOPE" -> "범위 밖";
+            default -> "전체";
+        };
     }
 
     // ---------- 지표 ----------
@@ -131,6 +196,10 @@ public final class LiveEvalReport {
         m.put("g.abstain", nullableRatio(cs, "abstained", true));
         List<JsonNode> judged = cs.stream().filter(c -> c.path("judge").has("grounded")).toList();
         m.put("g.grounded", ratio(count(judged, c -> c.path("judge").path("grounded").asBoolean()), judged.size()));
+        List<JsonNode> noEvidence2 = cs.stream().filter(c -> c.path("checks").path("noEvidence").asBoolean()).toList();
+        m.put("g.ungrounded", ratio(count(noEvidence2,
+                c -> !c.path("checks").path("ungroundedSpecifics").isEmpty()), noEvidence2.size()));
+        m.put("g.noEvidence", ratio(noEvidence2.size(), cs.size()));
         m.put("g.deflection", ratio(count(cs, c -> c.path("checks").path("deflected").asBoolean()), cs.size()));
         m.put("g.error", ratio(count(cs, c -> "ERROR".equals(c.path("agent").path("outcome").asText())), cs.size()));
 
@@ -199,18 +268,20 @@ public final class LiveEvalReport {
         if (!Files.isDirectory(runsDir)) {
             return Optional.empty();
         }
+        List<Path> earlier;
         try (Stream<Path> dirs = Files.list(runsDir)) {
-            Optional<Path> prev = dirs
-                    .filter(p -> !p.equals(current) && Files.exists(p.resolve("metrics.json")))
+            earlier = dirs.filter(Files::isDirectory)
                     .filter(p -> p.getFileName().toString().compareTo(current.getFileName().toString()) < 0)
-                    .max(Path::compareTo);
-            if (prev.isEmpty()) {
-                return Optional.empty();
-            }
-            JsonNode node = mapper.readTree(prev.get().resolve("metrics.json").toFile());
-            ((com.fasterxml.jackson.databind.node.ObjectNode) node).put("dir", prev.get().getFileName().toString());
-            return Optional.of(node);
+                    .sorted(java.util.Comparator.reverseOrder())
+                    .toList();
         }
+        for (Path p : earlier) {
+            Optional<JsonNode> m = currentVersionMetrics(p, mapper);
+            if (m.isPresent()) {
+                return m;
+            }
+        }
+        return Optional.empty();
     }
 
     // ---------- 요약 ----------
