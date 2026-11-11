@@ -1,0 +1,60 @@
+{"query":"주문번호는 어떤 형식으로 나오나요?","expectedTitle":"주문 처리 정책"}
+{"query":"오후 1시에 주문하면 오늘 출고되나요","expectedTitle":"주문 처리 정책"}
+{"query":"품절이라 주문이 보류됐는데 연락 안 하면 어떻게 돼요","expectedTitle":"주문 처리 정책"}
+{"query":"해외 주소로 배송 받을 수 있나요","expectedTitle":"주문 처리 정책"}
+{"query":"제주도는 배송이 며칠 더 걸려요?","expectedTitle":"배송 정책 및 오배송 처리 기준"}
+{"query":"경비실에 맡겨 달라고 했는데 없어졌어요 책임은요","expectedTitle":"배송 정책 및 오배송 처리 기준"}
+{"query":"다른 사람 물건이 왔어요 재배송은 언제 되나요","expectedTitle":"배송 정책 및 오배송 처리 기준"}
+{"query":"택배 지연 보상으로 쿠폰 주나요","expectedTitle":"배송 정책 및 오배송 처리 기준"}
+{"query":"속옷도 반품 되나요","expectedTitle":"반품 정책 및 처리 기준"}
+{"query":"반품 택배는 어느 회사가 가져가요","expectedTitle":"반품 정책 및 처리 기준"}
+{"query":"반품 보낸 뒤 검수는 며칠 걸리나요","expectedTitle":"반품 정책 및 처리 기준"}
+{"query":"반품 거절당했는데 이의 제기 기간 있어요?","expectedTitle":"반품 정책 및 처리 기준"}
+{"query":"교환하려는 색상이 품절이면 어떻게 처리되나요","expectedTitle":"교환 정책 및 처리 기준"}
+{"query":"교환 접수하면 새 상품은 언제 보내줘요","expectedTitle":"교환 정책 및 처리 기준"}
+{"query":"단순 변심 교환은 재고 없으면 안 되나요","expectedTitle":"교환 정책 및 처리 기준"}
+{"query":"세트 중 하나만 취소하면 할인은 어떻게 계산돼요","expectedTitle":"환불 처리 정책 및 소요 기간"}
+{"query":"무통장으로 냈는데 환불은 어디로 들어와요","expectedTitle":"환불 처리 정책 및 소요 기간"}
+{"query":"환불이 일주일째 안 들어와요 빨리 처리 안 되나요","expectedTitle":"환불 처리 정책 및 소요 기간"}
+{"query":"네이버페이로 결제한 거 환불 기간","expectedTitle":"환불 처리 정책 및 소요 기간"}
+{"query":"토스페이 결제 지원하나요","expectedTitle":"결제 수단 및 오류 처리 정책"}
+{"query":"카드 정보를 서버에 저장하나요?","expectedTitle":"결제 수단 및 오류 처리 정책"}
+{"query":"미성년자 아이가 결제한 걸 취소하고 싶어요","expectedTitle":"결제 수단 및 오류 처리 정책"}
+{"query":"PG 오류로 결제가 실패했어요","expectedTitle":"결제 수단 및 오류 처리 정책"}
+{"query":"알레르기 성분은 어디에 표시돼요","expectedTitle":"상품 정보 및 재고 관련 정책"}
+{"query":"상세페이지 소재 표기가 실제랑 달라요 보상 있나요","expectedTitle":"상품 정보 및 재고 관련 정책"}
+{"query":"판매 종료된 상품 대신 살 만한 거 있어요?","expectedTitle":"상품 정보 및 재고 관련 정책"}
+{"query":"모니터로 본 색이랑 실물 색이 좀 달라요","expectedTitle":"상품 정보 및 재고 관련 정책"}
+{"query":"회원 등급은 언제 바뀌어요","expectedTitle":"회원 혜택, 포인트 및 쿠폰 정책"}
+{"query":"포인트 최소 몇 점부터 쓸 수 있어요","expectedTitle":"회원 혜택, 포인트 및 쿠폰 정책"}
+{"query":"결제할 때 포인트로 전액 낼 수 있나요","expectedTitle":"회원 혜택, 포인트 및 쿠폰 정책"}
+{"query":"쿠폰 받은 지 한 달 지났는데 아직 쓸 수 있어요?","expectedTitle":"회원 혜택, 포인트 및 쿠폰 정책"}
+{"query":"쿠폰이 결제창에서 안 먹혀요","expectedTitle":"회원 혜택, 포인트 및 쿠폰 정책"}
+{"query":"상담원이 불친절했어요 항의하고 싶어요","expectedTitle":"고객 불만 및 민원 처리 기준"}
+{"query":"같은 문제로 세 번째 문의하는 건데요","expectedTitle":"고객 불만 및 민원 처리 기준"}
+{"query":"인스타에 올라온 불만 글은 어떻게 대응해요","expectedTitle":"고객 불만 및 민원 처리 기준"}
+{"query":"이메일로 문의하면 답장은 언제 와요","expectedTitle":"고객센터 운영 및 일반 안내"}
+{"query":"채팅 대기가 너무 길어요 전화 달라고 할 수 있나요","expectedTitle":"고객센터 운영 및 일반 안내"}
+{"query":"밤에도 볼 수 있는 자주 묻는 질문 페이지 있어요?","expectedTitle":"고객센터 운영 및 일반 안내"}
+{"query":"사이트 장애 났을 때 공지는 어디서 봐요","expectedTitle":"고객센터 운영 및 일반 안내"}
+{"query":"법인 첫 거래인데 제출할 서류 있어요?","expectedTitle":"고객센터 운영 및 일반 안내"}
+{"query":"내일 서울 날씨 어때요","expectedTitle":null}
+{"query":"요즘 오를 만한 주식 종목 추천해 줘","expectedTitle":null}
+{"query":"이 문장 영어로 번역해 주세요: 오늘 회의는 취소되었습니다","expectedTitle":null}
+{"query":"여자친구랑 싸웠는데 화해하는 법","expectedTitle":null}
+{"query":"자동차 보험 갱신 언제 해야 해요","expectedTitle":null}
+{"query":"제주도 가는 비행기 표 제일 싼 날","expectedTitle":null}
+{"query":"강아지 사료 뭐가 좋아요","expectedTitle":null}
+{"query":"이번 주 로또 번호 뽑아 줘","expectedTitle":null}
+{"query":"주택담보대출 금리 비교해 줘","expectedTitle":null}
+{"query":"이차방정식 근의 공식 알려줘","expectedTitle":null}
+{"query":"라이브 커머스 방송은 몇 시에 해요","expectedTitle":null}
+{"query":"임직원 할인 제도 있나요","expectedTitle":null}
+{"query":"택배 포장재 친환경 소재로 바꿀 수 있어요","expectedTitle":null}
+{"query":"제휴 카드로 결제하면 청구 할인 얼마나 돼요","expectedTitle":null}
+{"query":"판매자로 입점하고 싶은데 신청은 어디서 해요","expectedTitle":null}
+{"query":"제가 쓴 상품 리뷰 삭제하고 싶어요","expectedTitle":null}
+{"query":"물류센터 견학 신청 가능한가요","expectedTitle":null}
+{"query":"상품권 선물 받은 거 현금으로 바꿀 수 있나요","expectedTitle":null}
+{"query":"이 회사 채용 공고는 어디서 봐요","expectedTitle":null}
+{"query":"쇼핑몰 앱 아이콘 바꾸는 법","expectedTitle":null}
