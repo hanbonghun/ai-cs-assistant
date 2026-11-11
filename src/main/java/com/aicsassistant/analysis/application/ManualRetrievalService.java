@@ -4,6 +4,7 @@ import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.analysis.dto.ScoredManualChunk;
 import com.aicsassistant.analysis.infra.ManualChunkRetrievalRepository;
 import com.aicsassistant.llm.EmbeddingClient;
+import com.aicsassistant.manual.domain.ManualVisibility;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
@@ -63,11 +64,23 @@ public class ManualRetrievalService {
      * 여기서 클래스를 나눌 응집도상의 이유는 없다.
      */
     public List<RetrievedManualChunkDto> retrieve(String inquiryContent) {
+        return retrieve(inquiryContent, ManualVisibility.CUSTOMER);
+    }
+
+    /**
+     * 상담사 전용 문서({@link ManualVisibility#INTERNAL})만 검색한다. 모델에게 주지 않고 상담사 화면의 참고 근거로만
+     * 붙인다 — 고객에게 나갈 답의 재료가 되지 않게 하려는 것이다 (ADR 0012).
+     */
+    public List<RetrievedManualChunkDto> retrieveCounselorReferences(String inquiryContent) {
+        return retrieve(inquiryContent, ManualVisibility.INTERNAL);
+    }
+
+    private List<RetrievedManualChunkDto> retrieve(String inquiryContent, ManualVisibility visibility) {
         Span span = tracer.spanBuilder("rag.retrieve")
                 .setAttribute(ATTR_LF_INPUT, inquiryContent)
                 .startSpan();
         try (Scope ignored = span.makeCurrent()) {
-            RetrievalOutcome outcome = doRetrieveWithPath(inquiryContent);
+            RetrievalOutcome outcome = doRetrieveWithPath(inquiryContent, visibility);
             span.setAttribute(ATTR_PATH, outcome.path());
             span.setAttribute(ATTR_RESULT_COUNT, (long) outcome.chunks().size());
             span.setAttribute(ATTR_LF_OUTPUT, summarizeChunks(outcome.chunks()));
@@ -81,24 +94,24 @@ public class ManualRetrievalService {
         }
     }
 
-    private RetrievalOutcome doRetrieveWithPath(String inquiryContent) {
+    private RetrievalOutcome doRetrieveWithPath(String inquiryContent, ManualVisibility visibility) {
         List<Double> queryEmbedding = embeddingClient.embed(inquiryContent);
         if (queryEmbedding != null && !queryEmbedding.isEmpty()) {
             try {
-                return readOnlyTx.execute(status -> hybridOutcome(queryEmbedding, inquiryContent));
+                return readOnlyTx.execute(status -> hybridOutcome(queryEmbedding, inquiryContent, visibility));
             } catch (DataAccessException ignored) {
                 // 벡터 차원/데이터가 아직 준비되지 않은 경우. 폴백은 실패한 트랜잭션 밖에서 돌아야 한다 —
                 // 안에서 돌리면 PostgreSQL 이 abort 시킨 트랜잭션이라 25P02 로 같이 죽는다.
             }
         }
-        return new RetrievalOutcome(retrievalRepository.findFallbackTopK(DEFAULT_TOP_K), "fallback_query_error");
+        return new RetrievalOutcome(retrievalRepository.findFallbackTopK(DEFAULT_TOP_K, visibility), "fallback_query_error");
     }
 
-    private RetrievalOutcome hybridOutcome(List<Double> queryEmbedding, String inquiryContent) {
+    private RetrievalOutcome hybridOutcome(List<Double> queryEmbedding, String inquiryContent, ManualVisibility visibility) {
         if (!retrievalRepository.hasActiveEmbeddings()) {
-            return new RetrievalOutcome(retrievalRepository.findFallbackTopK(DEFAULT_TOP_K), "fallback_no_embeddings");
+            return new RetrievalOutcome(retrievalRepository.findFallbackTopK(DEFAULT_TOP_K, visibility), "fallback_no_embeddings");
         }
-        return new RetrievalOutcome(findByHybrid(queryEmbedding, inquiryContent), "hybrid");
+        return new RetrievalOutcome(findByHybrid(queryEmbedding, inquiryContent, visibility), "hybrid");
     }
 
     private record RetrievalOutcome(List<RetrievedManualChunkDto> chunks, String path) {
@@ -116,9 +129,11 @@ public class ManualRetrievalService {
                 .collect(Collectors.joining(", ", "[", "]"));
     }
 
-    private List<RetrievedManualChunkDto> findByHybrid(List<Double> queryEmbedding, String query) {
-        List<ScoredManualChunk> vectorCandidates = retrievalRepository.findVectorCandidates(queryEmbedding, FUSION_CANDIDATE_K);
-        List<ScoredManualChunk> keywordCandidates = findKeywordCandidatesPreprocessed(query);
+    private List<RetrievedManualChunkDto> findByHybrid(
+            List<Double> queryEmbedding, String query, ManualVisibility visibility) {
+        List<ScoredManualChunk> vectorCandidates =
+                retrievalRepository.findVectorCandidates(queryEmbedding, FUSION_CANDIDATE_K, visibility);
+        List<ScoredManualChunk> keywordCandidates = findKeywordCandidatesPreprocessed(query, visibility);
 
         Map<Long, FusionEntry> byId = new LinkedHashMap<>();
         for (int i = 0; i < vectorCandidates.size(); i++) {
@@ -146,12 +161,12 @@ public class ManualRetrievalService {
                 .toList();
     }
 
-    private List<ScoredManualChunk> findKeywordCandidatesPreprocessed(String query) {
+    private List<ScoredManualChunk> findKeywordCandidatesPreprocessed(String query, ManualVisibility visibility) {
         String cleaned = KoreanQueryPreprocessor.forKeywordSearch(query);
         if (cleaned.isBlank()) {
             return List.of();
         }
-        return retrievalRepository.findKeywordCandidates(cleaned, MIN_KEYWORD_SCORE, FUSION_CANDIDATE_K);
+        return retrievalRepository.findKeywordCandidates(cleaned, MIN_KEYWORD_SCORE, FUSION_CANDIDATE_K, visibility);
     }
 
     private void augmentVectorScores(Map<Long, FusionEntry> byId, List<Double> queryEmbedding) {

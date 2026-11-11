@@ -2,6 +2,7 @@ package com.aicsassistant.manual.bootstrap;
 
 import com.aicsassistant.inquiry.domain.InquiryCategory;
 import com.aicsassistant.manual.application.ManualService;
+import com.aicsassistant.manual.domain.ManualVisibility;
 import com.aicsassistant.manual.dto.CreateManualDocumentRequest;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -146,6 +147,7 @@ public class LocalSeedDataInitializer implements CommandLineRunner {
                         )
                 ),
 
+                // 상담사 응대 지침이다(에스컬레이션 체계, 사과 포인트 범위, 법무팀 공유). 고객에게 그대로 나가면 안 된다
                 new CreateManualDocumentRequest(
                         "고객 불만 및 민원 처리 기준",
                         InquiryCategory.COMPLAINT,
@@ -157,7 +159,8 @@ public class LocalSeedDataInitializer implements CommandLineRunner {
                                 "법적 분쟁으로 확대될 우려가 있는 민원은 법무팀에 즉시 공유하고, 관련 대화 내용 및 증거를 보존합니다. 이 경우 고객에게 추가 처리 기간(영업일 5일)이 필요함을 안내합니다.",
                                 "SNS 또는 공개 채널에 올라온 불만 게시물은 마케팅팀과 협력하여 대응합니다. 공개 답변은 방어적 표현을 피하고 신속한 해결 의지를 표현합니다.",
                                 "민원 처리 결과는 CRM 시스템에 기록하고, 월 1회 민원 유형별 분석 리포트를 팀에 공유합니다. 반복 발생하는 유형은 프로세스 개선 과제로 등록합니다."
-                        )
+                        ),
+                        ManualVisibility.INTERNAL
                 ),
 
                 new CreateManualDocumentRequest(

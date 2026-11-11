@@ -8,6 +8,7 @@ import com.aicsassistant.analysis.eval.LiveEvalReport;
 import com.aicsassistant.analysis.infra.ManualChunkRetrievalRepository;
 import com.aicsassistant.llm.EmbeddingClient;
 import com.aicsassistant.manual.application.ManualService;
+import com.aicsassistant.manual.domain.ManualVisibility;
 import com.aicsassistant.order.application.OrderService;
 import com.aicsassistant.support.PostgresVectorIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -122,11 +123,11 @@ class VectorThresholdCalibrationTest extends PostgresVectorIntegrationTest {
         Map<Long, Double> keyword = new HashMap<>();
         String cleaned = KoreanQueryPreprocessor.forKeywordSearch(query);
         if (!cleaned.isBlank()) {
-            for (ScoredManualChunk c : retrievalRepository.findKeywordCandidates(cleaned, MIN_KEYWORD_SCORE, 20)) {
+            for (ScoredManualChunk c : retrievalRepository.findKeywordCandidates(cleaned, MIN_KEYWORD_SCORE, 20, ManualVisibility.CUSTOMER)) {
                 keyword.put(c.chunk().id(), c.score());
             }
         }
-        List<Chunk> chunks = retrievalRepository.findVectorCandidates(embedding, 1000).stream()
+        List<Chunk> chunks = retrievalRepository.findVectorCandidates(embedding, 1000, ManualVisibility.CUSTOMER).stream()
                 .map(c -> new Chunk(c.chunk().manualDocumentTitle(), round(c.score()),
                         round(keyword.getOrDefault(c.chunk().id(), 0.0))))
                 .toList();
