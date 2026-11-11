@@ -70,4 +70,31 @@ class LiveEvalScorerTest {
         assertThat(LiveEvalCase.resolveDates("{D-3} ~ {D+20:md}", today)).isEqualTo("2026-11-09 ~ 12월 2일");
     }
 
+    @Test
+    @DisplayName("v2: 활용형 거절 표현을 잡는다 — v1 이 놓친 '제공하고 있지 않습니다' · '등록되어 있지 않습니다'")
+    void abstainCatchesConjugatedDeclines() {
+        assertThat(LiveEvalScorer.abstained("매장 픽업 서비스는 제공하고 있지 않습니다", Outcome.FINAL_AUTO)).isTrue();
+        assertThat(LiveEvalScorer.abstained("주차 안내가 현재 시스템에 등록되어 있지 않습니다", Outcome.FINAL_AUTO)).isTrue();
+        assertThat(LiveEvalScorer.abstained("관련 정보가 없습니다", Outcome.FINAL_AUTO)).isTrue();
+        assertThat(LiveEvalScorer.abstained("개인 전화번호는 제공해 드릴 수 없습니다", Outcome.FINAL_AUTO)).isTrue();
+        assertThat(LiveEvalScorer.abstained("받는 분이 주소를 바꾸는 것은 일반적으로 불가능합니다", Outcome.FINAL_AUTO)).isFalse();
+        assertThat(LiveEvalScorer.abstained("불고기 덮밥을 추천드립니다", Outcome.FINAL_AUTO)).isFalse();
+    }
+
+    @Test
+    @DisplayName("근거에 없는 단위 수치만 돌려주고, 만·천 배수와 쉼표는 값으로 맞춘다")
+    void flagsNumbersMissingFromEvidence() {
+        String evidence = "배송비는 30,000원 이상 구매 시 무료이며, 미만 시 3,000원이 부과됩니다. [오늘] 2026-11-12";
+
+        assertThat(LiveEvalScorer.ungroundedSpecifics("3만원 이상 무료, 미만은 3천원입니다", evidence)).isEmpty();
+        assertThat(LiveEvalScorer.ungroundedSpecifics("11월 12일 기준 최대 3시간 무료 주차입니다", evidence))
+                .containsExactly("3시간");
+    }
+
+    @Test
+    @DisplayName("고객이 먼저 말한 수치는 근거로 친다")
+    void customerProvidedNumbersCountAsEvidence() {
+        assertThat(LiveEvalScorer.ungroundedSpecifics("3만원 결제 건은 할부가 어렵습니다", "할부 몇개월까지 돼요? 3만원짜리인데"))
+                .isEmpty();
+    }
 }
