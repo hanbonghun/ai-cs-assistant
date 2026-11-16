@@ -117,8 +117,13 @@ public final class LiveEvalReport {
 
     /** 여러 실행을 한 표에 둔다. 셀은 값(분자/분모). */
     static String comparison(List<JsonNode> runs, Map<String, String> labels) {
-        StringBuilder sb = new StringBuilder("# 실측 평가 실행 비교 (채점기 v" + LiveEvalScorer.VERSION + ")\n\n");
-        sb.append("같은 채점기로 매긴 실행만 나란히 둔다. 기준선·변경 1 은 원자료를 재채점한 값이다(모델 재호출 없음).\n\n");
+        return comparison(runs, labels, "실측 평가 실행 비교 (채점기 v" + LiveEvalScorer.VERSION + ")",
+                "같은 채점기로 매긴 실행만 나란히 둔다. 기준선·변경 1 은 원자료를 재채점한 값이다(모델 재호출 없음).");
+    }
+
+    static String comparison(List<JsonNode> runs, Map<String, String> labels, String title, String note) {
+        StringBuilder sb = new StringBuilder("# " + title + "\n\n");
+        sb.append(note).append("\n\n");
         sb.append("| 실행 | 라벨 | 커밋 | 프롬프트 |\n|---|---|---|---|\n");
         for (JsonNode r : runs) {
             sb.append("| ").append(r.path("dir").asText()).append(" | ").append(r.path("label").asText("")).append(" | ")
@@ -293,8 +298,8 @@ public final class LiveEvalReport {
         meta.forEach((k, v) -> sb.append("| ").append(k).append(" | ").append(v).append(" |\n"));
         sb.append("""
 
-                > 평가셋은 합성이다(작성자가 매뉴얼을 보고 만든 질문). judge 는 에이전트와 같은 모델이라
-                > 자기 답에 관대할 수 있다. 수치는 판정이 아니라 다음 변경과 비교할 기준선이다.
+                > 평가셋은 합성이다(작성자가 매뉴얼을 보고 만든 질문). judge 모델은 위 조건표에 있다 — 에이전트와
+                > 같은 계열이면 자기 답에 관대할 수 있다. 수치는 판정이 아니라 다음 변경과 비교할 기준선이다.
 
                 """);
 
