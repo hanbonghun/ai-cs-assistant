@@ -107,8 +107,9 @@ class InquiryAgentServiceTest {
         assertThat(result).isInstanceOf(AgentResult.FinalAnswer.class);
         AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
         assertThat(answer.needsHumanReview()).isTrue();
-        assertThat(answer.answer()).isEqualTo(InquiryAgentService.FOLLOW_UP_LIMIT_ANSWER);
-        assertThat(answer.reason()).startsWith("[재질문 상한]").contains("주문 번호를 다시 알려주실 수 있나요?");
+        assertThat(answer.reason()).startsWith("[재질문 상한]");
+        // 고객 화면에는 숨겨지고 상담사 초안 자리에 뜨는 문장이다 — 무엇이 부족했는지가 남아야 한다
+        assertThat(answer.answer()).contains("주문 번호를 다시 알려주실 수 있나요?");
     }
 
     @Test
