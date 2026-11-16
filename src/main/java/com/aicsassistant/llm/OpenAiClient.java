@@ -14,11 +14,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Fallback;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
+// 채팅 공급자가 Claude 로 바뀌면 LlmClient 주입에서 물러난다. 임베딩은 이 클래스뿐이라 영향이 없다.
+@Fallback
 @Component
 @RequiredArgsConstructor
 public class OpenAiClient implements LlmClient, EmbeddingClient {
