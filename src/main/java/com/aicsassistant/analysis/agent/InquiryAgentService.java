@@ -48,8 +48,12 @@ public class InquiryAgentService {
     private static final int MAX_STEPS = 8;
     /** 대화 전체에서 허용하는 추가 질문 수. 프롬프트에도 같은 지시가 있지만 모델이 직접 세는 것이라 코드가 다시 막는다. */
     static final int MAX_FOLLOW_UPS = 3;
-    /** 상한에 걸려 상담사로 넘길 때 고객 스레드에 남는 문구 — 고객에게 보이므로 상담사용 브리핑을 쓰지 않는다. */
-    static final String FOLLOW_UP_LIMIT_ANSWER = "담당자가 확인 후 처리해 드리겠습니다. 잠시만 기다려 주세요.";
+    /**
+     * 상한에 걸려 상담사로 넘길 때의 브리핑. {@code AI_PROCESSED} 의 AI 메시지는 고객 화면에서 숨겨지고 상담사 화면의
+     * 초안 자리에 뜬다 — 고객용 안내문을 넣으면 상담사가 그대로 확정해 내보낼 수 있어 상담사용 문장으로 쓴다.
+     */
+    static final String FOLLOW_UP_LIMIT_BRIEFING =
+            "고객에게 추가 질문을 %d회 했지만 처리에 필요한 정보를 받지 못해 자동 처리를 멈췄습니다. 마지막으로 필요했던 정보: %s";
 
     static final String NO_EVIDENCE_BRIEFING =
             "AI가 정책 문서와 주문 조회에서 이 문의에 대한 근거를 찾지 못해 자동 답변을 보류했습니다. 상담사 확인이 필요합니다.";
@@ -232,7 +236,6 @@ public class InquiryAgentService {
         }
     }
 
-    /** LLM이 마지막 라운드에서도 형식을 못 맞춘 경우의 결정론적 대체 결과. */
     /**
      * 이미 한 추가 질문 수. 고객 답변은 {@code PENDING_CUSTOMER} 에서만 받으므로, 재분석 때 기록에 있는 AI 메시지는
      * 모두 추가 질문이다. 상담사 승인 알림처럼 다른 AI 메시지가 섞인 기록(재분석)은 많게 세는데, 그 방향의 오차는
@@ -245,25 +248,26 @@ public class InquiryAgentService {
     }
 
     /**
-     * 재질문 상한을 넘긴 추가 질문을 상담사 검토로 바꾼다. 모델이 하려던 질문은 reason 에 남겨 상담사가
+     * 재질문 상한을 넘긴 추가 질문을 상담사 검토로 바꾼다. 모델이 하려던 질문은 브리핑에 남겨 상담사가
      * 무엇이 부족했는지 보게 한다.
      */
     private AgentResult.FinalAnswer followUpLimitReached(
             Inquiry inquiry, String question, List<AgentStep> steps,
             List<RetrievedManualChunkDto> chunks, int totalTokens) {
         return new AgentResult.FinalAnswer(
-                FOLLOW_UP_LIMIT_ANSWER,
+                FOLLOW_UP_LIMIT_BRIEFING.formatted(MAX_FOLLOW_UPS, question),
                 inquiry.getCategory() != null ? inquiry.getCategory().name() : InquiryCategory.GENERAL.name(),
                 inquiry.getUrgency() != null ? inquiry.getUrgency().name() : UrgencyLevel.MEDIUM.name(),
                 true,
                 false,
                 false,
-                "[재질문 상한] 추가 질문 " + MAX_FOLLOW_UPS + "회 후에도 정보가 부족합니다. 모델이 하려던 질문: " + question,
+                "[재질문 상한] 추가 질문 " + MAX_FOLLOW_UPS + "회 후에도 정보가 부족해 상담사에게 넘깁니다.",
                 List.copyOf(steps),
                 chunks,
                 totalTokens);
     }
 
+    /** LLM이 마지막 라운드에서도 형식을 못 맞춘 경우의 결정론적 대체 결과. */
     private AgentResult.FinalAnswer syntheticBriefing(
             Inquiry inquiry, List<AgentStep> steps, List<RetrievedManualChunkDto> chunks, int totalTokens) {
 
