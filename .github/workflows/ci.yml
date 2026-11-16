@@ -13,7 +13,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # PR 은 새 커밋이 오면 이전 실행을 취소하고, main 은 모든 커밋을 끝까지 검증한다
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:

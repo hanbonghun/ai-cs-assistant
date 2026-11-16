@@ -14,7 +14,9 @@ import com.aicsassistant.analysis.application.PromptFactory;
 import com.aicsassistant.analysis.dto.RetrievedManualChunkDto;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.domain.InquiryCategory;
+import com.aicsassistant.inquiry.domain.InquiryMessageRole;
 import com.aicsassistant.inquiry.domain.UrgencyLevel;
+import com.aicsassistant.inquiry.dto.InquiryMessageResponse;
 import com.aicsassistant.llm.ChatMessage;
 import com.aicsassistant.llm.LlmClient;
 import com.aicsassistant.llm.LlmResponse;
@@ -26,6 +28,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Tracer;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -91,6 +95,29 @@ class InquiryAgentServiceTest {
         assertThat(result).isInstanceOf(AgentResult.FollowUpQuestion.class);
         AgentResult.FollowUpQuestion followUp = (AgentResult.FollowUpQuestion) result;
         assertThat(followUp.question()).isEqualTo("주문 번호를 알려주실 수 있나요?");
+    }
+
+    @Test
+    void routesToCounselorWhenModelAsksBeyondFollowUpLimit() {
+        // 모델이 프롬프트의 횟수 지시를 어기고 네 번째 질문을 하려 한다 — 코드가 상담사 검토로 바꾼다
+        givenLlmResponds(followUpQuestion("주문 번호를 다시 알려주실 수 있나요?"));
+
+        AgentResult result = agentService.run(inquiry("배송이 왜 이러나요?"), conversationWithFollowUps(3));
+
+        assertThat(result).isInstanceOf(AgentResult.FinalAnswer.class);
+        AgentResult.FinalAnswer answer = (AgentResult.FinalAnswer) result;
+        assertThat(answer.needsHumanReview()).isTrue();
+        assertThat(answer.answer()).isEqualTo(InquiryAgentService.FOLLOW_UP_LIMIT_ANSWER);
+        assertThat(answer.reason()).startsWith("[재질문 상한]").contains("주문 번호를 다시 알려주실 수 있나요?");
+    }
+
+    @Test
+    void allowsFollowUpWithinLimit() {
+        givenLlmResponds(followUpQuestion("주문 번호를 다시 알려주실 수 있나요?"));
+
+        AgentResult result = agentService.run(inquiry("배송이 왜 이러나요?"), conversationWithFollowUps(2));
+
+        assertThat(result).isInstanceOf(AgentResult.FollowUpQuestion.class);
     }
 
     @Test
@@ -538,6 +565,16 @@ class InquiryAgentServiceTest {
         return """
                 {"thought":"추가 정보 필요","followUpQuestion":"%s"}
                 """.formatted(question);
+    }
+
+    /** AI 추가 질문과 고객의 모호한 답이 {@code count} 번 오간 대화 기록. */
+    private static List<InquiryMessageResponse> conversationWithFollowUps(int count) {
+        List<InquiryMessageResponse> history = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            history.add(new InquiryMessageResponse(InquiryMessageRole.AI, "주문 번호를 알려주실 수 있나요?", LocalDateTime.now()));
+            history.add(new InquiryMessageResponse(InquiryMessageRole.CUSTOMER, "모르겠어요", LocalDateTime.now()));
+        }
+        return history;
     }
 
     private static Inquiry inquiry(String content) {

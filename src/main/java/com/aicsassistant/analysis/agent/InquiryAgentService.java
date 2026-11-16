@@ -46,6 +46,10 @@ import org.springframework.stereotype.Service;
 public class InquiryAgentService {
 
     private static final int MAX_STEPS = 8;
+    /** 대화 전체에서 허용하는 추가 질문 수. 프롬프트에도 같은 지시가 있지만 모델이 직접 세는 것이라 코드가 다시 막는다. */
+    static final int MAX_FOLLOW_UPS = 3;
+    /** 상한에 걸려 상담사로 넘길 때 고객 스레드에 남는 문구 — 고객에게 보이므로 상담사용 브리핑을 쓰지 않는다. */
+    static final String FOLLOW_UP_LIMIT_ANSWER = "담당자가 확인 후 처리해 드리겠습니다. 잠시만 기다려 주세요.";
 
     static final String NO_EVIDENCE_BRIEFING =
             "AI가 정책 문서와 주문 조회에서 이 문의에 대한 근거를 찾지 못해 자동 답변을 보류했습니다. 상담사 확인이 필요합니다.";
@@ -93,6 +97,12 @@ public class InquiryAgentService {
 
                 if (node.has("followUpQuestion")) {
                     String question = node.path("followUpQuestion").asText("").strip();
+                    if (priorFollowUps(conversationHistory) >= MAX_FOLLOW_UPS) {
+                        AgentResult.FinalAnswer answer = attachCounselorReferences(followUpLimitReached(
+                                inquiry, question, steps, toolset.manual().getCollectedChunks(), totalTokens), inquiry, toolset);
+                        trace.recordAnswer(answer, AgentTrace.OUTCOME_FOLLOW_UP_LIMIT, totalTokens, step + 1);
+                        return answer;
+                    }
                     trace.recordFollowUp(question, totalTokens, step + 1);
                     return new AgentResult.FollowUpQuestion(question, List.copyOf(steps), totalTokens);
                 }
@@ -223,6 +233,37 @@ public class InquiryAgentService {
     }
 
     /** LLM이 마지막 라운드에서도 형식을 못 맞춘 경우의 결정론적 대체 결과. */
+    /**
+     * 이미 한 추가 질문 수. 고객 답변은 {@code PENDING_CUSTOMER} 에서만 받으므로, 재분석 때 기록에 있는 AI 메시지는
+     * 모두 추가 질문이다. 상담사 승인 알림처럼 다른 AI 메시지가 섞인 기록(재분석)은 많게 세는데, 그 방향의 오차는
+     * 상담사로 일찍 넘기는 쪽이라 안전하다.
+     */
+    private static long priorFollowUps(List<InquiryMessageResponse> conversationHistory) {
+        return conversationHistory.stream()
+                .filter(m -> m.role() == InquiryMessageRole.AI)
+                .count();
+    }
+
+    /**
+     * 재질문 상한을 넘긴 추가 질문을 상담사 검토로 바꾼다. 모델이 하려던 질문은 reason 에 남겨 상담사가
+     * 무엇이 부족했는지 보게 한다.
+     */
+    private AgentResult.FinalAnswer followUpLimitReached(
+            Inquiry inquiry, String question, List<AgentStep> steps,
+            List<RetrievedManualChunkDto> chunks, int totalTokens) {
+        return new AgentResult.FinalAnswer(
+                FOLLOW_UP_LIMIT_ANSWER,
+                inquiry.getCategory() != null ? inquiry.getCategory().name() : InquiryCategory.GENERAL.name(),
+                inquiry.getUrgency() != null ? inquiry.getUrgency().name() : UrgencyLevel.MEDIUM.name(),
+                true,
+                false,
+                false,
+                "[재질문 상한] 추가 질문 " + MAX_FOLLOW_UPS + "회 후에도 정보가 부족합니다. 모델이 하려던 질문: " + question,
+                List.copyOf(steps),
+                chunks,
+                totalTokens);
+    }
+
     private AgentResult.FinalAnswer syntheticBriefing(
             Inquiry inquiry, List<AgentStep> steps, List<RetrievedManualChunkDto> chunks, int totalTokens) {
 
