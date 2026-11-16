@@ -1,0 +1,596 @@
+{
+  "meta" : {
+    "today" : "2026-11-16",
+    "git" : "41a7a99-dirty",
+    "chatModel" : "gpt-4.1-mini",
+    "embeddingModel" : "text-embedding-3-small",
+    "promptVersion" : "v6",
+    "caseCount" : 50,
+    "caseFilter" : "",
+    "scorerVersion" : "2",
+    "label" : "gpt-4.1-mini-반복3",
+    "judge" : "claude-opus-5-5",
+    "activeDocuments" : 15,
+    "activeChunks" : 75,
+    "corpusSha256" : "f778855f7f85",
+    "evalSetSha256" : "40c6c929e1d9"
+  },
+  "metrics" : {
+    "STALE" : {
+      "caseCount" : 10,
+      "r.recall@1" : {
+        "num" : 7,
+        "den" : 8,
+        "value" : 0.875
+      },
+      "r.recall@3" : {
+        "num" : 8,
+        "den" : 8,
+        "value" : 1.0
+      },
+      "r.recall@5" : {
+        "num" : 8,
+        "den" : 8,
+        "value" : 1.0
+      },
+      "r.noMatch" : {
+        "num" : 2,
+        "den" : 2,
+        "value" : 1.0
+      },
+      "r.staleLeak" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "a.evidenceCoverage" : {
+        "num" : 8,
+        "den" : 8,
+        "value" : 1.0
+      },
+      "a.toolSelection" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "a.staleLeak" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "g.mustInclude" : {
+        "num" : 8,
+        "den" : 8,
+        "value" : 1.0
+      },
+      "g.forbiddenClean" : {
+        "num" : 5,
+        "den" : 5,
+        "value" : 1.0
+      },
+      "g.routing" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "g.abstain" : {
+        "num" : 2,
+        "den" : 2,
+        "value" : 1.0
+      },
+      "g.grounded" : {
+        "num" : 10,
+        "den" : 10,
+        "value" : 1.0
+      },
+      "g.ungrounded" : {
+        "num" : 0,
+        "den" : 2,
+        "value" : 0.0
+      },
+      "g.noEvidence" : {
+        "num" : 2,
+        "den" : 10,
+        "value" : 0.2
+      },
+      "g.deflection" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "g.error" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "c.latencyP50Ms" : 5059,
+      "c.latencyP95Ms" : 7779,
+      "c.retrievalAvgMs" : 205.4,
+      "c.llmCallsAvg" : 2.0,
+      "c.promptTokensAvg" : 6515.0,
+      "c.completionTokensAvg" : 266.1,
+      "c.cachedTokensAvg" : 5926.4,
+      "c.judgeTokensTotal" : 10727
+    },
+    "PARAPHRASE" : {
+      "caseCount" : 10,
+      "r.recall@1" : {
+        "num" : 3,
+        "den" : 11,
+        "value" : 0.273
+      },
+      "r.recall@3" : {
+        "num" : 3,
+        "den" : 11,
+        "value" : 0.273
+      },
+      "r.recall@5" : {
+        "num" : 3,
+        "den" : 11,
+        "value" : 0.273
+      },
+      "r.noMatch" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "r.staleLeak" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "a.evidenceCoverage" : {
+        "num" : 7,
+        "den" : 11,
+        "value" : 0.636
+      },
+      "a.toolSelection" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "a.staleLeak" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "g.mustInclude" : {
+        "num" : 6,
+        "den" : 10,
+        "value" : 0.6
+      },
+      "g.forbiddenClean" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "g.routing" : {
+        "num" : 3,
+        "den" : 5,
+        "value" : 0.6
+      },
+      "g.abstain" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "g.grounded" : {
+        "num" : 8,
+        "den" : 10,
+        "value" : 0.8
+      },
+      "g.ungrounded" : {
+        "num" : 0,
+        "den" : 2,
+        "value" : 0.0
+      },
+      "g.noEvidence" : {
+        "num" : 2,
+        "den" : 10,
+        "value" : 0.2
+      },
+      "g.deflection" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "g.error" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "c.latencyP50Ms" : 4812,
+      "c.latencyP95Ms" : 7554,
+      "c.retrievalAvgMs" : 212.3,
+      "c.llmCallsAvg" : 2.0,
+      "c.promptTokensAvg" : 6530.0,
+      "c.completionTokensAvg" : 261.0,
+      "c.cachedTokensAvg" : 5977.6,
+      "c.judgeTokensTotal" : 10951
+    },
+    "COMPOSITE" : {
+      "caseCount" : 10,
+      "r.recall@1" : {
+        "num" : 8,
+        "den" : 18,
+        "value" : 0.444
+      },
+      "r.recall@3" : {
+        "num" : 10,
+        "den" : 18,
+        "value" : 0.556
+      },
+      "r.recall@5" : {
+        "num" : 10,
+        "den" : 18,
+        "value" : 0.556
+      },
+      "r.noMatch" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "r.staleLeak" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "a.evidenceCoverage" : {
+        "num" : 17,
+        "den" : 18,
+        "value" : 0.944
+      },
+      "a.toolSelection" : {
+        "num" : 4,
+        "den" : 4,
+        "value" : 1.0
+      },
+      "a.staleLeak" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "g.mustInclude" : {
+        "num" : 9,
+        "den" : 9,
+        "value" : 1.0
+      },
+      "g.forbiddenClean" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "g.routing" : {
+        "num" : 2,
+        "den" : 3,
+        "value" : 0.667
+      },
+      "g.abstain" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "g.grounded" : {
+        "num" : 6,
+        "den" : 10,
+        "value" : 0.6
+      },
+      "g.ungrounded" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "g.noEvidence" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "g.deflection" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "g.error" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "c.latencyP50Ms" : 6162,
+      "c.latencyP95Ms" : 9648,
+      "c.retrievalAvgMs" : 208.8,
+      "c.llmCallsAvg" : 2.5,
+      "c.promptTokensAvg" : 8535.4,
+      "c.completionTokensAvg" : 383.3,
+      "c.cachedTokensAvg" : 7552.0,
+      "c.judgeTokensTotal" : 18938
+    },
+    "INJECTION" : {
+      "caseCount" : 10,
+      "r.recall@1" : {
+        "num" : 4,
+        "den" : 5,
+        "value" : 0.8
+      },
+      "r.recall@3" : {
+        "num" : 4,
+        "den" : 5,
+        "value" : 0.8
+      },
+      "r.recall@5" : {
+        "num" : 4,
+        "den" : 5,
+        "value" : 0.8
+      },
+      "r.noMatch" : {
+        "num" : 5,
+        "den" : 5,
+        "value" : 1.0
+      },
+      "r.staleLeak" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "a.evidenceCoverage" : {
+        "num" : 4,
+        "den" : 5,
+        "value" : 0.8
+      },
+      "a.toolSelection" : {
+        "num" : 1,
+        "den" : 1,
+        "value" : 1.0
+      },
+      "a.staleLeak" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "g.mustInclude" : {
+        "num" : 4,
+        "den" : 4,
+        "value" : 1.0
+      },
+      "g.forbiddenClean" : {
+        "num" : 10,
+        "den" : 10,
+        "value" : 1.0
+      },
+      "g.routing" : {
+        "num" : 2,
+        "den" : 2,
+        "value" : 1.0
+      },
+      "g.abstain" : {
+        "num" : 1,
+        "den" : 1,
+        "value" : 1.0
+      },
+      "g.grounded" : {
+        "num" : 9,
+        "den" : 10,
+        "value" : 0.9
+      },
+      "g.ungrounded" : {
+        "num" : 0,
+        "den" : 4,
+        "value" : 0.0
+      },
+      "g.noEvidence" : {
+        "num" : 4,
+        "den" : 10,
+        "value" : 0.4
+      },
+      "g.deflection" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "g.error" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "c.latencyP50Ms" : 4600,
+      "c.latencyP95Ms" : 9197,
+      "c.retrievalAvgMs" : 224.9,
+      "c.llmCallsAvg" : 2.1,
+      "c.promptTokensAvg" : 6918.6,
+      "c.completionTokensAvg" : 265.6,
+      "c.cachedTokensAvg" : 6361.6,
+      "c.judgeTokensTotal" : 10242
+    },
+    "OUT_OF_SCOPE" : {
+      "caseCount" : 10,
+      "r.recall@1" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "r.recall@3" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "r.recall@5" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "r.noMatch" : {
+        "num" : 9,
+        "den" : 10,
+        "value" : 0.9
+      },
+      "r.staleLeak" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "a.evidenceCoverage" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "a.toolSelection" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "a.staleLeak" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "g.mustInclude" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "g.forbiddenClean" : {
+        "num" : 1,
+        "den" : 1,
+        "value" : 1.0
+      },
+      "g.routing" : {
+        "num" : 0,
+        "den" : 0,
+        "value" : null
+      },
+      "g.abstain" : {
+        "num" : 9,
+        "den" : 10,
+        "value" : 0.9
+      },
+      "g.grounded" : {
+        "num" : 9,
+        "den" : 10,
+        "value" : 0.9
+      },
+      "g.ungrounded" : {
+        "num" : 0,
+        "den" : 9,
+        "value" : 0.0
+      },
+      "g.noEvidence" : {
+        "num" : 9,
+        "den" : 10,
+        "value" : 0.9
+      },
+      "g.deflection" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "g.error" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "c.latencyP50Ms" : 4658,
+      "c.latencyP95Ms" : 6133,
+      "c.retrievalAvgMs" : 204.4,
+      "c.llmCallsAvg" : 1.6,
+      "c.promptTokensAvg" : 5058.0,
+      "c.completionTokensAvg" : 223.3,
+      "c.cachedTokensAvg" : 4723.2,
+      "c.judgeTokensTotal" : 7925
+    },
+    "ALL" : {
+      "caseCount" : 50,
+      "r.recall@1" : {
+        "num" : 22,
+        "den" : 42,
+        "value" : 0.524
+      },
+      "r.recall@3" : {
+        "num" : 25,
+        "den" : 42,
+        "value" : 0.595
+      },
+      "r.recall@5" : {
+        "num" : 25,
+        "den" : 42,
+        "value" : 0.595
+      },
+      "r.noMatch" : {
+        "num" : 16,
+        "den" : 17,
+        "value" : 0.941
+      },
+      "r.staleLeak" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "a.evidenceCoverage" : {
+        "num" : 36,
+        "den" : 42,
+        "value" : 0.857
+      },
+      "a.toolSelection" : {
+        "num" : 5,
+        "den" : 5,
+        "value" : 1.0
+      },
+      "a.staleLeak" : {
+        "num" : 0,
+        "den" : 10,
+        "value" : 0.0
+      },
+      "g.mustInclude" : {
+        "num" : 27,
+        "den" : 31,
+        "value" : 0.871
+      },
+      "g.forbiddenClean" : {
+        "num" : 16,
+        "den" : 16,
+        "value" : 1.0
+      },
+      "g.routing" : {
+        "num" : 7,
+        "den" : 10,
+        "value" : 0.7
+      },
+      "g.abstain" : {
+        "num" : 12,
+        "den" : 13,
+        "value" : 0.923
+      },
+      "g.grounded" : {
+        "num" : 42,
+        "den" : 50,
+        "value" : 0.84
+      },
+      "g.ungrounded" : {
+        "num" : 0,
+        "den" : 17,
+        "value" : 0.0
+      },
+      "g.noEvidence" : {
+        "num" : 17,
+        "den" : 50,
+        "value" : 0.34
+      },
+      "g.deflection" : {
+        "num" : 0,
+        "den" : 50,
+        "value" : 0.0
+      },
+      "g.error" : {
+        "num" : 0,
+        "den" : 50,
+        "value" : 0.0
+      },
+      "c.latencyP50Ms" : 5324,
+      "c.latencyP95Ms" : 8661,
+      "c.retrievalAvgMs" : 211.2,
+      "c.llmCallsAvg" : 2.0,
+      "c.promptTokensAvg" : 6711.4,
+      "c.completionTokensAvg" : 279.9,
+      "c.cachedTokensAvg" : 6108.2,
+      "c.judgeTokensTotal" : 58783
+    }
+  }
+}
