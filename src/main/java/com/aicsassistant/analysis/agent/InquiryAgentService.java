@@ -37,9 +37,8 @@ import org.springframework.stereotype.Service;
  *   <li>{@link AgentToolFactory} — 이번 실행이 쓸 도구를 만든다. 루프는 무엇을 조회하는지 모른다</li>
  *   <li>{@link ToolInvoker} — 인터셉터 정책 아래 도구를 실행한다 (ADR 0003)</li>
  *   <li>{@link AgentResponseParser} — 모델 출력을 얼마나 관대하게 받아줄지 정한다 (ADR 0006)</li>
- *   <li>{@link AgentTrace} — 무엇을 관측할지 정한다</li>
+ *   <li>{@link AgentTrace} — 무엇을 관측할지 정한다 (span·로그)</li>
  * </ul>
- * 넷 다 루프 안에 있을 때는 "지금 읽는 코드가 에이전트의 판단인지 그 주변 배관인지" 가 섞였다.
  */
 @Slf4j
 @Service
@@ -64,15 +63,7 @@ public class InquiryAgentService {
      */
     public AgentResult run(Inquiry inquiry, List<InquiryMessageResponse> conversationHistory) {
         AgentToolFactory.Toolset toolset = toolFactory.createFor(inquiry);
-
-        try (AgentTrace trace = AgentTrace.start(tracer, inquiry)) {
-            try {
-                return runAgentLoop(inquiry, conversationHistory, toolset, trace);
-            } catch (RuntimeException e) {
-                trace.recordError(e);
-                throw e;
-            }
-        }
+        return AgentTrace.run(tracer, inquiry, trace -> runAgentLoop(inquiry, conversationHistory, toolset, trace));
     }
 
     private AgentResult runAgentLoop(
@@ -81,16 +72,51 @@ public class InquiryAgentService {
             AgentToolFactory.Toolset toolset,
             AgentTrace trace) {
 
-        List<AgentTool<?>> tools = toolset.all();
+        ToolCallContext ctx = new ToolCallContext(inquiry.getId(), inquiry.getCustomerIdentifier());
+        List<ChatMessage> messages = buildMessages(inquiry, conversationHistory, toolset, ctx);
+        List<AgentStep> steps = new ArrayList<>();
+        int totalTokens = 0;
+
+        for (int step = 0; step < MAX_STEPS; step++) {
+            try (AgentTrace.StepSpan stepSpan = trace.step(step)) {
+                LlmResponse response = llmClient.completeWithUsage(messages);
+                totalTokens += response.totalTokens();
+                stepSpan.recordLlmResponse(response);
+                JsonNode node = parser.parse(response.content());
+
+                if (node.has("finalAnswer")) {
+                    AgentResult.FinalAnswer answer = attachCounselorReferences(buildFinalAnswer(
+                            node, steps, toolset.manual().getCollectedChunks(), totalTokens, ctx), inquiry, toolset);
+                    trace.recordAnswer(answer, AgentTrace.OUTCOME_FINAL_ANSWER, totalTokens, step + 1);
+                    return answer;
+                }
+
+                if (node.has("followUpQuestion")) {
+                    String question = node.path("followUpQuestion").asText("").strip();
+                    trace.recordFollowUp(question, totalTokens, step + 1);
+                    return new AgentResult.FollowUpQuestion(question, List.copyOf(steps), totalTokens);
+                }
+
+                AgentStep agentStep = act(node, toolset, ctx, stepSpan);
+                steps.add(agentStep);
+                messages.add(ChatMessage.assistant(response.content()));
+                messages.add(ChatMessage.user("Observation:\n" + agentStep.observation()));
+            }
+        }
+
+        // 스텝 소진 — 여기까지 온 문의가 가장 복잡한 건이므로 실패시키지 않고 답을 뽑아낸다
+        return forceFinalAnswerWithoutTools(inquiry, messages, steps, toolset, totalTokens, trace, ctx);
+    }
+
+    private List<ChatMessage> buildMessages(
+            Inquiry inquiry,
+            List<InquiryMessageResponse> conversationHistory,
+            AgentToolFactory.Toolset toolset,
+            ToolCallContext ctx) {
+
         List<ChatMessage> messages = new ArrayList<>();
-        messages.add(ChatMessage.system(promptFactory.buildAgentSystemPrompt(tools)));
-
-        ToolCallContext callContext = new ToolCallContext(inquiry.getId(), inquiry.getCustomerIdentifier());
-
-        // 최초 문의 내용 (주문번호가 있으면 주문 정보 선주입)
-        messages.add(ChatMessage.user(buildInitialMessage(inquiry, toolset, callContext)));
-
-        // 이전 대화 히스토리 주입 (CUSTOMER → user, AI → assistant)
+        messages.add(ChatMessage.system(promptFactory.buildAgentSystemPrompt(toolset.all())));
+        messages.add(ChatMessage.user(buildInitialMessage(inquiry, toolset, ctx)));
         for (InquiryMessageResponse msg : conversationHistory) {
             if (msg.role() == InquiryMessageRole.AI) {
                 messages.add(ChatMessage.assistant(msg.content()));
@@ -98,61 +124,32 @@ public class InquiryAgentService {
                 messages.add(ChatMessage.user(promptFactory.fenceCustomerText(msg.content())));
             }
         }
+        return messages;
+    }
 
-        List<AgentStep> steps = new ArrayList<>();
-        int totalTokens = 0;
+    private AgentStep act(
+            JsonNode node,
+            AgentToolFactory.Toolset toolset,
+            ToolCallContext ctx,
+            AgentTrace.StepSpan stepSpan) {
 
-        for (int step = 0; step < MAX_STEPS; step++) {
-            try (AgentTrace.StepSpan stepSpan = trace.step(step)) {
-                LlmResponse llmResponse = llmClient.completeWithUsage(messages);
-                totalTokens += llmResponse.totalTokens();
-                String raw = llmResponse.content();
-                log.debug("[Agent inquiryId={} step={} tokens={}] raw={}",
-                        inquiry.getId(), step, llmResponse.totalTokens(), raw);
+        String action = node.path("action").asText("");
+        JsonNode actionInput = node.path("actionInput");
+        // invoke 보다 먼저 — 모르는 도구면 ToolInvoker.resolveTool 이 던지므로 무엇을 골랐는지가 먼저 남아야 한다
+        stepSpan.tool(action);
 
-                JsonNode node = parser.parse(raw);
-                String thought = node.path("thought").asText("");
-
-                if (node.has("finalAnswer")) {
-                    log.info("[Agent done] inquiryId={} steps={} totalTokens={}", inquiry.getId(), step, totalTokens);
-                    AgentResult.FinalAnswer result = attachCounselorReferences(buildFinalAnswer(
-                            node, steps, toolset.manual().getCollectedChunks(), totalTokens, callContext), inquiry, toolset);
-                    trace.recordAnswer(result, AgentTrace.OUTCOME_FINAL_ANSWER, totalTokens, step + 1);
-                    return result;
-                }
-
-                if (node.has("followUpQuestion")) {
-                    String question = node.path("followUpQuestion").asText("").strip();
-                    log.info("[Agent followUp] inquiryId={} steps={} totalTokens={}", inquiry.getId(), step, totalTokens);
-                    trace.recordFollowUp(question, totalTokens, step + 1);
-                    return new AgentResult.FollowUpQuestion(question, List.copyOf(steps), totalTokens);
-                }
-
-                String action = node.path("action").asText("");
-                JsonNode actionInput = node.path("actionInput");
-                stepSpan.tool(action);
-
-                ToolResult toolResult = toolInvoker.invoke(tools, action, actionInput, callContext, step);
-                if (toolResult.ok() && toolset.order().name().equals(action)) {
-                    callContext.markOrderEvidence();
-                }
-
-                String observation = toolInvoker.serializeObservation(toolResult);
-                log.info("[Agent inquiryId={} step={}] action={} ok={} category={} observation_len={}",
-                        inquiry.getId(), step, action, toolResult.ok(), toolResult.errorCategory(), observation.length());
-
-                // search_manual 스텝에는 이번 호출에서 가져온 문서 목록을 첨부
-                List<RetrievedManualChunkDto> stepChunks = toolset.manual().name().equals(action)
-                        ? toolset.manual().getLastCallChunks()
-                        : List.of();
-                steps.add(new AgentStep(thought, action, actionInput.toString(), observation, stepChunks));
-                messages.add(ChatMessage.assistant(raw));
-                messages.add(ChatMessage.user("Observation:\n" + observation));
-            }
+        ToolResult result = toolInvoker.invoke(toolset.all(), action, actionInput, ctx, stepSpan.index());
+        if (result.ok() && toolset.order().name().equals(action)) {
+            ctx.markOrderEvidence();
         }
 
-        // 스텝 소진 — 여기까지 온 문의가 가장 복잡한 건이므로 실패시키지 않고 답을 뽑아낸다
-        return forceFinalAnswerWithoutTools(inquiry, messages, steps, toolset, totalTokens, trace, callContext);
+        String observation = toolInvoker.serializeObservation(result);
+        stepSpan.recordObservation(action, result, observation);
+
+        List<RetrievedManualChunkDto> stepChunks = toolset.manual().name().equals(action)
+                ? toolset.manual().getLastCallChunks()
+                : List.of();
+        return new AgentStep(node.path("thought").asText(""), action, actionInput.toString(), observation, stepChunks);
     }
 
     /**
@@ -197,8 +194,6 @@ public class InquiryAgentService {
         }
 
         answer = attachCounselorReferences(answer, inquiry, toolset);
-        log.info("[Agent forced final] inquiryId={} steps={} totalTokens={} synthetic={}",
-                inquiry.getId(), steps.size(), tokens, synthetic);
         trace.recordAnswer(
                 answer,
                 synthetic ? AgentTrace.OUTCOME_FORCED_SYNTHETIC : AgentTrace.OUTCOME_FORCED_FINAL,
