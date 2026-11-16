@@ -13,6 +13,7 @@ import com.aicsassistant.common.config.AiProperties;
 import com.aicsassistant.inquiry.domain.Inquiry;
 import com.aicsassistant.inquiry.infra.InquiryRepository;
 import com.aicsassistant.llm.ChatMessage;
+import com.aicsassistant.llm.ClaudeClient;
 import com.aicsassistant.llm.LlmClient;
 import com.aicsassistant.llm.LlmResponse;
 import com.aicsassistant.llm.OpenAiClient;
@@ -28,6 +29,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Tag;
@@ -271,14 +273,14 @@ class LiveRagEvaluationTest extends PostgresVectorIntegrationTest {
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("today", today.toString());
         meta.put("git", LiveEvalReport.gitDescribe());
-        meta.put("chatModel", aiProperties.getModel());
+        meta.put("chatModel", llm.modelName());
         meta.put("embeddingModel", aiProperties.getEmbeddingModel());
         meta.put("promptVersion", promptFactory.promptVersion());
         meta.put("caseCount", caseCount);
         meta.put("caseFilter", System.getProperty("liveEval.ids", ""));
         meta.put("scorerVersion", LiveEvalScorer.VERSION);
         meta.put("label", System.getProperty("liveEval.label", ""));
-        meta.put("judge", judgeEnabled ? aiProperties.getModel() + " (에이전트와 같은 모델)" : "off");
+        meta.put("judge", judgeEnabled ? llm.modelName() + " (에이전트와 같은 모델)" : "off");
         meta.put("activeDocuments", docCount);
         meta.put("activeChunks", chunkContents.size());
         meta.put("corpusSha256", LiveEvalReport.sha256(String.join("\u0000", chunkContents)));
@@ -289,7 +291,7 @@ class LiveRagEvaluationTest extends PostgresVectorIntegrationTest {
     // ---------- 토큰 기록 ----------
 
     /**
-     * 실제 {@link OpenAiClient} 를 감싸 호출 수와 토큰을 센다. 에이전트 결과에는 합계 토큰만 남아
+     * 실제 채팅 클라이언트({@link OpenAiClient} 또는 {@link ClaudeClient})를 감싸 호출 수와 토큰을 센다. 에이전트 결과에는 합계 토큰만 남아
      * 입력·출력·캐시 몫을 나눌 수 없어서다. 실행은 순차라 스냅샷 차이로 케이스별 몫을 구한다.
      */
     @TestConfiguration
@@ -297,8 +299,9 @@ class LiveRagEvaluationTest extends PostgresVectorIntegrationTest {
 
         @Bean
         @Primary
-        UsageRecordingLlmClient usageRecordingLlmClient(OpenAiClient delegate) {
-            return new UsageRecordingLlmClient(delegate);
+        UsageRecordingLlmClient usageRecordingLlmClient(OpenAiClient openAi, Optional<ClaudeClient> claude) {
+            // provider=anthropic 이면 ClaudeClient 가 떠 있다. 임베딩 때문에 OpenAiClient 는 항상 있다.
+            return new UsageRecordingLlmClient(claude.<LlmClient>map(c -> c).orElse(openAi));
         }
     }
 

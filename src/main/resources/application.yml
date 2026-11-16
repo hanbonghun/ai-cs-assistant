@@ -14,10 +14,15 @@ spring:
 app:
   base-url: ${APP_BASE_URL:http://localhost:8080}
   ai:
-    provider: openai
+    provider: ${AI_PROVIDER:openai}
     model: gpt-4.1-mini
     api-key: ${OPENAI_API_KEY}
     embedding-model: text-embedding-3-small
+    # provider=anthropic 일 때만 쓴다. 채팅만 Claude 로 가고 임베딩은 위 OpenAI 설정을 그대로 쓴다.
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      model: claude-opus-5-5
+      effort: medium
   slack:
     webhook-url: ${SLACK_WEBHOOK_URL:}
   langfuse:

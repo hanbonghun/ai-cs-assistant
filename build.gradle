@@ -33,6 +33,7 @@ dependencies {
     implementation 'org.postgresql:postgresql:42.7.4'
     implementation 'com.pgvector:pgvector:0.1.6'
     implementation 'org.apache.pdfbox:pdfbox:3.0.3'
+    implementation 'com.anthropic:anthropic-java:3.3.0'
     implementation platform('io.opentelemetry:opentelemetry-bom:1.46.0')
     implementation 'io.opentelemetry:opentelemetry-api'
     implementation 'io.opentelemetry:opentelemetry-sdk'
@@ -66,10 +67,16 @@ def liveTestTask = { String name, String tag, String desc ->
             includeTags tag
         }
         def dotenv = file('.env')
-        if (!System.getenv('OPENAI_API_KEY') && dotenv.exists()) {
-            dotenv.readLines().findAll { it ==~ /^\s*OPENAI_API_KEY\s*=.+/ }.each {
-                environment 'OPENAI_API_KEY', it.split('=', 2)[1].trim()
+        ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY'].each { key ->
+            if (!System.getenv(key) && dotenv.exists()) {
+                dotenv.readLines().findAll { it ==~ /^\s*${key}\s*=.+/ }.each {
+                    environment key, it.split('=', 2)[1].trim()
+                }
             }
+        }
+        // 채팅 모델 공급자. Claude 로 돌리기: -Pprovider=anthropic (임베딩은 계속 OpenAI)
+        if (findProperty('provider')) {
+            systemProperty 'app.ai.provider', findProperty('provider')
         }
         systemProperty 'liveEval.ids', findProperty('ids') ?: ''
         systemProperty 'liveEval.judge', findProperty('judge') ?: 'true'
