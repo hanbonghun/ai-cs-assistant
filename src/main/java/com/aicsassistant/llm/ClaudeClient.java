@@ -138,9 +138,11 @@ public class ClaudeClient implements LlmClient {
                 .outputConfig(OutputConfig.builder()
                         .effort(OutputConfig.Effort.of(properties.getEffort()))
                         .build())
-                .cacheControl(CacheControlEphemeral.builder().build())
-                .putAdditionalHeader("anthropic-beta", FALLBACK_BETA)
-                .putAdditionalBodyProperty("fallbacks", JsonValue.from("default"));
+                .cacheControl(CacheControlEphemeral.builder().build());
+        if (properties.isFallback()) {
+            builder.putAdditionalHeader("anthropic-beta", FALLBACK_BETA)
+                    .putAdditionalBodyProperty("fallbacks", JsonValue.from("default"));
+        }
 
         List<String> systemParts = new ArrayList<>();
         for (ChatMessage message : messages) {

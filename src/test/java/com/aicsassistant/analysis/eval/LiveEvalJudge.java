@@ -51,6 +51,8 @@ final class LiveEvalJudge {
                 properties.getAnthropic().setApiKey(requireEnv("ANTHROPIC_API_KEY"));
                 properties.getAnthropic().setModel(model);
                 properties.getAnthropic().setEffort("medium");
+                // 폴백이 돌면 다른 모델이 채점한 것이 지정 모델로 기록된다 — 거절은 오류로 남긴다
+                properties.getAnthropic().setFallback(false);
                 yield new ClaudeClient(properties, tracer);
             }
             case "openai" -> {

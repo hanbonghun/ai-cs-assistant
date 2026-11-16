@@ -51,6 +51,20 @@ class ClaudeClientTest {
     }
 
     @Test
+    void omitsFallbackWhenDisabled() {
+        AiProperties properties = new AiProperties();
+        properties.getAnthropic().setApiKey("test-key");
+        properties.getAnthropic().setModel("claude-opus-5-5");
+        properties.getAnthropic().setEffort("medium");
+        properties.getAnthropic().setFallback(false);
+
+        MessageCreateParams params = new ClaudeClient(properties, null).buildRequest(List.of(ChatMessage.user("hi")));
+
+        assertThat(params._additionalBodyProperties()).doesNotContainKey("fallbacks");
+        assertThat(params._headers().values("anthropic-beta")).isEmpty();
+    }
+
+    @Test
     void rejectsUnknownRole() {
         assertThatThrownBy(() -> client.buildRequest(List.of(new ChatMessage("tool", "x"))))
                 .isInstanceOf(IllegalArgumentException.class);
