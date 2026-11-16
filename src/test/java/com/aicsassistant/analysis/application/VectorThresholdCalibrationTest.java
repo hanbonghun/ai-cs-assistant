@@ -33,8 +33,9 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * {@link ManualRetrievalService} 의 vector 임계값 두 개를 실제 임베딩 분포로 정하기 위한 보정 실행.
- * 평가셋 50건과 겹치지 않는 보정 질의 60건(관련 40 · 무관 20)만 쓴다. 근거는 ADR 0010.
+ * {@link ManualRetrievalService} 의 vector 임계값 두 개를 실제 임베딩 분포로 정하고, keyword 하한 0.18 이 그 위에서
+ * 어느 구간에 있는지 확인하는 보정 실행. 평가셋 50건과 겹치지 않는 보정 질의 60건(관련 40 · 무관 20)만 쓴다.
+ * 근거는 ADR 0010.
  *
  * <p>게이트는 {@code vector ≥ T_vec OR (keyword ≥ 0.18 AND vector ≥ T_floor)} 다. 두 값 모두 같은 형태의
  * 규칙으로 고른다 — <b>보정셋의 무관 질의가 그 경로로 새어 나가는 최고 점수 + 0.02, 0.01 단위 올림</b>.
@@ -60,6 +61,9 @@ class VectorThresholdCalibrationTest extends PostgresVectorIntegrationTest {
     private static final Path OUT_DIR = Path.of("eval/calibration");
     private static final double MARGIN = 0.02;
     private static final double MIN_KEYWORD_SCORE = 0.18;
+    /** keyword 하한을 0.18 아래로도 시뮬레이션하려면 그 아래 점수까지 받아 둬야 한다. */
+    private static final double KEYWORD_FETCH_FLOOR = 0.01;
+    private static final double[] KEYWORD_SWEEP = {0.05, 0.10, 0.15, 0.18, 0.20, 0.25, 0.30, 0.35, 0.40};
     /** 직전 운영값(변경 1). T_floor 는 이 값을 넘지 않게 고른다. */
     private static final double CURRENT_VEC = 0.57;
     private static final double CURRENT_FLOOR = 0.47;
@@ -74,7 +78,7 @@ class VectorThresholdCalibrationTest extends PostgresVectorIntegrationTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
 
-    /** 질의 하나의 청크별 점수. keyword 는 임계 0.18 을 넘은 후보만 있다 — 운영과 같다. */
+    /** 질의 하나의 청크별 점수. keyword 는 {@link #KEYWORD_FETCH_FLOOR} 미만이면 0 이다. */
     private record Scored(String query, String expectedTitle, List<Chunk> chunks) {
     }
 
@@ -132,7 +136,7 @@ class VectorThresholdCalibrationTest extends PostgresVectorIntegrationTest {
         Map<Long, Double> keyword = new HashMap<>();
         String cleaned = KoreanQueryPreprocessor.forKeywordSearch(query);
         if (!cleaned.isBlank()) {
-            for (ScoredManualChunk c : retrievalRepository.findKeywordCandidates(cleaned, MIN_KEYWORD_SCORE, 20, ManualVisibility.CUSTOMER)) {
+            for (ScoredManualChunk c : retrievalRepository.findKeywordCandidates(cleaned, KEYWORD_FETCH_FLOOR, 1000, ManualVisibility.CUSTOMER)) {
                 keyword.put(c.chunk().id(), c.score());
             }
         }
@@ -147,19 +151,19 @@ class VectorThresholdCalibrationTest extends PostgresVectorIntegrationTest {
         return Math.ceil((maxLeak + MARGIN) * 100) / 100.0;
     }
 
-    private static boolean passes(Chunk c, double vec, double floor) {
-        return c.vector() >= vec || (c.keyword() >= MIN_KEYWORD_SCORE && c.vector() >= floor);
+    private static boolean passes(Chunk c, double vec, double floor, double keyword) {
+        return c.vector() >= vec || (c.keyword() >= keyword && c.vector() >= floor);
     }
 
     /** 관련 질의: 기대 문서의 청크가 하나라도 게이트를 통과하는가. */
-    private static long relevantHits(List<Scored> rel, double vec, double floor) {
+    private static long relevantHits(List<Scored> rel, double vec, double floor, double keyword) {
         return rel.stream().filter(s -> s.chunks().stream()
-                .anyMatch(c -> c.title().equals(s.expectedTitle()) && passes(c, vec, floor))).count();
+                .anyMatch(c -> c.title().equals(s.expectedTitle()) && passes(c, vec, floor, keyword))).count();
     }
 
     /** 무관 질의: 어떤 청크든 게이트를 통과하는가 (= 결과가 비지 않는가). */
-    private static long irrelevantLeaks(List<Scored> irr, double vec, double floor) {
-        return irr.stream().filter(s -> s.chunks().stream().anyMatch(c -> passes(c, vec, floor))).count();
+    private static long irrelevantLeaks(List<Scored> irr, double vec, double floor, double keyword) {
+        return irr.stream().filter(s -> s.chunks().stream().anyMatch(c -> passes(c, vec, floor, keyword))).count();
     }
 
     private String summary(List<Scored> rel, List<Scored> irr, List<Scored> unreachable, double vec, double floor) {
@@ -194,12 +198,28 @@ class VectorThresholdCalibrationTest extends PostgresVectorIntegrationTest {
         sb.append(row(vec, floor, rel, irr, " **← 선택**"));
         sb.append("\n**선택 규칙**: 각 경로로 새어 나간 무관 질의의 최고 vector 점수 + ").append(MARGIN)
                 .append(", 0.01 단위 올림 (T_floor 는 직전값을 넘지 않는다)\n");
+
+        sb.append("\n## keyword 하한 시뮬레이션\n\n선택한 T_vec · T_floor 를 고정하고 keyword 하한만 바꾼다.\n\n")
+                .append("| keyword 하한 | 관련 통과 | 무관 통과(거짓 양성) |\n|---|---|---|\n")
+                .append(keywordRow("0 (조건 없음)", 0.0, vec, floor, rel, irr));
+        for (double k : KEYWORD_SWEEP) {
+            String label = "%.2f".formatted(k) + (k == MIN_KEYWORD_SCORE ? " **← 운영**" : "");
+            sb.append(keywordRow(label, k, vec, floor, rel, irr));
+        }
+        sb.append(keywordRow("keyword 경로 닫힘", Double.MAX_VALUE, vec, floor, rel, irr));
         return sb.toString();
     }
 
     private static String row(double vec, double floor, List<Scored> rel, List<Scored> irr, String note) {
         return "| %.2f | %.2f | %d/%d | %d/%d |%s%n".formatted(vec, floor,
-                relevantHits(rel, vec, floor), rel.size(), irrelevantLeaks(irr, vec, floor), irr.size(), note);
+                relevantHits(rel, vec, floor, MIN_KEYWORD_SCORE), rel.size(),
+                irrelevantLeaks(irr, vec, floor, MIN_KEYWORD_SCORE), irr.size(), note);
+    }
+
+    private static String keywordRow(String label, double keyword, double vec, double floor,
+                                     List<Scored> rel, List<Scored> irr) {
+        return "| %s | %d/%d | %d/%d |%n".formatted(label,
+                relevantHits(rel, vec, floor, keyword), rel.size(), irrelevantLeaks(irr, vec, floor, keyword), irr.size());
     }
 
     private static String distRow(String name, List<Double> sorted) {
