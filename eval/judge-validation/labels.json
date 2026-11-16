@@ -1,0 +1,182 @@
+[
+ {
+  "item": 1,
+  "id": "O05",
+  "agent": "claude",
+  "human": "O",
+  "claude": "X",
+  "orig": "X",
+  "gemini": "X"
+ },
+ {
+  "item": 2,
+  "id": "S04",
+  "agent": "claude",
+  "human": "O",
+  "claude": "O",
+  "orig": "O",
+  "gemini": "O"
+ },
+ {
+  "item": 3,
+  "id": "S05",
+  "agent": "claude",
+  "human": "O",
+  "claude": "X",
+  "orig": "X",
+  "gemini": "O"
+ },
+ {
+  "item": 4,
+  "id": "O10",
+  "agent": "gpt",
+  "human": "O",
+  "claude": "X",
+  "orig": "O",
+  "gemini": "O"
+ },
+ {
+  "item": 5,
+  "id": "O03",
+  "agent": "gpt",
+  "human": "O",
+  "claude": "O",
+  "orig": "O",
+  "gemini": "O"
+ },
+ {
+  "item": 6,
+  "id": "O01",
+  "agent": "claude",
+  "human": "O",
+  "claude": "O",
+  "orig": "O",
+  "gemini": "O"
+ },
+ {
+  "item": 7,
+  "id": "C08",
+  "agent": "gpt",
+  "human": "O",
+  "claude": "O",
+  "orig": "O",
+  "gemini": "O"
+ },
+ {
+  "item": 8,
+  "id": "P06",
+  "agent": "claude",
+  "human": "O",
+  "claude": "X",
+  "orig": "X",
+  "gemini": "O"
+ },
+ {
+  "item": 9,
+  "id": "C09",
+  "agent": "claude",
+  "human": "O",
+  "claude": "X",
+  "orig": "X",
+  "gemini": "O"
+ },
+ {
+  "item": 10,
+  "id": "C01",
+  "agent": "claude",
+  "human": "O",
+  "claude": "O",
+  "orig": "O",
+  "gemini": "O"
+ },
+ {
+  "item": 11,
+  "id": "I01",
+  "agent": "claude",
+  "human": null,
+  "claude": "O",
+  "orig": "O",
+  "gemini": "O"
+ },
+ {
+  "item": 12,
+  "id": "O05",
+  "agent": "gpt",
+  "human": null,
+  "claude": "O",
+  "orig": "O",
+  "gemini": "X"
+ },
+ {
+  "item": 13,
+  "id": "S07",
+  "agent": "claude",
+  "human": null,
+  "claude": "O",
+  "orig": "X",
+  "gemini": "O"
+ },
+ {
+  "item": 14,
+  "id": "P02",
+  "agent": "claude",
+  "human": null,
+  "claude": "X",
+  "orig": "X",
+  "gemini": "O"
+ },
+ {
+  "item": 15,
+  "id": "O09",
+  "agent": "claude",
+  "human": null,
+  "claude": "X",
+  "orig": "X",
+  "gemini": "O"
+ },
+ {
+  "item": 16,
+  "id": "C09",
+  "agent": "gpt",
+  "human": null,
+  "claude": "O",
+  "orig": "O",
+  "gemini": "O"
+ },
+ {
+  "item": 17,
+  "id": "S02",
+  "agent": "gpt",
+  "human": null,
+  "claude": "O",
+  "orig": "O",
+  "gemini": "O"
+ },
+ {
+  "item": 18,
+  "id": "C07",
+  "agent": "gpt",
+  "human": null,
+  "claude": "X",
+  "orig": "O",
+  "gemini": "X"
+ },
+ {
+  "item": 19,
+  "id": "I03",
+  "agent": "claude",
+  "human": null,
+  "claude": "X",
+  "orig": "X",
+  "gemini": "O"
+ },
+ {
+  "item": 20,
+  "id": "O02",
+  "agent": "claude",
+  "human": null,
+  "claude": "O",
+  "orig": "O",
+  "gemini": "O"
+ }
+]
