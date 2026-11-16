@@ -187,6 +187,37 @@ class ManualRetrievalEvaluationTest extends PostgresVectorIntegrationTest {
         assertThat(retrieved.get(0).manualDocumentTitle()).isEqualTo("반품 정책");
     }
 
+    /** 순위 검증용 질의. 골든셋 CSV 밖의 질의라 {@link FakeEmbeddingConfig} 가 따로 벡터를 둔다. */
+    static final String RANKING_QUERY = "멤버십 포인트 소멸 기한";
+    static final int RANKING_KEYWORD_AXIS = 40;
+    static final int RANKING_VECTOR_AXIS = 41;
+
+    @Test
+    @DisplayName("[순위] 두 문서가 함께 통과하면 vector·keyword 양쪽에 걸린 문서가 vector 1위만 한 문서보다 앞선다")
+    void fusionRanksDocumentFoundByBothPathsAboveVectorOnlyTopHit() {
+        // 위 골든셋 케이스는 문서 벡터가 서로 직교라 질의마다 게이트를 넘는 문서가 하나뿐이다 — 순서를 뒤집어도
+        // 지표가 같아 RRF 를 검증하지 못한다. 여기서는 두 문서를 함께 통과시키고 순서를 단언한다.
+        //
+        // 질의 벡터 = 0.6·e40 + 0.7·e41 + 0.387·e42 (단위 벡터) → 둘 다 vector 단독 임계(0.54) 위
+        // - 포인트 문서: vector 0.60 (2위) + keyword 1위 → RRF 1/62 + 1/61 ≈ 0.0325
+        // - 배송 문서:   vector 0.70 (1위), keyword 없음 → RRF 1/61 ≈ 0.0164
+        // 정렬 방향을 뒤집거나 keyword 순위를 RRF 에서 빼면 배송 문서가 1위가 되어 실패한다.
+        // RRF_K 값 자체는 이 구성으로 고정되지 않는다 — K 를 바꿔도 이 두 문서의 순서는 같다.
+        seedManualDocument(201L, "포인트 정책", "MEMBERSHIP",
+                "멤버십 포인트는 적립일로부터 1년이 지나면 소멸되며, 소멸 기한 7일 전에 알림을 보냅니다.", RANKING_KEYWORD_AXIS);
+        seedManualDocument(202L, "배송 일정 안내", "DELIVERY",
+                "출고 후 영업일 기준 2~3일 안에 도착합니다.", RANKING_VECTOR_AXIS);
+
+        List<RetrievedManualChunkDto> retrieved = manualRetrievalService.retrieve(RANKING_QUERY);
+
+        assertThat(retrieved).extracting(RetrievedManualChunkDto::manualDocumentTitle)
+                .containsExactly("포인트 정책", "배송 일정 안내");
+        // 전제 확인 — 배송 문서가 vector 로는 더 가깝고, 포인트 문서만 keyword 에 걸렸다
+        assertThat(retrieved.get(1).similarityScore()).isGreaterThan(retrieved.get(0).similarityScore());
+        assertThat(retrieved.get(0).keywordScore()).isNotNull();
+        assertThat(retrieved.get(1).keywordScore()).isNull();
+    }
+
     private void seedDistractorChunk(long id, String content, int noiseAxis) {
         LocalDateTime now = LocalDateTime.now();
         jdbcTemplate.update("""
@@ -290,6 +321,8 @@ class ManualRetrievalEvaluationTest extends PostgresVectorIntegrationTest {
             for (RagEvaluationCase c : cases) {
                 map.put(c.query(), vectorFor(c));
             }
+            map.put(RANKING_QUERY, sparseVector(Map.of(
+                    RANKING_KEYWORD_AXIS, 0.6, RANKING_VECTOR_AXIS, 0.7, RANKING_VECTOR_AXIS + 1, Math.sqrt(0.15))));
             return map;
         }
 
