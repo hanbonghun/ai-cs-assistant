@@ -20,7 +20,6 @@ import com.aicsassistant.llm.OpenAiClient;
 import com.aicsassistant.manual.application.ManualService;
 import com.aicsassistant.order.application.OrderService;
 import com.aicsassistant.support.PostgresVectorIntegrationTest;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.file.Path;
 import java.time.LocalDate;

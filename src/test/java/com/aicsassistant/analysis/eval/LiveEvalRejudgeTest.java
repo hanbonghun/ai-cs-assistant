@@ -23,8 +23,9 @@ import org.junit.jupiter.api.Test;
  *
  * <p>이전 실행은 에이전트와 같은 모델이 채점해서, 모델을 바꾼 실행과 judge 지표를 나란히 둘 수 없었다.
  * 답변과 도구 관측 원문이 {@code cases.jsonl} 에 남아 있으므로 judge 만 바꿔 다시 매긴다. 결과는 각 실행 아래
- * {@code judge-<모델>/} 에, 실행 전체 비교표는 {@code eval/runs/comparison-judge-<모델>.md} 에 쓴다.
- * 이미 채점한 실행은 건너뛴다 — 다시 매기려면 그 디렉터리를 지운다.
+ * {@code judge-<모델>-v<채점기 버전>/} 에, 실행 전체 비교표는 {@code eval/runs/comparison-judge-<모델>-v<버전>.md} 에
+ * 쓴다. 이미 채점한 실행은 건너뛴다 — 다시 매기려면 그 디렉터리를 지운다. judge 호출이 한 건이라도 실패한 실행은
+ * 쓰지 않고 실패시킨다(다시 돌리면 그 실행부터 다시 매긴다).
  *
  * <p>현재 채점기 버전으로 매긴 원자료({@code rescore-v<버전>/} 가 있으면 그쪽)만, 그리고 도구 관측 원문이 남은
  * 실행만 대상이다(기준선·변경 1 은 없다). judge 외 지표는
@@ -40,7 +41,8 @@ class LiveEvalRejudgeTest {
     @Test
     void rejudgeAllRuns() throws Exception {
         LiveEvalJudge judge = LiveEvalJudge.fromSystemProperties(mapper);
-        String outDirName = "judge-" + judge.model();
+        // 채점기 버전을 이름에 넣는다 — 버전이 오르면 새 디렉터리로 다시 매기고, 옛 잣대의 결과를 섞지 않는다
+        String outDirName = "judge-" + judge.model() + "-v" + LiveEvalScorer.VERSION;
         Map<String, String> labels = parseLabels(System.getProperty("liveEval.labels", ""));
 
         List<Path> runs;
@@ -74,6 +76,12 @@ class LiveEvalRejudgeTest {
                     if (!line.isBlank()) {
                         rejudged.add(rejudge((ObjectNode) mapper.readTree(line), judge, today));
                     }
+                }
+                // 오류 난 케이스는 분모에서 빠진다. 그대로 쓰면 다음 실행부터 건너뛰어 줄어든 분모가 굳으므로 쓰지 않는다
+                List<String> errored = rejudged.stream().filter(r -> r.path("judge").has("error"))
+                        .map(r -> r.path("id").asText()).toList();
+                if (!errored.isEmpty()) {
+                    throw new IllegalStateException("judge 오류로 " + run.getFileName() + " 를 쓰지 않는다: " + errored);
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> meta = mapper.convertValue(sourceMeta, LinkedHashMap.class);
