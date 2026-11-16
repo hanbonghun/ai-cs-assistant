@@ -35,8 +35,9 @@ import org.springframework.stereotype.Component;
  *   <li>Opus 5.5 는 {@code temperature} 를 받지 않고(400) 사고를 끌 수도 없다 — effort 로만 조절한다.</li>
  *   <li>캐시는 자동이 아니다. 최상위 {@code cache_control} 로 "마지막 메시지까지" 를 캐시 지점으로 잡는다.
  *       에이전트 루프는 매 스텝 앞부분이 그대로라 다음 스텝이 그 접두부를 읽는다.</li>
- *   <li>안전 분류기가 거절하면 HTTP 200 + {@code stop_reason=refusal} 로 온다. 서버 측 폴백을 켜 두고,
- *       그래도 거절이면 예외로 올린다 — 빈 본문을 파서에 넘기면 원인이 "JSON 파싱 실패" 로 둔갑한다.</li>
+ *   <li>안전 분류기가 거절하면 HTTP 200 + {@code stop_reason=refusal} 로 온다. 운영은 서버 측 폴백을 켜고
+ *       ({@code fallback}, 평가 judge 는 끈다), 그래도 거절이면 예외로 올린다 — 빈 본문을 파서에 넘기면 원인이
+ *       "JSON 파싱 실패" 로 둔갑한다.</li>
  * </ul>
  */
 @Component

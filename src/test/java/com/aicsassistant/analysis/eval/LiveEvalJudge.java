@@ -27,6 +27,9 @@ import org.springframework.web.reactive.function.client.WebClient;
  * <p>Spring 컨텍스트 밖에서 만든다. 재채점({@link LiveEvalRejudgeTest})은 DB 없이 저장된 원자료만 읽기 때문이다.
  * 공급자·모델은 {@code -PjudgeProvider} · {@code -PjudgeModel} 로 바꿀 수 있다. 기본은 Claude Opus 5.5 —
  * 에이전트 기본값(gpt-4.1-mini)과 계열이 다르다. Claude 에이전트를 평가할 때는 같은 계열이라는 조건이 붙는다.
+ *
+ * <p>아래 프롬프트를 바꾸면 {@link LiveEvalScorer#VERSION} 을 올린다 — 재채점 결과는 그 버전으로만 구분되므로,
+ * 올리지 않으면 옛 프롬프트로 매긴 결과가 그대로 재사용된다.
  */
 final class LiveEvalJudge {
 
