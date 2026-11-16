@@ -26,6 +26,8 @@ final class AgentTrace implements AutoCloseable {
     static final String OUTCOME_FOLLOW_UP = "follow_up";
     static final String OUTCOME_FORCED_FINAL = "forced_final_answer";
     static final String OUTCOME_FORCED_SYNTHETIC = "forced_final_synthetic";
+    /** 재질문 상한을 넘긴 추가 질문을 코드가 상담사 검토로 바꾼 경우. 오르면 프롬프트의 횟수 지시가 안 먹고 있다. */
+    static final String OUTCOME_FOLLOW_UP_LIMIT = "follow_up_limit";
 
     private static final AttributeKey<String> ATTR_LF_TRACE_NAME = AttributeKey.stringKey("langfuse.trace.name");
     private static final AttributeKey<String> ATTR_LF_INPUT = AttributeKey.stringKey("langfuse.observation.input");
@@ -88,8 +90,8 @@ final class AgentTrace implements AutoCloseable {
      * category/urgency 가 null 이다.
      *
      * @param outcome {@link #OUTCOME_FINAL_ANSWER} · {@link #OUTCOME_FORCED_FINAL} ·
-     *                {@link #OUTCOME_FORCED_SYNTHETIC} 중 하나. 뒤 둘의 비율이 오르면 모델이
-     *                형식을 못 맞추고 있다는 신호다
+     *                {@link #OUTCOME_FORCED_SYNTHETIC} · {@link #OUTCOME_FOLLOW_UP_LIMIT} 중 하나.
+     *                forced 둘의 비율이 오르면 모델이 형식을 못 맞추고 있다는 신호다
      */
     void recordAnswer(AgentResult.FinalAnswer answer, String outcome, int totalTokens, int stepCount) {
         log.info("[Agent {}] inquiryId={} steps={} totalTokens={}", outcome, inquiryId, stepCount, totalTokens);
