@@ -202,7 +202,7 @@ class ManualRetrievalEvaluationTest extends PostgresVectorIntegrationTest {
         // - 포인트 문서: vector 0.60 (2위) + keyword 1위 → RRF 1/62 + 1/61 ≈ 0.0325
         // - 배송 문서:   vector 0.70 (1위), keyword 없음 → RRF 1/61 ≈ 0.0164
         // 정렬 방향을 뒤집거나 keyword 순위를 RRF 에서 빼면 배송 문서가 1위가 되어 실패한다.
-        // RRF_K 값 자체는 이 구성으로 고정되지 않는다 — K 를 바꿔도 이 두 문서의 순서는 같다.
+        // 고정하지 못하는 것: RRF_K 값(K 를 바꿔도 순서가 같다), vector 항 제거(포인트 문서가 keyword 만으로도 1위다).
         seedManualDocument(201L, "포인트 정책", "MEMBERSHIP",
                 "멤버십 포인트는 적립일로부터 1년이 지나면 소멸되며, 소멸 기한 7일 전에 알림을 보냅니다.", RANKING_KEYWORD_AXIS);
         seedManualDocument(202L, "배송 일정 안내", "DELIVERY",

@@ -52,7 +52,7 @@ dependencies {
 tasks.named('test') {
     // 실측 평가·보정은 API 비용이 든다 — 기본 빌드에서 빼고 liveEval · liveCalibrate 로만 돌린다 (ADR 0010)
     useJUnitPlatform {
-        excludeTags 'live-eval', 'live-calibration', 'live-rescore'
+        excludeTags 'live-eval', 'live-calibration', 'live-rescore', 'live-rejudge'
     }
 }
 
@@ -82,6 +82,13 @@ def liveTestTask = { String name, String tag, String desc ->
         systemProperty 'liveEval.judge', findProperty('judge') ?: 'true'
         systemProperty 'liveEval.label', findProperty('label') ?: ''
         systemProperty 'liveEval.labels', findProperty('labels') ?: ''
+        // judge 는 에이전트와 따로 고정한다(LiveEvalJudge). 기본 anthropic / claude-opus-5-5
+        if (findProperty('judgeProvider')) {
+            systemProperty 'liveEval.judgeProvider', findProperty('judgeProvider')
+        }
+        if (findProperty('judgeModel')) {
+            systemProperty 'liveEval.judgeModel', findProperty('judgeModel')
+        }
         outputs.upToDateWhen { false }
         testLogging {
             showStandardStreams = true
@@ -95,3 +102,5 @@ liveTestTask('liveEval', 'live-eval', 'Runs the live RAG evaluation set against 
 liveTestTask('liveCalibrate', 'live-calibration', 'Measures real embedding similarity distribution for threshold calibration.')
 // 저장된 실행을 현재 채점기로 다시 매긴다. 모델·DB 를 쓰지 않는다. 라벨: -Plabels=20261112-062310=기준선,...
 liveTestTask('liveRescore', 'live-rescore', 'Rescores saved live-eval runs with the current scorer (no API calls).')
+// 저장된 실행의 judge 만 고정 judge 모델로 다시 매긴다. 에이전트·DB 는 쓰지 않는다. 실행 하나당 judge 호출 ~50회.
+liveTestTask('liveRejudge', 'live-rejudge', 'Re-judges saved live-eval runs with the fixed judge model (calls the judge API).')
